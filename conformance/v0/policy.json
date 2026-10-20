@@ -1,0 +1,856 @@
+[
+  {
+    "id": "basic-verified",
+    "policy": {
+      "profile": "basic"
+    },
+    "now": 100,
+    "context": {
+      "authentication": "authenticated",
+      "verification": "verified",
+      "attestation": "verified",
+      "attestation_expires": 101,
+      "risk_signals": [],
+      "rate_limited": false
+    },
+    "expected": {
+      "action": "allow",
+      "code": "ALLOWED",
+      "profile": "basic"
+    }
+  },
+  {
+    "id": "balanced-verified",
+    "policy": {
+      "profile": "balanced"
+    },
+    "now": 100,
+    "context": {
+      "authentication": "authenticated",
+      "verification": "verified",
+      "attestation": "verified",
+      "attestation_expires": 101,
+      "risk_signals": [],
+      "rate_limited": false
+    },
+    "expected": {
+      "action": "allow",
+      "code": "ALLOWED",
+      "profile": "balanced"
+    }
+  },
+  {
+    "id": "strict-verified",
+    "policy": {
+      "profile": "strict"
+    },
+    "now": 100,
+    "context": {
+      "authentication": "authenticated",
+      "verification": "verified",
+      "attestation": "verified",
+      "attestation_expires": 101,
+      "risk_signals": [],
+      "rate_limited": false
+    },
+    "expected": {
+      "action": "allow",
+      "code": "ALLOWED",
+      "profile": "strict"
+    }
+  },
+  {
+    "id": "basic-auth-missing",
+    "policy": {
+      "profile": "basic"
+    },
+    "now": 100,
+    "context": {
+      "authentication": "missing",
+      "verification": "verified",
+      "attestation": "verified",
+      "attestation_expires": 101,
+      "risk_signals": [],
+      "rate_limited": false
+    },
+    "expected": {
+      "action": "deny",
+      "code": "AUTHENTICATION_REQUIRED",
+      "profile": "basic"
+    }
+  },
+  {
+    "id": "balanced-auth-missing",
+    "policy": {
+      "profile": "balanced"
+    },
+    "now": 100,
+    "context": {
+      "authentication": "missing",
+      "verification": "verified",
+      "attestation": "verified",
+      "attestation_expires": 101,
+      "risk_signals": [],
+      "rate_limited": false
+    },
+    "expected": {
+      "action": "deny",
+      "code": "AUTHENTICATION_REQUIRED",
+      "profile": "balanced"
+    }
+  },
+  {
+    "id": "strict-auth-invalid",
+    "policy": {
+      "profile": "strict"
+    },
+    "now": 100,
+    "context": {
+      "authentication": "invalid",
+      "verification": "verified",
+      "attestation": "verified",
+      "attestation_expires": 101,
+      "risk_signals": [],
+      "rate_limited": false
+    },
+    "expected": {
+      "action": "deny",
+      "code": "AUTHENTICATION_INVALID",
+      "profile": "strict"
+    }
+  },
+  {
+    "id": "basic-request-rejected",
+    "policy": {
+      "profile": "basic"
+    },
+    "now": 100,
+    "context": {
+      "authentication": "authenticated",
+      "verification": "rejected",
+      "attestation": "verified",
+      "attestation_expires": 101,
+      "risk_signals": [],
+      "rate_limited": false
+    },
+    "expected": {
+      "action": "deny",
+      "code": "REQUEST_REJECTED",
+      "profile": "basic"
+    }
+  },
+  {
+    "id": "balanced-verification-unavailable",
+    "policy": {
+      "profile": "balanced"
+    },
+    "now": 100,
+    "context": {
+      "authentication": "authenticated",
+      "verification": "unavailable",
+      "attestation": "verified",
+      "attestation_expires": 101,
+      "risk_signals": [],
+      "rate_limited": false
+    },
+    "expected": {
+      "action": "deny",
+      "code": "VERIFICATION_UNAVAILABLE",
+      "profile": "balanced"
+    }
+  },
+  {
+    "id": "basic-signature-required",
+    "policy": {
+      "profile": "basic"
+    },
+    "now": 100,
+    "context": {
+      "authentication": "authenticated",
+      "verification": "missing",
+      "attestation": "verified",
+      "attestation_expires": 101,
+      "risk_signals": [],
+      "rate_limited": false
+    },
+    "expected": {
+      "action": "deny",
+      "code": "SIGNATURE_REQUIRED",
+      "profile": "basic"
+    }
+  },
+  {
+    "id": "balanced-signature-required",
+    "policy": {
+      "profile": "balanced"
+    },
+    "now": 100,
+    "context": {
+      "authentication": "authenticated",
+      "verification": "missing",
+      "attestation": "verified",
+      "attestation_expires": 101,
+      "risk_signals": [],
+      "rate_limited": false
+    },
+    "expected": {
+      "action": "deny",
+      "code": "SIGNATURE_REQUIRED",
+      "profile": "balanced"
+    }
+  },
+  {
+    "id": "strict-signature-required",
+    "policy": {
+      "profile": "strict"
+    },
+    "now": 100,
+    "context": {
+      "authentication": "authenticated",
+      "verification": "missing",
+      "attestation": "verified",
+      "attestation_expires": 101,
+      "risk_signals": [],
+      "rate_limited": false
+    },
+    "expected": {
+      "action": "deny",
+      "code": "SIGNATURE_REQUIRED",
+      "profile": "strict"
+    }
+  },
+  {
+    "id": "basic-attestation-missing",
+    "policy": {
+      "profile": "basic"
+    },
+    "now": 100,
+    "context": {
+      "authentication": "authenticated",
+      "verification": "verified",
+      "attestation": "missing",
+      "attestation_expires": null,
+      "risk_signals": [],
+      "rate_limited": false
+    },
+    "expected": {
+      "action": "observe",
+      "code": "ATTESTATION_MISSING",
+      "profile": "basic"
+    }
+  },
+  {
+    "id": "balanced-attestation-missing",
+    "policy": {
+      "profile": "balanced"
+    },
+    "now": 100,
+    "context": {
+      "authentication": "authenticated",
+      "verification": "verified",
+      "attestation": "missing",
+      "attestation_expires": null,
+      "risk_signals": [],
+      "rate_limited": false
+    },
+    "expected": {
+      "action": "step_up",
+      "code": "ATTESTATION_MISSING",
+      "profile": "balanced"
+    }
+  },
+  {
+    "id": "strict-attestation-missing",
+    "policy": {
+      "profile": "strict"
+    },
+    "now": 100,
+    "context": {
+      "authentication": "authenticated",
+      "verification": "verified",
+      "attestation": "missing",
+      "attestation_expires": null,
+      "risk_signals": [],
+      "rate_limited": false
+    },
+    "expected": {
+      "action": "deny",
+      "code": "ATTESTATION_MISSING",
+      "profile": "strict"
+    }
+  },
+  {
+    "id": "basic-attestation-unsupported",
+    "policy": {
+      "profile": "basic"
+    },
+    "now": 100,
+    "context": {
+      "authentication": "authenticated",
+      "verification": "verified",
+      "attestation": "unsupported",
+      "attestation_expires": 101,
+      "risk_signals": [],
+      "rate_limited": false
+    },
+    "expected": {
+      "action": "observe",
+      "code": "ATTESTATION_UNSUPPORTED",
+      "profile": "basic"
+    }
+  },
+  {
+    "id": "balanced-attestation-unsupported",
+    "policy": {
+      "profile": "balanced"
+    },
+    "now": 100,
+    "context": {
+      "authentication": "authenticated",
+      "verification": "verified",
+      "attestation": "unsupported",
+      "attestation_expires": 101,
+      "risk_signals": [],
+      "rate_limited": false
+    },
+    "expected": {
+      "action": "step_up",
+      "code": "ATTESTATION_UNSUPPORTED",
+      "profile": "balanced"
+    }
+  },
+  {
+    "id": "strict-attestation-unsupported",
+    "policy": {
+      "profile": "strict"
+    },
+    "now": 100,
+    "context": {
+      "authentication": "authenticated",
+      "verification": "verified",
+      "attestation": "unsupported",
+      "attestation_expires": 101,
+      "risk_signals": [],
+      "rate_limited": false
+    },
+    "expected": {
+      "action": "deny",
+      "code": "ATTESTATION_UNSUPPORTED",
+      "profile": "strict"
+    }
+  },
+  {
+    "id": "basic-attestation-unavailable",
+    "policy": {
+      "profile": "basic"
+    },
+    "now": 100,
+    "context": {
+      "authentication": "authenticated",
+      "verification": "verified",
+      "attestation": "unavailable",
+      "attestation_expires": 101,
+      "risk_signals": [],
+      "rate_limited": false
+    },
+    "expected": {
+      "action": "observe",
+      "code": "ATTESTATION_UNAVAILABLE",
+      "profile": "basic"
+    }
+  },
+  {
+    "id": "balanced-attestation-unavailable",
+    "policy": {
+      "profile": "balanced"
+    },
+    "now": 100,
+    "context": {
+      "authentication": "authenticated",
+      "verification": "verified",
+      "attestation": "unavailable",
+      "attestation_expires": 101,
+      "risk_signals": [],
+      "rate_limited": false
+    },
+    "expected": {
+      "action": "step_up",
+      "code": "ATTESTATION_UNAVAILABLE",
+      "profile": "balanced"
+    }
+  },
+  {
+    "id": "strict-attestation-unavailable",
+    "policy": {
+      "profile": "strict"
+    },
+    "now": 100,
+    "context": {
+      "authentication": "authenticated",
+      "verification": "verified",
+      "attestation": "unavailable",
+      "attestation_expires": 101,
+      "risk_signals": [],
+      "rate_limited": false
+    },
+    "expected": {
+      "action": "deny",
+      "code": "ATTESTATION_UNAVAILABLE",
+      "profile": "strict"
+    }
+  },
+  {
+    "id": "basic-attestation-rejected",
+    "policy": {
+      "profile": "basic"
+    },
+    "now": 100,
+    "context": {
+      "authentication": "authenticated",
+      "verification": "verified",
+      "attestation": "rejected",
+      "attestation_expires": 101,
+      "risk_signals": [],
+      "rate_limited": false
+    },
+    "expected": {
+      "action": "deny",
+      "code": "ATTESTATION_REJECTED",
+      "profile": "basic"
+    }
+  },
+  {
+    "id": "balanced-attestation-rejected",
+    "policy": {
+      "profile": "balanced"
+    },
+    "now": 100,
+    "context": {
+      "authentication": "authenticated",
+      "verification": "verified",
+      "attestation": "rejected",
+      "attestation_expires": 101,
+      "risk_signals": [],
+      "rate_limited": false
+    },
+    "expected": {
+      "action": "deny",
+      "code": "ATTESTATION_REJECTED",
+      "profile": "balanced"
+    }
+  },
+  {
+    "id": "strict-attestation-rejected",
+    "policy": {
+      "profile": "strict"
+    },
+    "now": 100,
+    "context": {
+      "authentication": "authenticated",
+      "verification": "verified",
+      "attestation": "rejected",
+      "attestation_expires": 101,
+      "risk_signals": [],
+      "rate_limited": false
+    },
+    "expected": {
+      "action": "deny",
+      "code": "ATTESTATION_REJECTED",
+      "profile": "strict"
+    }
+  },
+  {
+    "id": "basic-expiry-boundary",
+    "policy": {
+      "profile": "basic"
+    },
+    "now": 100,
+    "context": {
+      "authentication": "authenticated",
+      "verification": "verified",
+      "attestation": "verified",
+      "attestation_expires": 100,
+      "risk_signals": [],
+      "rate_limited": false
+    },
+    "expected": {
+      "action": "observe",
+      "code": "ATTESTATION_EXPIRED",
+      "profile": "basic"
+    }
+  },
+  {
+    "id": "balanced-expiry-boundary",
+    "policy": {
+      "profile": "balanced"
+    },
+    "now": 100,
+    "context": {
+      "authentication": "authenticated",
+      "verification": "verified",
+      "attestation": "verified",
+      "attestation_expires": 100,
+      "risk_signals": [],
+      "rate_limited": false
+    },
+    "expected": {
+      "action": "step_up",
+      "code": "ATTESTATION_EXPIRED",
+      "profile": "balanced"
+    }
+  },
+  {
+    "id": "strict-expiry-boundary",
+    "policy": {
+      "profile": "strict"
+    },
+    "now": 100,
+    "context": {
+      "authentication": "authenticated",
+      "verification": "verified",
+      "attestation": "verified",
+      "attestation_expires": 100,
+      "risk_signals": [],
+      "rate_limited": false
+    },
+    "expected": {
+      "action": "deny",
+      "code": "ATTESTATION_EXPIRED",
+      "profile": "strict"
+    }
+  },
+  {
+    "id": "basic-verified-without-expiry",
+    "policy": {
+      "profile": "basic"
+    },
+    "now": 100,
+    "context": {
+      "authentication": "authenticated",
+      "verification": "verified",
+      "attestation": "verified",
+      "attestation_expires": null,
+      "risk_signals": [],
+      "rate_limited": false
+    },
+    "expected": {
+      "action": "observe",
+      "code": "ATTESTATION_EXPIRED",
+      "profile": "basic"
+    }
+  },
+  {
+    "id": "balanced-verified-without-expiry",
+    "policy": {
+      "profile": "balanced"
+    },
+    "now": 100,
+    "context": {
+      "authentication": "authenticated",
+      "verification": "verified",
+      "attestation": "verified",
+      "attestation_expires": null,
+      "risk_signals": [],
+      "rate_limited": false
+    },
+    "expected": {
+      "action": "step_up",
+      "code": "ATTESTATION_EXPIRED",
+      "profile": "balanced"
+    }
+  },
+  {
+    "id": "strict-verified-without-expiry",
+    "policy": {
+      "profile": "strict"
+    },
+    "now": 100,
+    "context": {
+      "authentication": "authenticated",
+      "verification": "verified",
+      "attestation": "verified",
+      "attestation_expires": null,
+      "risk_signals": [],
+      "rate_limited": false
+    },
+    "expected": {
+      "action": "deny",
+      "code": "ATTESTATION_EXPIRED",
+      "profile": "strict"
+    }
+  },
+  {
+    "id": "basic-debugger",
+    "policy": {
+      "profile": "basic"
+    },
+    "now": 100,
+    "context": {
+      "authentication": "authenticated",
+      "verification": "verified",
+      "attestation": "verified",
+      "attestation_expires": 101,
+      "risk_signals": [
+        "debugger"
+      ],
+      "rate_limited": false
+    },
+    "expected": {
+      "action": "observe",
+      "code": "RISK_DETECTED",
+      "profile": "basic"
+    }
+  },
+  {
+    "id": "balanced-root",
+    "policy": {
+      "profile": "balanced"
+    },
+    "now": 100,
+    "context": {
+      "authentication": "authenticated",
+      "verification": "verified",
+      "attestation": "verified",
+      "attestation_expires": 101,
+      "risk_signals": [
+        "root"
+      ],
+      "rate_limited": false
+    },
+    "expected": {
+      "action": "step_up",
+      "code": "RISK_DETECTED",
+      "profile": "balanced"
+    }
+  },
+  {
+    "id": "strict-tamper",
+    "policy": {
+      "profile": "strict"
+    },
+    "now": 100,
+    "context": {
+      "authentication": "authenticated",
+      "verification": "verified",
+      "attestation": "verified",
+      "attestation_expires": 101,
+      "risk_signals": [
+        "tamper"
+      ],
+      "rate_limited": false
+    },
+    "expected": {
+      "action": "deny",
+      "code": "RISK_DETECTED",
+      "profile": "strict"
+    }
+  },
+  {
+    "id": "strict-unknown-signal",
+    "policy": {
+      "profile": "strict"
+    },
+    "now": 100,
+    "context": {
+      "authentication": "authenticated",
+      "verification": "verified",
+      "attestation": "verified",
+      "attestation_expires": 101,
+      "risk_signals": [
+        "future_signal"
+      ],
+      "rate_limited": false
+    },
+    "expected": {
+      "action": "allow",
+      "code": "ALLOWED",
+      "profile": "strict"
+    }
+  },
+  {
+    "id": "basic-rate-limited",
+    "policy": {
+      "profile": "basic"
+    },
+    "now": 100,
+    "context": {
+      "authentication": "authenticated",
+      "verification": "verified",
+      "attestation": "verified",
+      "attestation_expires": 101,
+      "risk_signals": [],
+      "rate_limited": true
+    },
+    "expected": {
+      "action": "deny",
+      "code": "RATE_LIMITED",
+      "profile": "basic"
+    }
+  },
+  {
+    "id": "balanced-rate-limited",
+    "policy": {
+      "profile": "balanced"
+    },
+    "now": 100,
+    "context": {
+      "authentication": "authenticated",
+      "verification": "verified",
+      "attestation": "verified",
+      "attestation_expires": 101,
+      "risk_signals": [],
+      "rate_limited": true
+    },
+    "expected": {
+      "action": "deny",
+      "code": "RATE_LIMITED",
+      "profile": "balanced"
+    }
+  },
+  {
+    "id": "strict-rate-limited",
+    "policy": {
+      "profile": "strict"
+    },
+    "now": 100,
+    "context": {
+      "authentication": "authenticated",
+      "verification": "verified",
+      "attestation": "verified",
+      "attestation_expires": 101,
+      "risk_signals": [],
+      "rate_limited": true
+    },
+    "expected": {
+      "action": "deny",
+      "code": "RATE_LIMITED",
+      "profile": "strict"
+    }
+  },
+  {
+    "id": "authentication-precedes-all",
+    "policy": {
+      "profile": "strict"
+    },
+    "now": 100,
+    "context": {
+      "authentication": "invalid",
+      "verification": "rejected",
+      "attestation": "rejected",
+      "attestation_expires": 101,
+      "risk_signals": [
+        "root"
+      ],
+      "rate_limited": true
+    },
+    "expected": {
+      "action": "deny",
+      "code": "AUTHENTICATION_INVALID",
+      "profile": "strict"
+    }
+  },
+  {
+    "id": "request-rejection-precedes-attestation",
+    "policy": {
+      "profile": "balanced"
+    },
+    "now": 100,
+    "context": {
+      "authentication": "authenticated",
+      "verification": "rejected",
+      "attestation": "rejected",
+      "attestation_expires": 101,
+      "risk_signals": [
+        "root"
+      ],
+      "rate_limited": false
+    },
+    "expected": {
+      "action": "deny",
+      "code": "REQUEST_REJECTED",
+      "profile": "balanced"
+    }
+  },
+  {
+    "id": "attestation-rejection-precedes-missing-signature",
+    "policy": {
+      "profile": "basic"
+    },
+    "now": 100,
+    "context": {
+      "authentication": "authenticated",
+      "verification": "missing",
+      "attestation": "rejected",
+      "attestation_expires": 101,
+      "risk_signals": [],
+      "rate_limited": false
+    },
+    "expected": {
+      "action": "deny",
+      "code": "ATTESTATION_REJECTED",
+      "profile": "basic"
+    }
+  },
+  {
+    "id": "rate-limit-precedes-attestation-stepup",
+    "policy": {
+      "profile": "balanced"
+    },
+    "now": 100,
+    "context": {
+      "authentication": "authenticated",
+      "verification": "verified",
+      "attestation": "unavailable",
+      "attestation_expires": 101,
+      "risk_signals": [],
+      "rate_limited": true
+    },
+    "expected": {
+      "action": "deny",
+      "code": "RATE_LIMITED",
+      "profile": "balanced"
+    }
+  },
+  {
+    "id": "basic-explicit-server-only",
+    "policy": {
+      "profile": "basic",
+      "require_signature": false
+    },
+    "now": 100,
+    "context": {
+      "authentication": "authenticated",
+      "verification": "missing",
+      "attestation": "missing",
+      "attestation_expires": null,
+      "risk_signals": [],
+      "rate_limited": false
+    },
+    "expected": {
+      "action": "observe",
+      "code": "ATTESTATION_MISSING",
+      "profile": "basic"
+    }
+  },
+  {
+    "id": "basic-explicit-server-only-rejected-signature",
+    "policy": {
+      "profile": "basic",
+      "require_signature": false
+    },
+    "now": 100,
+    "context": {
+      "authentication": "authenticated",
+      "verification": "rejected",
+      "attestation": "verified",
+      "attestation_expires": 101,
+      "risk_signals": [],
+      "rate_limited": false
+    },
+    "expected": {
+      "action": "deny",
+      "code": "REQUEST_REJECTED",
+      "profile": "basic"
+    }
+  }
+]
