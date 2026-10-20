@@ -1,0 +1,24 @@
+{
+  "name": "@appguard/server",
+  "version": "0.0.0-experimental.0",
+  "private": true,
+  "type": "module",
+  "description": "Experimental AppGuard v0 local server verifier and HTTP adapters",
+  "license": "Apache-2.0",
+  "engines": { "node": ">=22" },
+  "exports": { ".": { "types": "./src/index.d.ts", "import": "./src/index.js" } },
+  "files": ["src", "README.md", "LICENSE"],
+  "scripts": { "test": "node --test test/*.test.js", "test:types": "tsc -p test/tsconfig.json", "test:install": "node test/install-smoke.js" },
+  "devDependencies": {
+    "@nestjs/common": "12.2.0",
+    "@nestjs/core": "12.2.0",
+    "@nestjs/platform-express": "12.2.0",
+    "@types/node": "22.19.15",
+    "express": "5.3.0",
+    "fastify": "5.12.7",
+    "redis": "6.3.0",
+    "reflect-metadata": "0.2.2",
+    "rxjs": "7.8.2",
+    "typescript": "5.9.3"
+  }
+}
