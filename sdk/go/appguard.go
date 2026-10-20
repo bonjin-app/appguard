@@ -357,7 +357,9 @@ func ParseSignatures(headers []Header) (Parameters, []byte, error) {
 	return p, sig, nil
 }
 func publicKey(text string) (*ecdsa.PublicKey, error) {
-	if len(text) == 0 || len(text) > 4096 || !strings.HasPrefix(text, "-----BEGIN PUBLIC KEY-----") {
+	// pem.Decode scans past malformed blocks. Never let a later PUBLIC KEY
+	// replace the single registry envelope supplied by the caller.
+	if len(text) == 0 || len(text) > 4096 || !strings.HasPrefix(text, "-----BEGIN PUBLIC KEY-----") || strings.Count(text, "-----BEGIN PUBLIC KEY-----") != 1 {
 		return nil, failure("KEY_REJECTED")
 	}
 	block, rest := pem.Decode([]byte(text))
