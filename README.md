@@ -2,14 +2,14 @@
 
 Framework-independent, self-hostable app security. Apache-2.0 licensed.
 
-**Status: experimental native client and server foundations implemented locally.** There are no published SDKs or production security claims. Android/iOS native signing interoperates with Spring Boot, Python and Node.js using one draft protocol. Python additionally provides explicit local enrollment, policy and redacted audit modules. See the [approved design](docs/superpowers/specs/2026-10-20-appguard-foundation-design.md), [mobile plan](docs/superpowers/plans/2026-10-20-appguard-mobile-foundation.md) and the [server](docs/security/server-sdk-verification.md) / [mobile](docs/security/mobile-foundation-verification.md) evidence boundaries.
+**Status: experimental client/server SDKs and Build/CLI implemented locally.** There are no published SDKs or production security claims. Android/iOS signing interoperates with Spring Boot, Python and Node.js using one draft protocol. Framework bridges package the native signing boundary; Python additionally provides explicit local enrollment. See the [approved design](docs/superpowers/specs/2026-10-20-appguard-foundation-design.md) and the [server](docs/security/server-sdk-verification.md), [native](docs/security/mobile-foundation-verification.md), and [bridge/Build](docs/security/client-bridges-build-verification.md) evidence boundaries.
 
 ## Architecture
 
 - Client SDKs: native installation keys and request binding; Apple evidence acquisition wrapper, with server provider verification still separate.
 - Server SDKs: request verification, integration with existing authentication and authorization.
 - Security Engine: common policy, reason codes and audit events; optional threat analytics.
-- Build/CLI: future platform-specific protection, setup and diagnostics.
+- Build/CLI: project setup/diagnostics, platform build commands and encrypted mapping retention.
 
 The core will run without an AI model, paid AI API, or mandatory AppGuard cloud service. Obfuscation and local risk signals are supporting defenses. The server remains responsible for authentication, authorization and data access.
 
@@ -23,12 +23,15 @@ The core will run without an AI model, paid AI API, or mandatory AppGuard cloud 
 | [Node.js 22+](sdk/node/README.md) | Experimental native verifier; Express, Fastify, NestJS and Redis adapter |
 | [Android Java/Kotlin](sdk/android/README.md) | Native signer, Keystore and enrollment proofs; AAR/JVM tests/API35 emulator checks |
 | [Apple Swift/iOS](sdk/apple/README.md) | Native signer, Security key adapter, enrollment proofs and App Attest acquisition wrapper; host tests/unsigned Simulator build |
-| Unity, Expo/React Native, Flutter | Bridge contract defined; packages not implemented yet |
+| [Unity UPM](sdk/unity/README.md) | Typed JNI/C ABI package;20 EditMode tests; native libraries built; mobile player/IL2CPP runtime pending |
+| [Expo / React Native](sdk/expo/README.md) | Expo58 native module;22 tests, packed Android compile and CocoaPods source-resolution checks; device/runtime pending |
+| [Flutter](sdk/flutter/README.md) | Typed platform-channel plugin;17 tests, Java adapter checks, relocated CocoaPods/Simulator app build; device/runtime pending |
 | .NET, Go, PHP | Planned, not implemented |
 | Shared Redis replay claims | Implemented; deployment durability/eviction guarantees are operator-owned |
 | [Python enrollment / policy / audit](docs/security/enrollment-policy.md) | Local SQLite challenge/proof/revocation, deterministic presets and allowlisted audit output |
 | Apple/Google server attestation verification | Not implemented; requires a trusted provider backend, account configuration and device validation |
-| Build obfuscation, CLI, console, AI | Planned, not implemented |
+| [Build / CLI](tools/cli/README.md) | Android R8 setup/build; Flutter obfuscation/Expo minification commands; encrypted mapping archive/restore.19 tests and actual isolated Android release build |
+| Optional console / AI | Planned, not implemented; core works without either |
 
 ## Local reference development
 
@@ -61,6 +64,10 @@ The [Android](sdk/android/README.md) and [Apple](sdk/apple/README.md) packages p
 The [enrollment protocol](protocol/enrollment-v0.md) binds app, authenticated subject, enrolled key ID, public-key fingerprint, origin and one-use expiry. [Python integration](docs/security/enrollment-policy.md) requires existing authentication and an explicit provider verifier for Balanced/Strict. Proof-only Basic enrollment remains explicitly unattested. The [policy contract](protocol/policy-v0.md) has42 portable cases; current Java/Node SDKs retain independent signature verification and do not yet execute these additional Python presets.
 
 Native tests distinguish JVM/macOS crypto, platform builds and an isolated Android software-keystore emulator. Actual Apple persistent Keychain/Secure Enclave, physical devices and successful provider evidence remain unverified. No Apple/Google project, entitlement, account, release or user key is configured by these tests.
+
+The [bridge contract](protocol/client-bridge-v0.md) exposes only public-key lookup, validated request preparation and enrollment possession proof. Stage each framework package's native sources before local installation as documented; installing a JS/Dart/C# wrapper alone cannot add native code to Expo Go or an existing binary. No transport, provider verdict or arbitrary signing/private-key export is exposed. Packages preserve exact body/target/header values; the application must verify actual HTTP behavior.
+
+For a supported local app project, `node tools/cli/bin/appguard.js init --project /path/to/app --app-id your-app` creates explicit configuration. `doctor`, `policy validate`, `build --dry-run`, `archive` and `restore` are documented in the [CLI guide](tools/cli/README.md). Setup does not install or publish SDK dependencies or configure provider accounts. Keep original build mappings private as well as their encrypted archives.
 
 ## Common verification behavior
 
