@@ -1,6 +1,6 @@
 # AppGuard request profile v0
 
-Status: experimental draft `appguard-request-v0`. Normative words MUST/MUST NOT specify this restricted profile, not general RFC conformance. No wire parser or production SDK is shipped.
+Status: experimental draft `appguard-request-v0`. Normative words MUST/MUST NOT specify this restricted profile, not general RFC conformance. Locally implemented experimental server SDKs use the separate [HTTP envelope contract](http-v0.md); no production SDK release is published.
 
 ## Parsed interface and caller responsibilities
 
@@ -40,7 +40,7 @@ Order: (1) syntax/profile/limits, (2) time, (3) trusted key binding, (4) content
 
 The signed app ID, configured app ID and key record app ID MUST match. The authenticated subject and record subject MUST match. Parameter key ID and record key ID MUST match, algorithm MUST be the supported pinned algorithm, and revoked records MUST reject. A result carries app ID, key ID, expiry and code `VERIFIED`; it proves neither authorization nor platform attestation.
 
-Replay storage exposes `claim((app_id, key_id, nonce), expires=expires, now=now) -> bool`. It MUST atomically accept a new claim only once until expiry, reject an existing unexpired claim, and raise on backend unavailability or exhausted capacity. Do not claim state before all preceding verification succeeds. The reference local store uses a lock, removes expired entries, and defaults to 10000 live entries. It is single-process, volatile and reference-only. No middleware, distributed consistency, durable store or restart protection is included.
+Replay storage exposes `claim((app_id, key_id, nonce), expires=expires, now=now) -> bool`. It MUST atomically accept a new claim only once until expiry, reject an existing unexpired claim, and raise on backend unavailability or exhausted capacity. Do not claim state before all preceding verification succeeds. The local development store uses a lock, removes expired entries, and defaults to 10000 live entries. It is single-process and volatile. Server SDKs also provide Redis adapters following the [shared key/expiry contract](http-v0.md). Redis durability, eviction, replication and restart guarantees remain deployment responsibilities.
 
 | Code | Meaning |
 | --- | --- |

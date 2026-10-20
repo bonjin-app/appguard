@@ -43,9 +43,9 @@ The core contracts remain the reference's RequestInput, SignatureParameters, Key
 
 - [x] Verify clean main and feature checkouts; fast-forward local main to 1725f89 without remote operations.
 - [x] Install frozen reference dependencies in main and rerun all 209 tests.
-- [ ] Record the common HTTP-envelope grammar, framing checks, error mapping, TLS behavior and Redis key/TTL contract in `protocol/http-v0.md`.
-- [ ] Generate a portable HTTP parser corpus from the fixed signed request, including missing/duplicate metadata, extra components/parameters, algorithm/tag changes, malformed signatures, leading-zero integers and header-count limits.
-- [ ] Preserve the foundation worktree and create branch `codex/appguard-server-sdks` for this stage.
+- [x] Record the common HTTP-envelope grammar, framing checks, error mapping, TLS behavior and Redis key/TTL contract in `protocol/http-v0.md`.
+- [x] Generate a portable HTTP parser corpus from the fixed signed request, including missing/duplicate metadata, extra components/parameters, algorithm/tag changes, malformed signatures, leading-zero integers and header-count limits.
+- [x] Preserve the foundation worktree and create branch `codex/appguard-server-sdks` for this stage.
 
 ## Task 2: Python SDK and Framework Integration
 
@@ -53,39 +53,39 @@ The core contracts remain the reference's RequestInput, SignatureParameters, Key
 
 **Interfaces:** Promote the proven core into `appguard` without duplicating it; `appguard_reference` re-exports it for compatibility. `parse_signatures(headers) -> ParsedSignature`. `AppGuardMiddleware(app, *, app_id, origin, identity_resolver, replay, clock, allow_insecure_transport=False)` is pure ASGI and resolves `Identity(subject, key)` from trusted application logic. Adapters must not invent a raw target from decoded path. Flask support deploys WsgiToAsgi behind the ASGI verifier, retaining the original ASGI evidence before WSGI normalization.
 
-- [ ] Write failing shared-wire corpus tests and actual FastAPI/Django/Flask request tests: valid request, body echo, tampered body, token callback rejection, missing raw_path, duplicate metadata, insecure request, oversize/chunked body, store and identity failure.
-- [ ] Run tests RED before implementing parser/middleware. Preserve all existing 209 reference tests through promotion.
-- [ ] Implement bounded capture and body replay, fixed error responses and a thread-safe synchronous verifier offloaded from the ASGI event loop. Fetch the trusted clock at verification, after authentication completes.
-- [ ] Add a Redis store using the common key/expiry contract; test live atomic claims with an isolated Redis test process and failures without real credentials.
-- [ ] Build a standalone wheel, install it in an isolated environment and import the package without a reference checkout dependency; run both Python suites frozen and commit only owned files.
+- [x] Write failing shared-wire corpus tests and actual FastAPI/Django/Flask request tests: valid request, body echo, tampered body, token callback rejection, missing raw_path, duplicate metadata, insecure request, oversize/chunked body, store and identity failure.
+- [x] Run tests RED before implementing parser/middleware. Preserve all existing 209 reference tests through promotion.
+- [x] Implement bounded capture and body replay, fixed error responses and a thread-safe synchronous verifier offloaded from the ASGI event loop. Fetch the trusted clock at verification, after authentication completes.
+- [x] Add a Redis store using the common key/expiry contract; test live atomic claims with an isolated Redis test process and failures without real credentials.
+- [x] Build a standalone wheel, install it in an isolated environment and import the package without a reference checkout dependency; run both Python suites frozen and commit only owned files.
 
 ## Task 3: Native Node SDK and Framework Integration
 
 **Files:** `sdk/node/package.json`, lockfile, `src/**`, `test/**`, package README and declarations.
 
-- [ ] Write and observe failing tests against all core/HTTP vectors before implementing the verifier/wire parser.
-- [ ] Use native crypto with pinned P-256 and IEEE P1363 signatures; retain raw target/query and duplicate header pairs.
-- [ ] Implement Express middleware, a Fastify hook/plugin and NestJS-compatible middleware, installed before parsing/rewriting. Capture bounded raw bytes, restore/replay correctly, and require existing authentication/key-resolution callbacks plus a replay store.
-- [ ] Exercise each installed framework using real framework request handling: valid body access, mutation rejection, duplicate/missing metadata, async identity errors, insecure transport, body/stream limits and replay.
-- [ ] Implement common Redis claims and explicit local development store. Run live Redis tests when supplied the test URL; provide type declarations and npm pack/install smoke evidence. No publication.
+- [x] Write and observe failing tests against all core/HTTP vectors before implementing the verifier/wire parser.
+- [x] Use native crypto with pinned P-256 and IEEE P1363 signatures; retain raw target/query and duplicate header pairs.
+- [x] Implement Express middleware, a Fastify hook/plugin and NestJS-compatible middleware, installed before parsing/rewriting. Capture bounded raw bytes, restore/replay correctly, and require existing authentication/key-resolution callbacks plus a replay store.
+- [x] Exercise each installed framework using real framework request handling: valid body access, mutation rejection, duplicate/missing metadata, async identity errors, insecure transport, body/stream limits and replay.
+- [x] Implement common Redis claims and explicit local development store. Run live Redis tests when supplied the test URL; provide type declarations and npm pack/install smoke evidence. No publication.
 
 ## Task 4: Spring Boot Starter and Servlet Integration
 
 **Files:** `sdk/spring-boot/pom.xml`, `src/main/java/io/appguard/**`, auto-configuration metadata, `src/test/**`, package README.
 
-- [ ] Write and observe failing tests for the shared core/HTTP corpora and framework behavior before implementation.
-- [ ] Use Java's supported P-256 verification with the fixed wire encoding; validate time, origin, app/subject/key, duplicate metadata and input limits consistently.
-- [ ] Implement a bounded request-body wrapper that replays bytes to MVC; require transport security, a trusted principal/identity resolver, trusted key resolver and replay store.
-- [ ] Provide explicit `appguard.enabled=true` auto-configuration; enabled-but-missing security dependencies must fail startup. Respect Spring Security ordering and never install a permissive key resolver or local store silently.
-- [ ] Test real Spring MVC handling and Boot auto-configuration, including unchanged body/parameters, duplicate fields, bad auth/store, limits, insecure transport, replay and missing dependencies. Test a real servlet container where feasible to expose transport normalization.
-- [ ] Implement common Redis store semantics, run live test-instance claims, and build the starter JAR locally. Record supported Boot/Java versions actually tested.
+- [x] Write and observe failing tests for the shared core/HTTP corpora and framework behavior before implementation.
+- [x] Use Java's supported P-256 verification with the fixed wire encoding; validate time, origin, app/subject/key, duplicate metadata and input limits consistently.
+- [x] Implement a bounded request-body wrapper that replays bytes to MVC; require transport security, a trusted principal/identity resolver, trusted key resolver and replay store.
+- [x] Provide explicit `appguard.enabled=true` auto-configuration; enabled-but-missing security dependencies must fail startup. Respect Spring Security ordering and never install a permissive key resolver or local store silently.
+- [x] Test real Spring MVC handling and Boot auto-configuration, including unchanged body/parameters, duplicate fields, bad auth/store, limits, insecure transport, replay and missing dependencies. Test a real servlet container where feasible to expose transport normalization.
+- [x] Implement common Redis store semantics, run live test-instance claims, and build the starter JAR locally. Record supported Boot/Java versions actually tested.
 
 ## Task 5: Cross-Language Verification and Review
 
-- [ ] Run every suite, including the 209-test reference baseline; verify core/HTTP vectors agree across languages.
-- [ ] Exercise same-scope Redis claims across independent SDK instances/processes against a disposable localhost service; never touch an existing Redis database.
-- [ ] Run standalone package/JAR builds and alternate-working-directory tests where relevant; add one reproducible root test command and record exact versions/results.
-- [ ] Update support matrix, installation/authentication integration examples, limitations and security guidance to match verified behavior.
+- [x] Run every suite, including the 209-test reference baseline; verify core/HTTP vectors agree across languages.
+- [x] Exercise same-scope Redis claims across independent SDK instances/processes against a disposable localhost service; never touch an existing Redis database.
+- [x] Run standalone package/JAR builds and alternate-working-directory tests where relevant; add one reproducible root test command and record exact versions/results.
+- [x] Update support matrix, installation/authentication integration examples, limitations and security guidance to match verified behavior.
 - [ ] Obtain one fresh whole-change security review. Fix significant findings with failing regression tests first and rerun all affected suites.
 - [ ] Commit tested results. Preserve the server-SDK branch for review; only the foundation merge has been explicitly requested so far.
 

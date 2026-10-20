@@ -31,7 +31,7 @@ Require app ID, external HTTPS origin, a caller-provided replay store and truste
 
 Time must be read from the trusted clock at verification after authentication completes. A `VERIFIED` result permits downstream processing only; the application must still enforce resource authorization. Store verification metadata in a dedicated request attribute/state rather than overwriting its authenticated identity.
 
-Python integrations retain ASGI headers/raw_path before framework processing. Flask is wrapped through WsgiToAsgi *after* verification; a plain normalized WSGI environ is insufficient to establish duplicate evidence. Node integrations capture original URL/rawHeaders before body parsing or route rewriting. Java uses original servlet request URI/query and all enumerated field values; container-level normalization/rejection remains part of deployment behavior.
+Python integrations retain ASGI headers/raw_path before framework processing. ASGI cannot distinguish an absent query from an explicit empty query. With a nonempty query the SDK can combine the raw path and raw query losslessly; with an empty `query_string`, the Python adapter requires trusted complete-target bytes in `scope["appguard.raw_target"]` or a synchronous `raw_target_resolver(scope)` callback, and otherwise fails closed. A complete-target capture must agree with the observable path/query; it must not come from an untrusted header. Flask is wrapped through WsgiToAsgi *after* verification; a plain normalized WSGI environ is insufficient to establish duplicate evidence. Node integrations capture original URL/rawHeaders before body parsing or route rewriting. Java uses original servlet request URI/query and all enumerated field values; container-level normalization/rejection remains part of deployment behavior.
 
 ## HTTP failure mapping
 
@@ -39,7 +39,9 @@ Python integrations retain ASGI headers/raw_path before framework processing. Fl
 - 413 `INVALID_REQUEST`: content exceeds 1 MiB.
 - 401 `AUTHENTICATION_REQUIRED`: no authenticated identity; no automatic token acceptance.
 - 403: unsupported profile, invalid time, rejected key, digest/signature failure or replay, using the original core code.
-- 503 `IDENTITY_UNAVAILABLE`, `KEY_RESOLVER_UNAVAILABLE`, or `REPLAY_STORE_UNAVAILABLE`: dependency or contract failure. Exact exception details never enter a response.
+- 503 `IDENTITY_UNAVAILABLE`, `KEY_RESOLVER_UNAVAILABLE`, `VERIFICATION_UNAVAILABLE`, or `REPLAY_STORE_UNAVAILABLE`: dependency or contract failure. Exact exception details never enter a response.
+
+An expected unknown-key lookup (null/missing result) returns 403 `KEY_REJECTED`; it is not a backend outage. A thrown resolver exception or malformed non-null resolver contract returns 503. A combined Python Identity with `key=None` represents an expected unknown key.
 
 Error JSON is `{"code":"FIXED_REASON"}`. Do not include tokens, request bodies, PEM values, signature bases or backend details. Do not call downstream handlers or claim nonces on pre-verification failures.
 
