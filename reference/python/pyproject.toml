@@ -1,0 +1,25 @@
+[build-system]
+requires = ["hatchling>=1.27,<2"]
+build-backend = "hatchling.build"
+
+[project]
+name = "appguard-reference"
+version = "0.0.0"
+description = "Experimental AppGuard typed-input protocol reference; not a production SDK"
+requires-python = ">=3.11"
+license = "Apache-2.0"
+dependencies = ["cryptography>=46,<51"]
+
+[dependency-groups]
+dev = ["pytest>=8,<10"]
+
+[tool.uv]
+package = true
+prerelease = "disallow"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/appguard_reference"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--strict-markers"
