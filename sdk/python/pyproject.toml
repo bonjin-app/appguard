@@ -1,0 +1,33 @@
+[build-system]
+requires = ["hatchling>=1.27,<2"]
+build-backend = "hatchling.build"
+
+[project]
+name = "appguard-server"
+version = "0.1.0.dev0"
+description = "Experimental AppGuard server verification SDK"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+dependencies = ["cryptography>=46,<51"]
+
+[project.optional-dependencies]
+fastapi = ["fastapi>=0.115,<1"]
+django = ["Django>=5.2,<6"]
+flask = ["Flask>=3.1,<4", "asgiref>=3.8,<4"]
+redis = ["redis>=6,<9"]
+
+[dependency-groups]
+dev = ["pytest>=8,<10", "fastapi>=0.115,<1", "httpx>=0.28,<1", "Django>=5.2,<6", "Flask>=3.1,<4", "asgiref>=3.8,<4", "redis>=6,<9"]
+
+[tool.uv]
+package = true
+prerelease = "disallow"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/appguard"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "--strict-markers"

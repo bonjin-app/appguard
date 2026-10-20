@@ -10,7 +10,7 @@ name = "appguard-reference"
 version = "0.0.0"
 source = { editable = "." }
 dependencies = [
-    { name = "cryptography" },
+    { name = "appguard-server" },
 ]
 
 [package.dev-dependencies]
@@ -19,10 +19,40 @@ dev = [
 ]
 
 [package.metadata]
-requires-dist = [{ name = "cryptography", specifier = ">=46,<51" }]
+requires-dist = [{ name = "appguard-server", editable = "../../sdk/python" }]
 
 [package.metadata.requires-dev]
 dev = [{ name = "pytest", specifier = ">=8,<10" }]
+
+[[package]]
+name = "appguard-server"
+version = "0.1.0.dev0"
+source = { editable = "../../sdk/python" }
+dependencies = [
+    { name = "cryptography" },
+]
+
+[package.metadata]
+requires-dist = [
+    { name = "asgiref", marker = "extra == 'flask'", specifier = ">=3.8,<4" },
+    { name = "cryptography", specifier = ">=46,<51" },
+    { name = "django", marker = "extra == 'django'", specifier = ">=5.2,<6" },
+    { name = "fastapi", marker = "extra == 'fastapi'", specifier = ">=0.115,<1" },
+    { name = "flask", marker = "extra == 'flask'", specifier = ">=3.1,<4" },
+    { name = "redis", marker = "extra == 'redis'", specifier = ">=6,<9" },
+]
+provides-extras = ["fastapi", "django", "flask", "redis"]
+
+[package.metadata.requires-dev]
+dev = [
+    { name = "asgiref", specifier = ">=3.8,<4" },
+    { name = "django", specifier = ">=5.2,<6" },
+    { name = "fastapi", specifier = ">=0.115,<1" },
+    { name = "flask", specifier = ">=3.1,<4" },
+    { name = "httpx", specifier = ">=0.28,<1" },
+    { name = "pytest", specifier = ">=8,<10" },
+    { name = "redis", specifier = ">=6,<9" },
+]
 
 [[package]]
 name = "cffi"

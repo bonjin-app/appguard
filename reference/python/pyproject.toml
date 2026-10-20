@@ -8,7 +8,7 @@ version = "0.0.0"
 description = "Experimental AppGuard typed-input protocol reference; not a production SDK"
 requires-python = ">=3.11"
 license = "Apache-2.0"
-dependencies = ["cryptography>=46,<51"]
+dependencies = ["appguard-server==0.1.0.dev0"]
 
 [dependency-groups]
 dev = ["pytest>=8,<10"]
@@ -23,3 +23,6 @@ packages = ["src/appguard_reference"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "--strict-markers"
+
+[tool.uv.sources]
+appguard-server = { path = "../../sdk/python", editable = true }
