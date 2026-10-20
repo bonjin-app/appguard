@@ -1,6 +1,6 @@
 # AppGuard Protocol Foundation Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking. Keep routine work on the main agent; delegate only a bounded question when useful.
+> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [x]`) syntax for tracking. Keep routine work on the main agent; delegate only a bounded question when useful.
 
 **Goal:** Establish a documented, executable draft request-verification contract and shared attack fixtures before implementing framework SDKs.
 
@@ -21,11 +21,11 @@
 - 모의 증명 테스트와 실제 공급자·기기 검증 결과를 구분한다.
 - 지원 상태는 계획, 구현, 통합 검증, 출시로 구분해 공개한다.
 
-## Scope and Proposed Decisions
+## Scope and Approved Decisions
 
 This plan covers the first foundation milestone, not the entire platform roadmap. Status is draft throughout. No package publishing, deployment, mobile attestation integration, AI, obfuscation tooling, or framework middleware is included.
 
-Propose Apache-2.0 for project-authored code and documentation. Add the unmodified license text during implementation and preserve third-party notices. This plan does not relicense imported assets or code.
+Use Apache-2.0 for project-authored code and documentation, as approved on 2026-10-20. Add the unmodified license text during implementation and preserve third-party notices. This plan does not relicense imported assets or code.
 
 Use an intentionally restricted RFC 9421 profile named `appguard-request-v0`. Support `ecdsa-p256-sha256` only, using the RFC's 64-byte `r || s` wire signature. Do not invent cryptographic primitives or assume DER is the wire format. The reference API accepts parsed structured input and constructs the signature base; a production HTTP Structured Fields parser and framework adapters are later work.
 
@@ -68,13 +68,13 @@ Successful cryptographic verification is only one input to an application's secu
 
 **Interfaces:** Define frozen `RequestInput(method: str, target: str, headers: tuple[tuple[str, str], ...], body: bytes)`, `SignatureParameters(created: int, expires: int, nonce: str, key_id: str, algorithm: str, tag: str)`, and `KeyRecord(app_id: str, key_id: str, subject: str, public_key_pem: bytes, algorithm: str, revoked: bool)` in `types.py`. Protected field names compare case-insensitively; retain duplicates until validation. Define `VerificationError` with a stable `code: str`.
 
-- [ ] Write the protocol with exact serialization examples, the decisions above, and explicit separation of parsed reference inputs from future HTTP parsing.
-- [ ] Specify fixture records containing `id`, `request` (body encoded as base64), `parameters`, `signature_b64`, `key`, `context` (`origin`, `app_id`, `subject`, `now`), `replay_store` (`memory`, `unavailable`, or `full`), `expected_signature_base`, and `expected_codes` (a nonempty array). Each expected code describes one repeated verification of that record against the same scenario-local store; a replay scenario expects `["VERIFIED", "REPLAY_DETECTED"]`. State resets between records.
-- [ ] Define rejection codes: `INVALID_REQUEST`, `UNSUPPORTED_PROFILE`, `INVALID_TIME`, `KEY_REJECTED`, `DIGEST_MISMATCH`, `INVALID_SIGNATURE`, `REPLAY_DETECTED`, `REPLAY_STORE_UNAVAILABLE`; success code is `VERIFIED` and does not mean authorized or attested.
-- [ ] Document failure precedence: syntax/profile, time, trusted key binding, body digest, signature, atomic replay claim. Tests with multiple errors must follow this order.
-- [ ] Write the threat model, actual support matrix, contributor setup, and license. SECURITY.md directs reporters to repository private vulnerability reporting only when that feature is actually enabled; otherwise ask them to request a private channel without posting exploit details or secrets publicly. Do not claim a reporting channel has been enabled.
-- [ ] Create project metadata with src layout, Python >=3.11, stable dependencies, and `uv.lock`; set `tool.uv.package = true` with an explicit build backend. Run `uv sync --locked --project reference/python` and verify `uv run --project reference/python python -c 'import appguard_reference'` succeeds.
-- [ ] Commit only Task 1 files after `git diff --check` succeeds.
+- [x] Write the protocol with exact serialization examples, the decisions above, and explicit separation of parsed reference inputs from future HTTP parsing.
+- [x] Specify fixture records containing `id`, `request` (body encoded as base64), `parameters`, `signature_b64`, `key`, `context` (`origin`, `app_id`, `subject`, `now`), `replay_store` (`memory`, `unavailable`, or `full`), `expected_signature_base`, and `expected_codes` (a nonempty array). Each expected code describes one repeated verification of that record against the same scenario-local store; a replay scenario expects `["VERIFIED", "REPLAY_DETECTED"]`. State resets between records.
+- [x] Define rejection codes: `INVALID_REQUEST`, `UNSUPPORTED_PROFILE`, `INVALID_TIME`, `KEY_REJECTED`, `DIGEST_MISMATCH`, `INVALID_SIGNATURE`, `REPLAY_DETECTED`, `REPLAY_STORE_UNAVAILABLE`; success code is `VERIFIED` and does not mean authorized or attested.
+- [x] Document failure precedence: syntax/profile, time, trusted key binding, body digest, signature, atomic replay claim. Tests with multiple errors must follow this order.
+- [x] Write the threat model, actual support matrix, contributor setup, and license. SECURITY.md directs reporters to repository private vulnerability reporting only when that feature is actually enabled; otherwise ask them to request a private channel without posting exploit details or secrets publicly. Do not claim a reporting channel has been enabled.
+- [x] Create project metadata with src layout, Python >=3.11, stable dependencies, and `uv.lock`; set `tool.uv.package = true` with an explicit build backend. Run `uv sync --locked --project reference/python` and verify `uv run --project reference/python python -c 'import appguard_reference'` succeeds.
+- [x] Commit only Task 1 files after `git diff --check` succeeds.
 
 ## Task 2: Canonical Bytes and Cryptographic Verification
 
@@ -82,11 +82,11 @@ Successful cryptographic verification is only one input to an application's secu
 
 **Interfaces:** `build_signature_base(request: RequestInput, parameters: SignatureParameters, *, origin: str) -> bytes`; `validate_content_digest(request: RequestInput) -> None`; `verify_p256(public_key_pem: bytes, signature_base: bytes, signature: bytes) -> None`. Raise `VerificationError` on invalid input. None of these functions writes replay state, authenticates users, or enrolls keys.
 
-- [ ] Write failing tests that compare a fixed signature-base byte string to an independently constructed literal, and pin empty/binary body digests, Unicode rejection in the target, encoded slash, duplicate query keys, query order, invalid percent escapes, CR/LF injection, duplicate protected headers, wrong signature lengths, P-384 keys, and altered signatures.
-- [ ] Run `uv run --project reference/python pytest reference/python/tests/test_canonical.py reference/python/tests/test_crypto.py -q` and confirm failures are missing behavior rather than setup errors.
-- [ ] Implement strict validation and RFC serialization without decoding/reordering query strings. Convert the 64-byte signature to DER using cryptography's supported integer conversion helpers before its verification call. Never evaluate client-supplied algorithm names dynamically.
-- [ ] Verify a fixed P-256 signature independently using OpenSSL, converting its encoding where necessary, before committing the fixture. Keep expected bytes checked in; tests must not generate their expected results through the function under test. Do not regenerate a nondeterministic ECDSA signature as a byte-for-byte test expectation.
-- [ ] Rerun the targeted tests and confirm every case passes; commit Task 2 files.
+- [x] Write failing tests that compare a fixed signature-base byte string to an independently constructed literal, and pin empty/binary body digests, Unicode rejection in the target, encoded slash, duplicate query keys, query order, invalid percent escapes, CR/LF injection, duplicate protected headers, wrong signature lengths, P-384 keys, and altered signatures.
+- [x] Run `uv run --project reference/python pytest reference/python/tests/test_canonical.py reference/python/tests/test_crypto.py -q` and confirm failures are missing behavior rather than setup errors.
+- [x] Implement strict validation and RFC serialization without decoding/reordering query strings. Convert the 64-byte signature to DER using cryptography's supported integer conversion helpers before its verification call. Never evaluate client-supplied algorithm names dynamically.
+- [x] Verify a fixed P-256 signature independently using OpenSSL, converting its encoding where necessary, before committing the fixture. Keep expected bytes checked in; tests must not generate their expected results through the function under test. Do not regenerate a nondeterministic ECDSA signature as a byte-for-byte test expectation.
+- [x] Rerun the targeted tests and confirm every case passes; commit Task 2 files.
 
 ## Task 3: Atomic Replay Contract and Complete Reference Verification
 
@@ -94,12 +94,12 @@ Successful cryptographic verification is only one input to an application's secu
 
 **Interfaces:** `ReplayStore.claim(scope: tuple[str, str, str], *, expires: int, now: int) -> bool` atomically returns true only for a new live claim; failures raise `ReplayStoreUnavailable`. Provide `InMemoryReplayStore(capacity: int = 10000)` for reference/tests with locking and expired-entry cleanup; invalid capacity is rejected at construction and capacity exhaustion fails closed. `verify_request(request: RequestInput, parameters: SignatureParameters, signature: bytes, *, origin: str, app_id: str, subject: str, key: KeyRecord, now: int, replay: ReplayStore) -> VerificationResult`; result contains app ID, key ID and expiry only, with no token, request body, or serialized signature base.
 
-- [ ] Write failing tests for exact time boundaries (120/121-second lifetimes, 30/31-second future creation, `now == expires`), booleans in integer fields, invalid/canonical nonce encodings, wrong app/subject/key ID, revoked keys, replay-store exceptions, and exhausted capacity.
-- [ ] Add a barrier-synchronized 32-thread replay test asserting exactly one success, a test that an invalid signature does not reserve its nonce, and a test that distinct app/key scopes remain independent. Verify duplicate request rejection is distinct from application-level idempotency.
-- [ ] Run `uv run --project reference/python pytest reference/python/tests/test_replay.py reference/python/tests/test_verify.py -q` and confirm the intended failures.
-- [ ] Implement the declared verification order and local store. Carry the same caller-supplied `now` through all checks. Bound input sizes before cryptographic work; record limits in the protocol: 1 MiB body, 8 KiB target, 64 input header pairs, 16 KiB total header text, 128 ASCII characters per app/key/subject identifier. Reject controls in identifiers and apply limits before canonicalization. Add exact-limit and limit-plus-one tests.
-- [ ] Verify caller-controlled exceptions do not leak request contents into returned errors. Test a failing store and malformed key with fake token/body markers and assert those markers are absent from error text and result representations.
-- [ ] Rerun Task 2 and Task 3 tests, then commit Task 3 files. State explicitly that a distributed store and middleware integration are still absent.
+- [x] Write failing tests for exact time boundaries (120/121-second lifetimes, 30/31-second future creation, `now == expires`), booleans in integer fields, invalid/canonical nonce encodings, wrong app/subject/key ID, revoked keys, replay-store exceptions, and exhausted capacity.
+- [x] Add a barrier-synchronized 32-thread replay test asserting exactly one success, a test that an invalid signature does not reserve its nonce, and a test that distinct app/key scopes remain independent. Verify duplicate request rejection is distinct from application-level idempotency.
+- [x] Run `uv run --project reference/python pytest reference/python/tests/test_replay.py reference/python/tests/test_verify.py -q` and confirm the intended failures.
+- [x] Implement the declared verification order and local store. Carry the same caller-supplied `now` through all checks. Bound input sizes before cryptographic work; record limits in the protocol: 1 MiB body, 8 KiB target, 64 input header pairs, 16 KiB total header text, 128 ASCII characters per app/key/subject identifier. Reject controls in identifiers and apply limits before canonicalization. Add exact-limit and limit-plus-one tests.
+- [x] Verify caller-controlled exceptions do not leak request contents into returned errors. Test a failing store and malformed key with fake token/body markers and assert those markers are absent from error text and result representations.
+- [x] Rerun Task 2 and Task 3 tests, then commit Task 3 files. State explicitly that a distributed store and middleware integration are still absent.
 
 ## Task 4: Portable Conformance Corpus and Reproducible Handoff
 
@@ -107,12 +107,12 @@ Successful cryptographic verification is only one input to an application's secu
 
 **Interfaces:** Each language adapter will consume the fixture format from Task 1 and return the same ordered `expected_codes`. The Python fixture loader uses strict base64 validation, detects duplicate JSON keys and fixture IDs, and rejects unknown fields. Its fixture path is derived from the test file location, not the current working directory.
 
-- [ ] Write failing corpus tests for missing required scenarios, duplicate IDs/JSON keys, malformed base64, changed expected bytes, and rejection-reason mismatches. Assert that all five Review Focus classes have fixture coverage.
-- [ ] Check in an independently verified valid signed request plus mutations for body, method, URI/query, token, app, subject, key, time, algorithm, duplicate field, signature bytes, replay, and store failure. Mutations reuse an original signature unless a case specifically needs a different valid signer. Include a separately signed empty-body request.
-- [ ] Implement a parameterized loader/runner that builds the typed inputs, resets state per scenario, and compares both canonical bytes and final rejection/success codes. A malformed request need not have a signature-base expectation; the format must represent this explicitly.
-- [ ] Run `uv sync --locked --project reference/python` and `uv run --project reference/python pytest reference/python/tests -q`; all tests must pass. Run the same suite from another working directory using absolute paths to verify fixture discovery.
-- [ ] Run `git diff --check`; manually inspect all committed fixtures for real credentials and all documentation for unsupported production, attestation, framework-support, or security-audit claims.
-- [ ] Update README with the exact verified local commands, reference-only limitations, and separate planned Spring Boot/Python/Node.js SDKs. Commit Task 4 files and report the tested commit.
+- [x] Write failing corpus tests for missing required scenarios, duplicate IDs/JSON keys, malformed base64, changed expected bytes, and rejection-reason mismatches. Assert that all five Review Focus classes have fixture coverage.
+- [x] Check in an independently verified valid signed request plus mutations for body, method, URI/query, token, app, subject, key, time, algorithm, duplicate field, signature bytes, replay, and store failure. Mutations reuse an original signature unless a case specifically needs a different valid signer. Include a separately signed empty-body request.
+- [x] Implement a parameterized loader/runner that builds the typed inputs, resets state per scenario, and compares both canonical bytes and final rejection/success codes. A malformed request need not have a signature-base expectation; the format must represent this explicitly.
+- [x] Run `uv sync --locked --project reference/python` and `uv run --project reference/python pytest reference/python/tests -q`; all tests must pass. Run the same suite from another working directory using absolute paths to verify fixture discovery.
+- [x] Run `git diff --check`; manually inspect all committed fixtures for real credentials and all documentation for unsupported production, attestation, framework-support, or security-audit claims.
+- [x] Update README with the exact verified local commands, reference-only limitations, and separate planned Spring Boot/Python/Node.js SDKs. Commit Task 4 files and report the tested commit.
 
 ## Exit Criteria and Next Milestone
 
@@ -128,4 +128,4 @@ The next plan implements Spring Boot, Python middleware, and Node.js adapters ag
 
 ## Plan Review and Execution
 
-The foundation design text was presented in chat and approved before it was saved. This implementation plan introduces concrete draft limits, interfaces, algorithm choices, and licensing, so it requires its own review before implementation. Recommend main-agent execution with targeted delegation only if a difficult security question needs independent investigation; this avoids a fresh worker context for each tightly coupled task.
+The foundation design text was presented in chat and approved before it was saved. This implementation plan introduced concrete draft limits, interfaces, algorithm choices, and licensing; the user explicitly approved the plan and Apache-2.0 on 2026-10-20. Implementation and tests for all four tasks have run; see `docs/security/foundation-verification.md` for evidence and limitations. Recommend main-agent execution with targeted delegation only if a difficult security question needs independent investigation; this avoids a fresh worker context for each tightly coupled task.

@@ -1,6 +1,6 @@
 # Request conformance fixtures v0
 
-`conformance/v0/requests.json` is a JSON array of scenario objects. All tokens, identifiers, timestamps and public keys are synthetic test data. There are no production credentials or private keys. Duplicate JSON keys, IDs, unknown or missing fields, invalid types, noncanonical base64 and invalid scenario modes MUST reject as fixture-format errors, never as passing verification results.
+`conformance/v0/requests.json` is a JSON array of scenario objects. All tokens, identifiers, timestamps and public keys are synthetic test data. There are no production credentials or private keys. Duplicate JSON keys, IDs, unknown or missing fields, invalid container/transport types, noncanonical base64 and invalid scenario modes MUST reject as fixture-format errors, never as passing verification results. Parameter/context/key domain values can deliberately violate protocol types or limits; those are passed to runtime validation and compared with their expected rejection code.
 
 Each record contains exactly:
 
@@ -17,3 +17,9 @@ Each record contains exactly:
 The runner checks canonical bytes independently from the full verification result. An expired request can still have a canonical-byte expectation; time is checked by the full verifier. Mutations of request content normally retain the original signature so the verifier must detect substitution. A valid separate signer is used for cases that specifically test trust bindings or limits.
 
 These fixtures define a **draft typed-input** contract. Passing them does not establish correct raw HTTP parsing, production framework integration, Apple/Google attestation, durable replay prevention or a security audit.
+
+## Independent signature check
+
+Run `uv run --project reference/python pytest reference/python/tests/test_vectors.py -k openssl -v` from the repository root. When the OpenSSL CLI is installed, this verifies the four distinct successful signature/base/key triples using `openssl dgst -sha256 -verify`. The test converts the fixed raw `r || s` signature to DER using the library's encoding helper, writes the committed expected ASCII base without a trailing LF, and passes both to the external CLI. It does not obtain expected bytes from the reference canonicalizer. The CLI check skips explicitly if OpenSSL is unavailable.
+
+All test keys were generated solely for these fixtures. Only public keys and signatures are committed; private signing material is unnecessary for reproduction.

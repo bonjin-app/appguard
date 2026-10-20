@@ -1,0 +1,2183 @@
+[
+  {
+    "id": "valid-json",
+    "request": {
+      "method": "POST",
+      "target": "/v1/items?b=2&a=1",
+      "headers": [
+        [
+          "Content-Type",
+          "application/json"
+        ],
+        [
+          "Content-Digest",
+          "sha-256=:RBNvo1WzZ4oRRq0W9+hknpT7T8If536DEMBg9hyq/4o=:"
+        ],
+        [
+          "Authorization",
+          "Bearer TEST_ONLY_TOKEN"
+        ],
+        [
+          "AppGuard-App-Id",
+          "test-app"
+        ]
+      ],
+      "body_b64": "e30="
+    },
+    "parameters": {
+      "created": 1700000000,
+      "expires": 1700000120,
+      "nonce": "AAECAwQFBgcICQoLDA0ODw",
+      "key_id": "test-key",
+      "algorithm": "ecdsa-p256-sha256",
+      "tag": "appguard-request-v0"
+    },
+    "signature_b64": "4VcXRWhH6ZX8fo2Rg7fboR0oKDB9nLWFZKpFQGZbz/kztRo6H0JxYwR2rWS8SXKM8XJ4ELzqlaIFb7v2QWOK6w==",
+    "key": {
+      "app_id": "test-app",
+      "key_id": "test-key",
+      "subject": "test-user",
+      "public_key_pem": "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEN1mjSNnx5jTajvB5nfqM8Q4fhPQH\nX1HEiwDcM05xWlF7Os9IKP5XmGkUsdiQpUNYmdImFW6o3PXZ+HF5kpUiLw==\n-----END PUBLIC KEY-----\n",
+      "algorithm": "ecdsa-p256-sha256",
+      "revoked": false
+    },
+    "context": {
+      "origin": "https://api.example.test",
+      "app_id": "test-app",
+      "subject": "test-user",
+      "now": 1700000000
+    },
+    "replay_store": "memory",
+    "expected_signature_base": "\"@method\": POST\n\"@target-uri\": https://api.example.test/v1/items?b=2&a=1\n\"content-type\": application/json\n\"content-digest\": sha-256=:RBNvo1WzZ4oRRq0W9+hknpT7T8If536DEMBg9hyq/4o=:\n\"authorization\": Bearer TEST_ONLY_TOKEN\n\"appguard-app-id\": test-app\n\"@signature-params\": (\"@method\" \"@target-uri\" \"content-type\" \"content-digest\" \"authorization\" \"appguard-app-id\");created=1700000000;expires=1700000120;nonce=\"AAECAwQFBgcICQoLDA0ODw\";keyid=\"test-key\";alg=\"ecdsa-p256-sha256\";tag=\"appguard-request-v0\"",
+    "expected_codes": [
+      "VERIFIED"
+    ]
+  },
+  {
+    "id": "valid-empty-body",
+    "request": {
+      "method": "POST",
+      "target": "/v1/items?b=2&a=1",
+      "headers": [
+        [
+          "Content-Type",
+          "application/json"
+        ],
+        [
+          "Content-Digest",
+          "sha-256=:47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=:"
+        ],
+        [
+          "Authorization",
+          "Bearer TEST_ONLY_TOKEN"
+        ],
+        [
+          "AppGuard-App-Id",
+          "test-app"
+        ]
+      ],
+      "body_b64": ""
+    },
+    "parameters": {
+      "created": 1700000000,
+      "expires": 1700000120,
+      "nonce": "AAECAwQFBgcICQoLDA0ODw",
+      "key_id": "test-key",
+      "algorithm": "ecdsa-p256-sha256",
+      "tag": "appguard-request-v0"
+    },
+    "signature_b64": "iMxizfQ5AnXHnpKay04T+91AzrzO1Q4sj77271hE3Fmu7qvVZVEsDM8df0ifyQd774vb8WZ3YdQze1ABnUTcWw==",
+    "key": {
+      "app_id": "test-app",
+      "key_id": "test-key",
+      "subject": "test-user",
+      "public_key_pem": "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEN1mjSNnx5jTajvB5nfqM8Q4fhPQH\nX1HEiwDcM05xWlF7Os9IKP5XmGkUsdiQpUNYmdImFW6o3PXZ+HF5kpUiLw==\n-----END PUBLIC KEY-----\n",
+      "algorithm": "ecdsa-p256-sha256",
+      "revoked": false
+    },
+    "context": {
+      "origin": "https://api.example.test",
+      "app_id": "test-app",
+      "subject": "test-user",
+      "now": 1700000000
+    },
+    "replay_store": "memory",
+    "expected_signature_base": "\"@method\": POST\n\"@target-uri\": https://api.example.test/v1/items?b=2&a=1\n\"content-type\": application/json\n\"content-digest\": sha-256=:47DEQpj8HBSa+/TImW+5JCeuQeRkm5NMpJWZG3hSuFU=:\n\"authorization\": Bearer TEST_ONLY_TOKEN\n\"appguard-app-id\": test-app\n\"@signature-params\": (\"@method\" \"@target-uri\" \"content-type\" \"content-digest\" \"authorization\" \"appguard-app-id\");created=1700000000;expires=1700000120;nonce=\"AAECAwQFBgcICQoLDA0ODw\";keyid=\"test-key\";alg=\"ecdsa-p256-sha256\";tag=\"appguard-request-v0\"",
+    "expected_codes": [
+      "VERIFIED"
+    ]
+  },
+  {
+    "id": "valid-encoded-slash",
+    "request": {
+      "method": "POST",
+      "target": "/v1/a%2Fb?x=2&x=1",
+      "headers": [
+        [
+          "Content-Type",
+          "application/json"
+        ],
+        [
+          "Content-Digest",
+          "sha-256=:RBNvo1WzZ4oRRq0W9+hknpT7T8If536DEMBg9hyq/4o=:"
+        ],
+        [
+          "Authorization",
+          "Bearer TEST_ONLY_TOKEN"
+        ],
+        [
+          "AppGuard-App-Id",
+          "test-app"
+        ]
+      ],
+      "body_b64": "e30="
+    },
+    "parameters": {
+      "created": 1700000000,
+      "expires": 1700000120,
+      "nonce": "AAECAwQFBgcICQoLDA0ODw",
+      "key_id": "test-key",
+      "algorithm": "ecdsa-p256-sha256",
+      "tag": "appguard-request-v0"
+    },
+    "signature_b64": "CvpJneAmhibZTMbsxwh+Rlazf1vyDpz3dCwTYG9CYA5sG0wdDfmzIhbQEqb8srTPbjlom98wrfRXc8yG/ei66g==",
+    "key": {
+      "app_id": "test-app",
+      "key_id": "test-key",
+      "subject": "test-user",
+      "public_key_pem": "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEN1mjSNnx5jTajvB5nfqM8Q4fhPQH\nX1HEiwDcM05xWlF7Os9IKP5XmGkUsdiQpUNYmdImFW6o3PXZ+HF5kpUiLw==\n-----END PUBLIC KEY-----\n",
+      "algorithm": "ecdsa-p256-sha256",
+      "revoked": false
+    },
+    "context": {
+      "origin": "https://api.example.test",
+      "app_id": "test-app",
+      "subject": "test-user",
+      "now": 1700000000
+    },
+    "replay_store": "memory",
+    "expected_signature_base": "\"@method\": POST\n\"@target-uri\": https://api.example.test/v1/a%2Fb?x=2&x=1\n\"content-type\": application/json\n\"content-digest\": sha-256=:RBNvo1WzZ4oRRq0W9+hknpT7T8If536DEMBg9hyq/4o=:\n\"authorization\": Bearer TEST_ONLY_TOKEN\n\"appguard-app-id\": test-app\n\"@signature-params\": (\"@method\" \"@target-uri\" \"content-type\" \"content-digest\" \"authorization\" \"appguard-app-id\");created=1700000000;expires=1700000120;nonce=\"AAECAwQFBgcICQoLDA0ODw\";keyid=\"test-key\";alg=\"ecdsa-p256-sha256\";tag=\"appguard-request-v0\"",
+    "expected_codes": [
+      "VERIFIED"
+    ]
+  },
+  {
+    "id": "valid-lowercase-escape",
+    "request": {
+      "method": "POST",
+      "target": "/v1/a%2fb?x=2&x=1",
+      "headers": [
+        [
+          "Content-Type",
+          "application/json"
+        ],
+        [
+          "Content-Digest",
+          "sha-256=:RBNvo1WzZ4oRRq0W9+hknpT7T8If536DEMBg9hyq/4o=:"
+        ],
+        [
+          "Authorization",
+          "Bearer TEST_ONLY_TOKEN"
+        ],
+        [
+          "AppGuard-App-Id",
+          "test-app"
+        ]
+      ],
+      "body_b64": "e30="
+    },
+    "parameters": {
+      "created": 1700000000,
+      "expires": 1700000120,
+      "nonce": "AAECAwQFBgcICQoLDA0ODw",
+      "key_id": "test-key",
+      "algorithm": "ecdsa-p256-sha256",
+      "tag": "appguard-request-v0"
+    },
+    "signature_b64": "It0QqkfowAmt4xhCxamiY76Lo5b+TviYdefGjJ8jQxZd8zrR3CrDu8sPpo11UoPiih8COKGFBOaHF3vIUFuQ1A==",
+    "key": {
+      "app_id": "test-app",
+      "key_id": "test-key",
+      "subject": "test-user",
+      "public_key_pem": "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEN1mjSNnx5jTajvB5nfqM8Q4fhPQH\nX1HEiwDcM05xWlF7Os9IKP5XmGkUsdiQpUNYmdImFW6o3PXZ+HF5kpUiLw==\n-----END PUBLIC KEY-----\n",
+      "algorithm": "ecdsa-p256-sha256",
+      "revoked": false
+    },
+    "context": {
+      "origin": "https://api.example.test",
+      "app_id": "test-app",
+      "subject": "test-user",
+      "now": 1700000000
+    },
+    "replay_store": "memory",
+    "expected_signature_base": "\"@method\": POST\n\"@target-uri\": https://api.example.test/v1/a%2fb?x=2&x=1\n\"content-type\": application/json\n\"content-digest\": sha-256=:RBNvo1WzZ4oRRq0W9+hknpT7T8If536DEMBg9hyq/4o=:\n\"authorization\": Bearer TEST_ONLY_TOKEN\n\"appguard-app-id\": test-app\n\"@signature-params\": (\"@method\" \"@target-uri\" \"content-type\" \"content-digest\" \"authorization\" \"appguard-app-id\");created=1700000000;expires=1700000120;nonce=\"AAECAwQFBgcICQoLDA0ODw\";keyid=\"test-key\";alg=\"ecdsa-p256-sha256\";tag=\"appguard-request-v0\"",
+    "expected_codes": [
+      "VERIFIED"
+    ]
+  },
+  {
+    "id": "forwarded-origin-ignored",
+    "request": {
+      "method": "POST",
+      "target": "/v1/items?b=2&a=1",
+      "headers": [
+        [
+          "Content-Type",
+          "application/json"
+        ],
+        [
+          "Content-Digest",
+          "sha-256=:RBNvo1WzZ4oRRq0W9+hknpT7T8If536DEMBg9hyq/4o=:"
+        ],
+        [
+          "Authorization",
+          "Bearer TEST_ONLY_TOKEN"
+        ],
+        [
+          "AppGuard-App-Id",
+          "test-app"
+        ],
+        [
+          "Forwarded",
+          "host=evil.example.test;proto=http"
+        ]
+      ],
+      "body_b64": "e30="
+    },
+    "parameters": {
+      "created": 1700000000,
+      "expires": 1700000120,
+      "nonce": "AAECAwQFBgcICQoLDA0ODw",
+      "key_id": "test-key",
+      "algorithm": "ecdsa-p256-sha256",
+      "tag": "appguard-request-v0"
+    },
+    "signature_b64": "4VcXRWhH6ZX8fo2Rg7fboR0oKDB9nLWFZKpFQGZbz/kztRo6H0JxYwR2rWS8SXKM8XJ4ELzqlaIFb7v2QWOK6w==",
+    "key": {
+      "app_id": "test-app",
+      "key_id": "test-key",
+      "subject": "test-user",
+      "public_key_pem": "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEN1mjSNnx5jTajvB5nfqM8Q4fhPQH\nX1HEiwDcM05xWlF7Os9IKP5XmGkUsdiQpUNYmdImFW6o3PXZ+HF5kpUiLw==\n-----END PUBLIC KEY-----\n",
+      "algorithm": "ecdsa-p256-sha256",
+      "revoked": false
+    },
+    "context": {
+      "origin": "https://api.example.test",
+      "app_id": "test-app",
+      "subject": "test-user",
+      "now": 1700000000
+    },
+    "replay_store": "memory",
+    "expected_signature_base": "\"@method\": POST\n\"@target-uri\": https://api.example.test/v1/items?b=2&a=1\n\"content-type\": application/json\n\"content-digest\": sha-256=:RBNvo1WzZ4oRRq0W9+hknpT7T8If536DEMBg9hyq/4o=:\n\"authorization\": Bearer TEST_ONLY_TOKEN\n\"appguard-app-id\": test-app\n\"@signature-params\": (\"@method\" \"@target-uri\" \"content-type\" \"content-digest\" \"authorization\" \"appguard-app-id\");created=1700000000;expires=1700000120;nonce=\"AAECAwQFBgcICQoLDA0ODw\";keyid=\"test-key\";alg=\"ecdsa-p256-sha256\";tag=\"appguard-request-v0\"",
+    "expected_codes": [
+      "VERIFIED"
+    ]
+  },
+  {
+    "id": "body-substitution",
+    "request": {
+      "method": "POST",
+      "target": "/v1/items?b=2&a=1",
+      "headers": [
+        [
+          "Content-Type",
+          "application/json"
+        ],
+        [
+          "Content-Digest",
+          "sha-256=:RBNvo1WzZ4oRRq0W9+hknpT7T8If536DEMBg9hyq/4o=:"
+        ],
+        [
+          "Authorization",
+          "Bearer TEST_ONLY_TOKEN"
+        ],
+        [
+          "AppGuard-App-Id",
+          "test-app"
+        ]
+      ],
+      "body_b64": "eyJhZG1pbiI6dHJ1ZX0="
+    },
+    "parameters": {
+      "created": 1700000000,
+      "expires": 1700000120,
+      "nonce": "AAECAwQFBgcICQoLDA0ODw",
+      "key_id": "test-key",
+      "algorithm": "ecdsa-p256-sha256",
+      "tag": "appguard-request-v0"
+    },
+    "signature_b64": "4VcXRWhH6ZX8fo2Rg7fboR0oKDB9nLWFZKpFQGZbz/kztRo6H0JxYwR2rWS8SXKM8XJ4ELzqlaIFb7v2QWOK6w==",
+    "key": {
+      "app_id": "test-app",
+      "key_id": "test-key",
+      "subject": "test-user",
+      "public_key_pem": "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEN1mjSNnx5jTajvB5nfqM8Q4fhPQH\nX1HEiwDcM05xWlF7Os9IKP5XmGkUsdiQpUNYmdImFW6o3PXZ+HF5kpUiLw==\n-----END PUBLIC KEY-----\n",
+      "algorithm": "ecdsa-p256-sha256",
+      "revoked": false
+    },
+    "context": {
+      "origin": "https://api.example.test",
+      "app_id": "test-app",
+      "subject": "test-user",
+      "now": 1700000000
+    },
+    "replay_store": "memory",
+    "expected_signature_base": "\"@method\": POST\n\"@target-uri\": https://api.example.test/v1/items?b=2&a=1\n\"content-type\": application/json\n\"content-digest\": sha-256=:RBNvo1WzZ4oRRq0W9+hknpT7T8If536DEMBg9hyq/4o=:\n\"authorization\": Bearer TEST_ONLY_TOKEN\n\"appguard-app-id\": test-app\n\"@signature-params\": (\"@method\" \"@target-uri\" \"content-type\" \"content-digest\" \"authorization\" \"appguard-app-id\");created=1700000000;expires=1700000120;nonce=\"AAECAwQFBgcICQoLDA0ODw\";keyid=\"test-key\";alg=\"ecdsa-p256-sha256\";tag=\"appguard-request-v0\"",
+    "expected_codes": [
+      "DIGEST_MISMATCH"
+    ]
+  },
+  {
+    "id": "body-and-digest-substitution",
+    "request": {
+      "method": "POST",
+      "target": "/v1/items?b=2&a=1",
+      "headers": [
+        [
+          "Content-Type",
+          "application/json"
+        ],
+        [
+          "Content-Digest",
+          "sha-256=:1n4ulEmUSWyNjsdu7Qz58JZ5RI1YS1Mr6/lBhSo39e0=:"
+        ],
+        [
+          "Authorization",
+          "Bearer TEST_ONLY_TOKEN"
+        ],
+        [
+          "AppGuard-App-Id",
+          "test-app"
+        ]
+      ],
+      "body_b64": "Y2hhbmdlZA=="
+    },
+    "parameters": {
+      "created": 1700000000,
+      "expires": 1700000120,
+      "nonce": "AAECAwQFBgcICQoLDA0ODw",
+      "key_id": "test-key",
+      "algorithm": "ecdsa-p256-sha256",
+      "tag": "appguard-request-v0"
+    },
+    "signature_b64": "4VcXRWhH6ZX8fo2Rg7fboR0oKDB9nLWFZKpFQGZbz/kztRo6H0JxYwR2rWS8SXKM8XJ4ELzqlaIFb7v2QWOK6w==",
+    "key": {
+      "app_id": "test-app",
+      "key_id": "test-key",
+      "subject": "test-user",
+      "public_key_pem": "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEN1mjSNnx5jTajvB5nfqM8Q4fhPQH\nX1HEiwDcM05xWlF7Os9IKP5XmGkUsdiQpUNYmdImFW6o3PXZ+HF5kpUiLw==\n-----END PUBLIC KEY-----\n",
+      "algorithm": "ecdsa-p256-sha256",
+      "revoked": false
+    },
+    "context": {
+      "origin": "https://api.example.test",
+      "app_id": "test-app",
+      "subject": "test-user",
+      "now": 1700000000
+    },
+    "replay_store": "memory",
+    "expected_signature_base": "\"@method\": POST\n\"@target-uri\": https://api.example.test/v1/items?b=2&a=1\n\"content-type\": application/json\n\"content-digest\": sha-256=:1n4ulEmUSWyNjsdu7Qz58JZ5RI1YS1Mr6/lBhSo39e0=:\n\"authorization\": Bearer TEST_ONLY_TOKEN\n\"appguard-app-id\": test-app\n\"@signature-params\": (\"@method\" \"@target-uri\" \"content-type\" \"content-digest\" \"authorization\" \"appguard-app-id\");created=1700000000;expires=1700000120;nonce=\"AAECAwQFBgcICQoLDA0ODw\";keyid=\"test-key\";alg=\"ecdsa-p256-sha256\";tag=\"appguard-request-v0\"",
+    "expected_codes": [
+      "INVALID_SIGNATURE"
+    ]
+  },
+  {
+    "id": "query-reordered",
+    "request": {
+      "method": "POST",
+      "target": "/v1/items?a=1&b=2",
+      "headers": [
+        [
+          "Content-Type",
+          "application/json"
+        ],
+        [
+          "Content-Digest",
+          "sha-256=:RBNvo1WzZ4oRRq0W9+hknpT7T8If536DEMBg9hyq/4o=:"
+        ],
+        [
+          "Authorization",
+          "Bearer TEST_ONLY_TOKEN"
+        ],
+        [
+          "AppGuard-App-Id",
+          "test-app"
+        ]
+      ],
+      "body_b64": "e30="
+    },
+    "parameters": {
+      "created": 1700000000,
+      "expires": 1700000120,
+      "nonce": "AAECAwQFBgcICQoLDA0ODw",
+      "key_id": "test-key",
+      "algorithm": "ecdsa-p256-sha256",
+      "tag": "appguard-request-v0"
+    },
+    "signature_b64": "4VcXRWhH6ZX8fo2Rg7fboR0oKDB9nLWFZKpFQGZbz/kztRo6H0JxYwR2rWS8SXKM8XJ4ELzqlaIFb7v2QWOK6w==",
+    "key": {
+      "app_id": "test-app",
+      "key_id": "test-key",
+      "subject": "test-user",
+      "public_key_pem": "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEN1mjSNnx5jTajvB5nfqM8Q4fhPQH\nX1HEiwDcM05xWlF7Os9IKP5XmGkUsdiQpUNYmdImFW6o3PXZ+HF5kpUiLw==\n-----END PUBLIC KEY-----\n",
+      "algorithm": "ecdsa-p256-sha256",
+      "revoked": false
+    },
+    "context": {
+      "origin": "https://api.example.test",
+      "app_id": "test-app",
+      "subject": "test-user",
+      "now": 1700000000
+    },
+    "replay_store": "memory",
+    "expected_signature_base": "\"@method\": POST\n\"@target-uri\": https://api.example.test/v1/items?a=1&b=2\n\"content-type\": application/json\n\"content-digest\": sha-256=:RBNvo1WzZ4oRRq0W9+hknpT7T8If536DEMBg9hyq/4o=:\n\"authorization\": Bearer TEST_ONLY_TOKEN\n\"appguard-app-id\": test-app\n\"@signature-params\": (\"@method\" \"@target-uri\" \"content-type\" \"content-digest\" \"authorization\" \"appguard-app-id\");created=1700000000;expires=1700000120;nonce=\"AAECAwQFBgcICQoLDA0ODw\";keyid=\"test-key\";alg=\"ecdsa-p256-sha256\";tag=\"appguard-request-v0\"",
+    "expected_codes": [
+      "INVALID_SIGNATURE"
+    ]
+  },
+  {
+    "id": "path-substitution",
+    "request": {
+      "method": "POST",
+      "target": "/v1/admin?b=2&a=1",
+      "headers": [
+        [
+          "Content-Type",
+          "application/json"
+        ],
+        [
+          "Content-Digest",
+          "sha-256=:RBNvo1WzZ4oRRq0W9+hknpT7T8If536DEMBg9hyq/4o=:"
+        ],
+        [
+          "Authorization",
+          "Bearer TEST_ONLY_TOKEN"
+        ],
+        [
+          "AppGuard-App-Id",
+          "test-app"
+        ]
+      ],
+      "body_b64": "e30="
+    },
+    "parameters": {
+      "created": 1700000000,
+      "expires": 1700000120,
+      "nonce": "AAECAwQFBgcICQoLDA0ODw",
+      "key_id": "test-key",
+      "algorithm": "ecdsa-p256-sha256",
+      "tag": "appguard-request-v0"
+    },
+    "signature_b64": "4VcXRWhH6ZX8fo2Rg7fboR0oKDB9nLWFZKpFQGZbz/kztRo6H0JxYwR2rWS8SXKM8XJ4ELzqlaIFb7v2QWOK6w==",
+    "key": {
+      "app_id": "test-app",
+      "key_id": "test-key",
+      "subject": "test-user",
+      "public_key_pem": "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEN1mjSNnx5jTajvB5nfqM8Q4fhPQH\nX1HEiwDcM05xWlF7Os9IKP5XmGkUsdiQpUNYmdImFW6o3PXZ+HF5kpUiLw==\n-----END PUBLIC KEY-----\n",
+      "algorithm": "ecdsa-p256-sha256",
+      "revoked": false
+    },
+    "context": {
+      "origin": "https://api.example.test",
+      "app_id": "test-app",
+      "subject": "test-user",
+      "now": 1700000000
+    },
+    "replay_store": "memory",
+    "expected_signature_base": "\"@method\": POST\n\"@target-uri\": https://api.example.test/v1/admin?b=2&a=1\n\"content-type\": application/json\n\"content-digest\": sha-256=:RBNvo1WzZ4oRRq0W9+hknpT7T8If536DEMBg9hyq/4o=:\n\"authorization\": Bearer TEST_ONLY_TOKEN\n\"appguard-app-id\": test-app\n\"@signature-params\": (\"@method\" \"@target-uri\" \"content-type\" \"content-digest\" \"authorization\" \"appguard-app-id\");created=1700000000;expires=1700000120;nonce=\"AAECAwQFBgcICQoLDA0ODw\";keyid=\"test-key\";alg=\"ecdsa-p256-sha256\";tag=\"appguard-request-v0\"",
+    "expected_codes": [
+      "INVALID_SIGNATURE"
+    ]
+  },
+  {
+    "id": "encoded-path-substitution",
+    "request": {
+      "method": "POST",
+      "target": "/v1%2Fitems?b=2&a=1",
+      "headers": [
+        [
+          "Content-Type",
+          "application/json"
+        ],
+        [
+          "Content-Digest",
+          "sha-256=:RBNvo1WzZ4oRRq0W9+hknpT7T8If536DEMBg9hyq/4o=:"
+        ],
+        [
+          "Authorization",
+          "Bearer TEST_ONLY_TOKEN"
+        ],
+        [
+          "AppGuard-App-Id",
+          "test-app"
+        ]
+      ],
+      "body_b64": "e30="
+    },
+    "parameters": {
+      "created": 1700000000,
+      "expires": 1700000120,
+      "nonce": "AAECAwQFBgcICQoLDA0ODw",
+      "key_id": "test-key",
+      "algorithm": "ecdsa-p256-sha256",
+      "tag": "appguard-request-v0"
+    },
+    "signature_b64": "4VcXRWhH6ZX8fo2Rg7fboR0oKDB9nLWFZKpFQGZbz/kztRo6H0JxYwR2rWS8SXKM8XJ4ELzqlaIFb7v2QWOK6w==",
+    "key": {
+      "app_id": "test-app",
+      "key_id": "test-key",
+      "subject": "test-user",
+      "public_key_pem": "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEN1mjSNnx5jTajvB5nfqM8Q4fhPQH\nX1HEiwDcM05xWlF7Os9IKP5XmGkUsdiQpUNYmdImFW6o3PXZ+HF5kpUiLw==\n-----END PUBLIC KEY-----\n",
+      "algorithm": "ecdsa-p256-sha256",
+      "revoked": false
+    },
+    "context": {
+      "origin": "https://api.example.test",
+      "app_id": "test-app",
+      "subject": "test-user",
+      "now": 1700000000
+    },
+    "replay_store": "memory",
+    "expected_signature_base": "\"@method\": POST\n\"@target-uri\": https://api.example.test/v1%2Fitems?b=2&a=1\n\"content-type\": application/json\n\"content-digest\": sha-256=:RBNvo1WzZ4oRRq0W9+hknpT7T8If536DEMBg9hyq/4o=:\n\"authorization\": Bearer TEST_ONLY_TOKEN\n\"appguard-app-id\": test-app\n\"@signature-params\": (\"@method\" \"@target-uri\" \"content-type\" \"content-digest\" \"authorization\" \"appguard-app-id\");created=1700000000;expires=1700000120;nonce=\"AAECAwQFBgcICQoLDA0ODw\";keyid=\"test-key\";alg=\"ecdsa-p256-sha256\";tag=\"appguard-request-v0\"",
+    "expected_codes": [
+      "INVALID_SIGNATURE"
+    ]
+  },
+  {
+    "id": "method-substitution",
+    "request": {
+      "method": "GET",
+      "target": "/v1/items?b=2&a=1",
+      "headers": [
+        [
+          "Content-Type",
+          "application/json"
+        ],
+        [
+          "Content-Digest",
+          "sha-256=:RBNvo1WzZ4oRRq0W9+hknpT7T8If536DEMBg9hyq/4o=:"
+        ],
+        [
+          "Authorization",
+          "Bearer TEST_ONLY_TOKEN"
+        ],
+        [
+          "AppGuard-App-Id",
+          "test-app"
+        ]
+      ],
+      "body_b64": "e30="
+    },
+    "parameters": {
+      "created": 1700000000,
+      "expires": 1700000120,
+      "nonce": "AAECAwQFBgcICQoLDA0ODw",
+      "key_id": "test-key",
+      "algorithm": "ecdsa-p256-sha256",
+      "tag": "appguard-request-v0"
+    },
+    "signature_b64": "4VcXRWhH6ZX8fo2Rg7fboR0oKDB9nLWFZKpFQGZbz/kztRo6H0JxYwR2rWS8SXKM8XJ4ELzqlaIFb7v2QWOK6w==",
+    "key": {
+      "app_id": "test-app",
+      "key_id": "test-key",
+      "subject": "test-user",
+      "public_key_pem": "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEN1mjSNnx5jTajvB5nfqM8Q4fhPQH\nX1HEiwDcM05xWlF7Os9IKP5XmGkUsdiQpUNYmdImFW6o3PXZ+HF5kpUiLw==\n-----END PUBLIC KEY-----\n",
+      "algorithm": "ecdsa-p256-sha256",
+      "revoked": false
+    },
+    "context": {
+      "origin": "https://api.example.test",
+      "app_id": "test-app",
+      "subject": "test-user",
+      "now": 1700000000
+    },
+    "replay_store": "memory",
+    "expected_signature_base": "\"@method\": GET\n\"@target-uri\": https://api.example.test/v1/items?b=2&a=1\n\"content-type\": application/json\n\"content-digest\": sha-256=:RBNvo1WzZ4oRRq0W9+hknpT7T8If536DEMBg9hyq/4o=:\n\"authorization\": Bearer TEST_ONLY_TOKEN\n\"appguard-app-id\": test-app\n\"@signature-params\": (\"@method\" \"@target-uri\" \"content-type\" \"content-digest\" \"authorization\" \"appguard-app-id\");created=1700000000;expires=1700000120;nonce=\"AAECAwQFBgcICQoLDA0ODw\";keyid=\"test-key\";alg=\"ecdsa-p256-sha256\";tag=\"appguard-request-v0\"",
+    "expected_codes": [
+      "INVALID_SIGNATURE"
+    ]
+  },
+  {
+    "id": "token-substitution",
+    "request": {
+      "method": "POST",
+      "target": "/v1/items?b=2&a=1",
+      "headers": [
+        [
+          "Content-Type",
+          "application/json"
+        ],
+        [
+          "Content-Digest",
+          "sha-256=:RBNvo1WzZ4oRRq0W9+hknpT7T8If536DEMBg9hyq/4o=:"
+        ],
+        [
+          "Authorization",
+          "Bearer OTHER_TEST_TOKEN"
+        ],
+        [
+          "AppGuard-App-Id",
+          "test-app"
+        ]
+      ],
+      "body_b64": "e30="
+    },
+    "parameters": {
+      "created": 1700000000,
+      "expires": 1700000120,
+      "nonce": "AAECAwQFBgcICQoLDA0ODw",
+      "key_id": "test-key",
+      "algorithm": "ecdsa-p256-sha256",
+      "tag": "appguard-request-v0"
+    },
+    "signature_b64": "4VcXRWhH6ZX8fo2Rg7fboR0oKDB9nLWFZKpFQGZbz/kztRo6H0JxYwR2rWS8SXKM8XJ4ELzqlaIFb7v2QWOK6w==",
+    "key": {
+      "app_id": "test-app",
+      "key_id": "test-key",
+      "subject": "test-user",
+      "public_key_pem": "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEN1mjSNnx5jTajvB5nfqM8Q4fhPQH\nX1HEiwDcM05xWlF7Os9IKP5XmGkUsdiQpUNYmdImFW6o3PXZ+HF5kpUiLw==\n-----END PUBLIC KEY-----\n",
+      "algorithm": "ecdsa-p256-sha256",
+      "revoked": false
+    },
+    "context": {
+      "origin": "https://api.example.test",
+      "app_id": "test-app",
+      "subject": "test-user",
+      "now": 1700000000
+    },
+    "replay_store": "memory",
+    "expected_signature_base": "\"@method\": POST\n\"@target-uri\": https://api.example.test/v1/items?b=2&a=1\n\"content-type\": application/json\n\"content-digest\": sha-256=:RBNvo1WzZ4oRRq0W9+hknpT7T8If536DEMBg9hyq/4o=:\n\"authorization\": Bearer OTHER_TEST_TOKEN\n\"appguard-app-id\": test-app\n\"@signature-params\": (\"@method\" \"@target-uri\" \"content-type\" \"content-digest\" \"authorization\" \"appguard-app-id\");created=1700000000;expires=1700000120;nonce=\"AAECAwQFBgcICQoLDA0ODw\";keyid=\"test-key\";alg=\"ecdsa-p256-sha256\";tag=\"appguard-request-v0\"",
+    "expected_codes": [
+      "INVALID_SIGNATURE"
+    ]
+  },
+  {
+    "id": "content-type-substitution",
+    "request": {
+      "method": "POST",
+      "target": "/v1/items?b=2&a=1",
+      "headers": [
+        [
+          "Content-Type",
+          "text/plain"
+        ],
+        [
+          "Content-Digest",
+          "sha-256=:RBNvo1WzZ4oRRq0W9+hknpT7T8If536DEMBg9hyq/4o=:"
+        ],
+        [
+          "Authorization",
+          "Bearer TEST_ONLY_TOKEN"
+        ],
+        [
+          "AppGuard-App-Id",
+          "test-app"
+        ]
+      ],
+      "body_b64": "e30="
+    },
+    "parameters": {
+      "created": 1700000000,
+      "expires": 1700000120,
+      "nonce": "AAECAwQFBgcICQoLDA0ODw",
+      "key_id": "test-key",
+      "algorithm": "ecdsa-p256-sha256",
+      "tag": "appguard-request-v0"
+    },
+    "signature_b64": "4VcXRWhH6ZX8fo2Rg7fboR0oKDB9nLWFZKpFQGZbz/kztRo6H0JxYwR2rWS8SXKM8XJ4ELzqlaIFb7v2QWOK6w==",
+    "key": {
+      "app_id": "test-app",
+      "key_id": "test-key",
+      "subject": "test-user",
+      "public_key_pem": "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEN1mjSNnx5jTajvB5nfqM8Q4fhPQH\nX1HEiwDcM05xWlF7Os9IKP5XmGkUsdiQpUNYmdImFW6o3PXZ+HF5kpUiLw==\n-----END PUBLIC KEY-----\n",
+      "algorithm": "ecdsa-p256-sha256",
+      "revoked": false
+    },
+    "context": {
+      "origin": "https://api.example.test",
+      "app_id": "test-app",
+      "subject": "test-user",
+      "now": 1700000000
+    },
+    "replay_store": "memory",
+    "expected_signature_base": "\"@method\": POST\n\"@target-uri\": https://api.example.test/v1/items?b=2&a=1\n\"content-type\": text/plain\n\"content-digest\": sha-256=:RBNvo1WzZ4oRRq0W9+hknpT7T8If536DEMBg9hyq/4o=:\n\"authorization\": Bearer TEST_ONLY_TOKEN\n\"appguard-app-id\": test-app\n\"@signature-params\": (\"@method\" \"@target-uri\" \"content-type\" \"content-digest\" \"authorization\" \"appguard-app-id\");created=1700000000;expires=1700000120;nonce=\"AAECAwQFBgcICQoLDA0ODw\";keyid=\"test-key\";alg=\"ecdsa-p256-sha256\";tag=\"appguard-request-v0\"",
+    "expected_codes": [
+      "INVALID_SIGNATURE"
+    ]
+  },
+  {
+    "id": "trusted-origin-changed",
+    "request": {
+      "method": "POST",
+      "target": "/v1/items?b=2&a=1",
+      "headers": [
+        [
+          "Content-Type",
+          "application/json"
+        ],
+        [
+          "Content-Digest",
+          "sha-256=:RBNvo1WzZ4oRRq0W9+hknpT7T8If536DEMBg9hyq/4o=:"
+        ],
+        [
+          "Authorization",
+          "Bearer TEST_ONLY_TOKEN"
+        ],
+        [
+          "AppGuard-App-Id",
+          "test-app"
+        ]
+      ],
+      "body_b64": "e30="
+    },
+    "parameters": {
+      "created": 1700000000,
+      "expires": 1700000120,
+      "nonce": "AAECAwQFBgcICQoLDA0ODw",
+      "key_id": "test-key",
+      "algorithm": "ecdsa-p256-sha256",
+      "tag": "appguard-request-v0"
+    },
+    "signature_b64": "4VcXRWhH6ZX8fo2Rg7fboR0oKDB9nLWFZKpFQGZbz/kztRo6H0JxYwR2rWS8SXKM8XJ4ELzqlaIFb7v2QWOK6w==",
+    "key": {
+      "app_id": "test-app",
+      "key_id": "test-key",
+      "subject": "test-user",
+      "public_key_pem": "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEN1mjSNnx5jTajvB5nfqM8Q4fhPQH\nX1HEiwDcM05xWlF7Os9IKP5XmGkUsdiQpUNYmdImFW6o3PXZ+HF5kpUiLw==\n-----END PUBLIC KEY-----\n",
+      "algorithm": "ecdsa-p256-sha256",
+      "revoked": false
+    },
+    "context": {
+      "origin": "https://other.example.test",
+      "app_id": "test-app",
+      "subject": "test-user",
+      "now": 1700000000
+    },
+    "replay_store": "memory",
+    "expected_signature_base": "\"@method\": POST\n\"@target-uri\": https://other.example.test/v1/items?b=2&a=1\n\"content-type\": application/json\n\"content-digest\": sha-256=:RBNvo1WzZ4oRRq0W9+hknpT7T8If536DEMBg9hyq/4o=:\n\"authorization\": Bearer TEST_ONLY_TOKEN\n\"appguard-app-id\": test-app\n\"@signature-params\": (\"@method\" \"@target-uri\" \"content-type\" \"content-digest\" \"authorization\" \"appguard-app-id\");created=1700000000;expires=1700000120;nonce=\"AAECAwQFBgcICQoLDA0ODw\";keyid=\"test-key\";alg=\"ecdsa-p256-sha256\";tag=\"appguard-request-v0\"",
+    "expected_codes": [
+      "INVALID_SIGNATURE"
+    ]
+  },
+  {
+    "id": "signed-app-substitution",
+    "request": {
+      "method": "POST",
+      "target": "/v1/items?b=2&a=1",
+      "headers": [
+        [
+          "Content-Type",
+          "application/json"
+        ],
+        [
+          "Content-Digest",
+          "sha-256=:RBNvo1WzZ4oRRq0W9+hknpT7T8If536DEMBg9hyq/4o=:"
+        ],
+        [
+          "Authorization",
+          "Bearer TEST_ONLY_TOKEN"
+        ],
+        [
+          "AppGuard-App-Id",
+          "other-app"
+        ]
+      ],
+      "body_b64": "e30="
+    },
+    "parameters": {
+      "created": 1700000000,
+      "expires": 1700000120,
+      "nonce": "AAECAwQFBgcICQoLDA0ODw",
+      "key_id": "test-key",
+      "algorithm": "ecdsa-p256-sha256",
+      "tag": "appguard-request-v0"
+    },
+    "signature_b64": "4VcXRWhH6ZX8fo2Rg7fboR0oKDB9nLWFZKpFQGZbz/kztRo6H0JxYwR2rWS8SXKM8XJ4ELzqlaIFb7v2QWOK6w==",
+    "key": {
+      "app_id": "test-app",
+      "key_id": "test-key",
+      "subject": "test-user",
+      "public_key_pem": "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEN1mjSNnx5jTajvB5nfqM8Q4fhPQH\nX1HEiwDcM05xWlF7Os9IKP5XmGkUsdiQpUNYmdImFW6o3PXZ+HF5kpUiLw==\n-----END PUBLIC KEY-----\n",
+      "algorithm": "ecdsa-p256-sha256",
+      "revoked": false
+    },
+    "context": {
+      "origin": "https://api.example.test",
+      "app_id": "test-app",
+      "subject": "test-user",
+      "now": 1700000000
+    },
+    "replay_store": "memory",
+    "expected_signature_base": "\"@method\": POST\n\"@target-uri\": https://api.example.test/v1/items?b=2&a=1\n\"content-type\": application/json\n\"content-digest\": sha-256=:RBNvo1WzZ4oRRq0W9+hknpT7T8If536DEMBg9hyq/4o=:\n\"authorization\": Bearer TEST_ONLY_TOKEN\n\"appguard-app-id\": other-app\n\"@signature-params\": (\"@method\" \"@target-uri\" \"content-type\" \"content-digest\" \"authorization\" \"appguard-app-id\");created=1700000000;expires=1700000120;nonce=\"AAECAwQFBgcICQoLDA0ODw\";keyid=\"test-key\";alg=\"ecdsa-p256-sha256\";tag=\"appguard-request-v0\"",
+    "expected_codes": [
+      "KEY_REJECTED"
+    ]
+  },
+  {
+    "id": "configured-app-mismatch",
+    "request": {
+      "method": "POST",
+      "target": "/v1/items?b=2&a=1",
+      "headers": [
+        [
+          "Content-Type",
+          "application/json"
+        ],
+        [
+          "Content-Digest",
+          "sha-256=:RBNvo1WzZ4oRRq0W9+hknpT7T8If536DEMBg9hyq/4o=:"
+        ],
+        [
+          "Authorization",
+          "Bearer TEST_ONLY_TOKEN"
+        ],
+        [
+          "AppGuard-App-Id",
+          "test-app"
+        ]
+      ],
+      "body_b64": "e30="
+    },
+    "parameters": {
+      "created": 1700000000,
+      "expires": 1700000120,
+      "nonce": "AAECAwQFBgcICQoLDA0ODw",
+      "key_id": "test-key",
+      "algorithm": "ecdsa-p256-sha256",
+      "tag": "appguard-request-v0"
+    },
+    "signature_b64": "4VcXRWhH6ZX8fo2Rg7fboR0oKDB9nLWFZKpFQGZbz/kztRo6H0JxYwR2rWS8SXKM8XJ4ELzqlaIFb7v2QWOK6w==",
+    "key": {
+      "app_id": "test-app",
+      "key_id": "test-key",
+      "subject": "test-user",
+      "public_key_pem": "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEN1mjSNnx5jTajvB5nfqM8Q4fhPQH\nX1HEiwDcM05xWlF7Os9IKP5XmGkUsdiQpUNYmdImFW6o3PXZ+HF5kpUiLw==\n-----END PUBLIC KEY-----\n",
+      "algorithm": "ecdsa-p256-sha256",
+      "revoked": false
+    },
+    "context": {
+      "origin": "https://api.example.test",
+      "app_id": "other-app",
+      "subject": "test-user",
+      "now": 1700000000
+    },
+    "replay_store": "memory",
+    "expected_signature_base": "\"@method\": POST\n\"@target-uri\": https://api.example.test/v1/items?b=2&a=1\n\"content-type\": application/json\n\"content-digest\": sha-256=:RBNvo1WzZ4oRRq0W9+hknpT7T8If536DEMBg9hyq/4o=:\n\"authorization\": Bearer TEST_ONLY_TOKEN\n\"appguard-app-id\": test-app\n\"@signature-params\": (\"@method\" \"@target-uri\" \"content-type\" \"content-digest\" \"authorization\" \"appguard-app-id\");created=1700000000;expires=1700000120;nonce=\"AAECAwQFBgcICQoLDA0ODw\";keyid=\"test-key\";alg=\"ecdsa-p256-sha256\";tag=\"appguard-request-v0\"",
+    "expected_codes": [
+      "KEY_REJECTED"
+    ]
+  },
+  {
+    "id": "authenticated-subject-mismatch",
+    "request": {
+      "method": "POST",
+      "target": "/v1/items?b=2&a=1",
+      "headers": [
+        [
+          "Content-Type",
+          "application/json"
+        ],
+        [
+          "Content-Digest",
+          "sha-256=:RBNvo1WzZ4oRRq0W9+hknpT7T8If536DEMBg9hyq/4o=:"
+        ],
+        [
+          "Authorization",
+          "Bearer TEST_ONLY_TOKEN"
+        ],
+        [
+          "AppGuard-App-Id",
+          "test-app"
+        ]
+      ],
+      "body_b64": "e30="
+    },
+    "parameters": {
+      "created": 1700000000,
+      "expires": 1700000120,
+      "nonce": "AAECAwQFBgcICQoLDA0ODw",
+      "key_id": "test-key",
+      "algorithm": "ecdsa-p256-sha256",
+      "tag": "appguard-request-v0"
+    },
+    "signature_b64": "4VcXRWhH6ZX8fo2Rg7fboR0oKDB9nLWFZKpFQGZbz/kztRo6H0JxYwR2rWS8SXKM8XJ4ELzqlaIFb7v2QWOK6w==",
+    "key": {
+      "app_id": "test-app",
+      "key_id": "test-key",
+      "subject": "test-user",
+      "public_key_pem": "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEN1mjSNnx5jTajvB5nfqM8Q4fhPQH\nX1HEiwDcM05xWlF7Os9IKP5XmGkUsdiQpUNYmdImFW6o3PXZ+HF5kpUiLw==\n-----END PUBLIC KEY-----\n",
+      "algorithm": "ecdsa-p256-sha256",
+      "revoked": false
+    },
+    "context": {
+      "origin": "https://api.example.test",
+      "app_id": "test-app",
+      "subject": "other-user",
+      "now": 1700000000
+    },
+    "replay_store": "memory",
+    "expected_signature_base": "\"@method\": POST\n\"@target-uri\": https://api.example.test/v1/items?b=2&a=1\n\"content-type\": application/json\n\"content-digest\": sha-256=:RBNvo1WzZ4oRRq0W9+hknpT7T8If536DEMBg9hyq/4o=:\n\"authorization\": Bearer TEST_ONLY_TOKEN\n\"appguard-app-id\": test-app\n\"@signature-params\": (\"@method\" \"@target-uri\" \"content-type\" \"content-digest\" \"authorization\" \"appguard-app-id\");created=1700000000;expires=1700000120;nonce=\"AAECAwQFBgcICQoLDA0ODw\";keyid=\"test-key\";alg=\"ecdsa-p256-sha256\";tag=\"appguard-request-v0\"",
+    "expected_codes": [
+      "KEY_REJECTED"
+    ]
+  },
+  {
+    "id": "record-app-mismatch",
+    "request": {
+      "method": "POST",
+      "target": "/v1/items?b=2&a=1",
+      "headers": [
+        [
+          "Content-Type",
+          "application/json"
+        ],
+        [
+          "Content-Digest",
+          "sha-256=:RBNvo1WzZ4oRRq0W9+hknpT7T8If536DEMBg9hyq/4o=:"
+        ],
+        [
+          "Authorization",
+          "Bearer TEST_ONLY_TOKEN"
+        ],
+        [
+          "AppGuard-App-Id",
+          "test-app"
+        ]
+      ],
+      "body_b64": "e30="
+    },
+    "parameters": {
+      "created": 1700000000,
+      "expires": 1700000120,
+      "nonce": "AAECAwQFBgcICQoLDA0ODw",
+      "key_id": "test-key",
+      "algorithm": "ecdsa-p256-sha256",
+      "tag": "appguard-request-v0"
+    },
+    "signature_b64": "4VcXRWhH6ZX8fo2Rg7fboR0oKDB9nLWFZKpFQGZbz/kztRo6H0JxYwR2rWS8SXKM8XJ4ELzqlaIFb7v2QWOK6w==",
+    "key": {
+      "app_id": "other-app",
+      "key_id": "test-key",
+      "subject": "test-user",
+      "public_key_pem": "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEN1mjSNnx5jTajvB5nfqM8Q4fhPQH\nX1HEiwDcM05xWlF7Os9IKP5XmGkUsdiQpUNYmdImFW6o3PXZ+HF5kpUiLw==\n-----END PUBLIC KEY-----\n",
+      "algorithm": "ecdsa-p256-sha256",
+      "revoked": false
+    },
+    "context": {
+      "origin": "https://api.example.test",
+      "app_id": "test-app",
+      "subject": "test-user",
+      "now": 1700000000
+    },
+    "replay_store": "memory",
+    "expected_signature_base": "\"@method\": POST\n\"@target-uri\": https://api.example.test/v1/items?b=2&a=1\n\"content-type\": application/json\n\"content-digest\": sha-256=:RBNvo1WzZ4oRRq0W9+hknpT7T8If536DEMBg9hyq/4o=:\n\"authorization\": Bearer TEST_ONLY_TOKEN\n\"appguard-app-id\": test-app\n\"@signature-params\": (\"@method\" \"@target-uri\" \"content-type\" \"content-digest\" \"authorization\" \"appguard-app-id\");created=1700000000;expires=1700000120;nonce=\"AAECAwQFBgcICQoLDA0ODw\";keyid=\"test-key\";alg=\"ecdsa-p256-sha256\";tag=\"appguard-request-v0\"",
+    "expected_codes": [
+      "KEY_REJECTED"
+    ]
+  },
+  {
+    "id": "record-subject-mismatch",
+    "request": {
+      "method": "POST",
+      "target": "/v1/items?b=2&a=1",
+      "headers": [
+        [
+          "Content-Type",
+          "application/json"
+        ],
+        [
+          "Content-Digest",
+          "sha-256=:RBNvo1WzZ4oRRq0W9+hknpT7T8If536DEMBg9hyq/4o=:"
+        ],
+        [
+          "Authorization",
+          "Bearer TEST_ONLY_TOKEN"
+        ],
+        [
+          "AppGuard-App-Id",
+          "test-app"
+        ]
+      ],
+      "body_b64": "e30="
+    },
+    "parameters": {
+      "created": 1700000000,
+      "expires": 1700000120,
+      "nonce": "AAECAwQFBgcICQoLDA0ODw",
+      "key_id": "test-key",
+      "algorithm": "ecdsa-p256-sha256",
+      "tag": "appguard-request-v0"
+    },
+    "signature_b64": "4VcXRWhH6ZX8fo2Rg7fboR0oKDB9nLWFZKpFQGZbz/kztRo6H0JxYwR2rWS8SXKM8XJ4ELzqlaIFb7v2QWOK6w==",
+    "key": {
+      "app_id": "test-app",
+      "key_id": "test-key",
+      "subject": "other-user",
+      "public_key_pem": "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEN1mjSNnx5jTajvB5nfqM8Q4fhPQH\nX1HEiwDcM05xWlF7Os9IKP5XmGkUsdiQpUNYmdImFW6o3PXZ+HF5kpUiLw==\n-----END PUBLIC KEY-----\n",
+      "algorithm": "ecdsa-p256-sha256",
+      "revoked": false
+    },
+    "context": {
+      "origin": "https://api.example.test",
+      "app_id": "test-app",
+      "subject": "test-user",
+      "now": 1700000000
+    },
+    "replay_store": "memory",
+    "expected_signature_base": "\"@method\": POST\n\"@target-uri\": https://api.example.test/v1/items?b=2&a=1\n\"content-type\": application/json\n\"content-digest\": sha-256=:RBNvo1WzZ4oRRq0W9+hknpT7T8If536DEMBg9hyq/4o=:\n\"authorization\": Bearer TEST_ONLY_TOKEN\n\"appguard-app-id\": test-app\n\"@signature-params\": (\"@method\" \"@target-uri\" \"content-type\" \"content-digest\" \"authorization\" \"appguard-app-id\");created=1700000000;expires=1700000120;nonce=\"AAECAwQFBgcICQoLDA0ODw\";keyid=\"test-key\";alg=\"ecdsa-p256-sha256\";tag=\"appguard-request-v0\"",
+    "expected_codes": [
+      "KEY_REJECTED"
+    ]
+  },
+  {
+    "id": "key-id-mismatch",
+    "request": {
+      "method": "POST",
+      "target": "/v1/items?b=2&a=1",
+      "headers": [
+        [
+          "Content-Type",
+          "application/json"
+        ],
+        [
+          "Content-Digest",
+          "sha-256=:RBNvo1WzZ4oRRq0W9+hknpT7T8If536DEMBg9hyq/4o=:"
+        ],
+        [
+          "Authorization",
+          "Bearer TEST_ONLY_TOKEN"
+        ],
+        [
+          "AppGuard-App-Id",
+          "test-app"
+        ]
+      ],
+      "body_b64": "e30="
+    },
+    "parameters": {
+      "created": 1700000000,
+      "expires": 1700000120,
+      "nonce": "AAECAwQFBgcICQoLDA0ODw",
+      "key_id": "test-key",
+      "algorithm": "ecdsa-p256-sha256",
+      "tag": "appguard-request-v0"
+    },
+    "signature_b64": "4VcXRWhH6ZX8fo2Rg7fboR0oKDB9nLWFZKpFQGZbz/kztRo6H0JxYwR2rWS8SXKM8XJ4ELzqlaIFb7v2QWOK6w==",
+    "key": {
+      "app_id": "test-app",
+      "key_id": "other-key",
+      "subject": "test-user",
+      "public_key_pem": "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEN1mjSNnx5jTajvB5nfqM8Q4fhPQH\nX1HEiwDcM05xWlF7Os9IKP5XmGkUsdiQpUNYmdImFW6o3PXZ+HF5kpUiLw==\n-----END PUBLIC KEY-----\n",
+      "algorithm": "ecdsa-p256-sha256",
+      "revoked": false
+    },
+    "context": {
+      "origin": "https://api.example.test",
+      "app_id": "test-app",
+      "subject": "test-user",
+      "now": 1700000000
+    },
+    "replay_store": "memory",
+    "expected_signature_base": "\"@method\": POST\n\"@target-uri\": https://api.example.test/v1/items?b=2&a=1\n\"content-type\": application/json\n\"content-digest\": sha-256=:RBNvo1WzZ4oRRq0W9+hknpT7T8If536DEMBg9hyq/4o=:\n\"authorization\": Bearer TEST_ONLY_TOKEN\n\"appguard-app-id\": test-app\n\"@signature-params\": (\"@method\" \"@target-uri\" \"content-type\" \"content-digest\" \"authorization\" \"appguard-app-id\");created=1700000000;expires=1700000120;nonce=\"AAECAwQFBgcICQoLDA0ODw\";keyid=\"test-key\";alg=\"ecdsa-p256-sha256\";tag=\"appguard-request-v0\"",
+    "expected_codes": [
+      "KEY_REJECTED"
+    ]
+  },
+  {
+    "id": "revoked-key",
+    "request": {
+      "method": "POST",
+      "target": "/v1/items?b=2&a=1",
+      "headers": [
+        [
+          "Content-Type",
+          "application/json"
+        ],
+        [
+          "Content-Digest",
+          "sha-256=:RBNvo1WzZ4oRRq0W9+hknpT7T8If536DEMBg9hyq/4o=:"
+        ],
+        [
+          "Authorization",
+          "Bearer TEST_ONLY_TOKEN"
+        ],
+        [
+          "AppGuard-App-Id",
+          "test-app"
+        ]
+      ],
+      "body_b64": "e30="
+    },
+    "parameters": {
+      "created": 1700000000,
+      "expires": 1700000120,
+      "nonce": "AAECAwQFBgcICQoLDA0ODw",
+      "key_id": "test-key",
+      "algorithm": "ecdsa-p256-sha256",
+      "tag": "appguard-request-v0"
+    },
+    "signature_b64": "4VcXRWhH6ZX8fo2Rg7fboR0oKDB9nLWFZKpFQGZbz/kztRo6H0JxYwR2rWS8SXKM8XJ4ELzqlaIFb7v2QWOK6w==",
+    "key": {
+      "app_id": "test-app",
+      "key_id": "test-key",
+      "subject": "test-user",
+      "public_key_pem": "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEN1mjSNnx5jTajvB5nfqM8Q4fhPQH\nX1HEiwDcM05xWlF7Os9IKP5XmGkUsdiQpUNYmdImFW6o3PXZ+HF5kpUiLw==\n-----END PUBLIC KEY-----\n",
+      "algorithm": "ecdsa-p256-sha256",
+      "revoked": true
+    },
+    "context": {
+      "origin": "https://api.example.test",
+      "app_id": "test-app",
+      "subject": "test-user",
+      "now": 1700000000
+    },
+    "replay_store": "memory",
+    "expected_signature_base": "\"@method\": POST\n\"@target-uri\": https://api.example.test/v1/items?b=2&a=1\n\"content-type\": application/json\n\"content-digest\": sha-256=:RBNvo1WzZ4oRRq0W9+hknpT7T8If536DEMBg9hyq/4o=:\n\"authorization\": Bearer TEST_ONLY_TOKEN\n\"appguard-app-id\": test-app\n\"@signature-params\": (\"@method\" \"@target-uri\" \"content-type\" \"content-digest\" \"authorization\" \"appguard-app-id\");created=1700000000;expires=1700000120;nonce=\"AAECAwQFBgcICQoLDA0ODw\";keyid=\"test-key\";alg=\"ecdsa-p256-sha256\";tag=\"appguard-request-v0\"",
+    "expected_codes": [
+      "KEY_REJECTED"
+    ]
+  },
+  {
+    "id": "wrong-key-algorithm",
+    "request": {
+      "method": "POST",
+      "target": "/v1/items?b=2&a=1",
+      "headers": [
+        [
+          "Content-Type",
+          "application/json"
+        ],
+        [
+          "Content-Digest",
+          "sha-256=:RBNvo1WzZ4oRRq0W9+hknpT7T8If536DEMBg9hyq/4o=:"
+        ],
+        [
+          "Authorization",
+          "Bearer TEST_ONLY_TOKEN"
+        ],
+        [
+          "AppGuard-App-Id",
+          "test-app"
+        ]
+      ],
+      "body_b64": "e30="
+    },
+    "parameters": {
+      "created": 1700000000,
+      "expires": 1700000120,
+      "nonce": "AAECAwQFBgcICQoLDA0ODw",
+      "key_id": "test-key",
+      "algorithm": "ecdsa-p256-sha256",
+      "tag": "appguard-request-v0"
+    },
+    "signature_b64": "4VcXRWhH6ZX8fo2Rg7fboR0oKDB9nLWFZKpFQGZbz/kztRo6H0JxYwR2rWS8SXKM8XJ4ELzqlaIFb7v2QWOK6w==",
+    "key": {
+      "app_id": "test-app",
+      "key_id": "test-key",
+      "subject": "test-user",
+      "public_key_pem": "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEN1mjSNnx5jTajvB5nfqM8Q4fhPQH\nX1HEiwDcM05xWlF7Os9IKP5XmGkUsdiQpUNYmdImFW6o3PXZ+HF5kpUiLw==\n-----END PUBLIC KEY-----\n",
+      "algorithm": "hmac-sha256",
+      "revoked": false
+    },
+    "context": {
+      "origin": "https://api.example.test",
+      "app_id": "test-app",
+      "subject": "test-user",
+      "now": 1700000000
+    },
+    "replay_store": "memory",
+    "expected_signature_base": "\"@method\": POST\n\"@target-uri\": https://api.example.test/v1/items?b=2&a=1\n\"content-type\": application/json\n\"content-digest\": sha-256=:RBNvo1WzZ4oRRq0W9+hknpT7T8If536DEMBg9hyq/4o=:\n\"authorization\": Bearer TEST_ONLY_TOKEN\n\"appguard-app-id\": test-app\n\"@signature-params\": (\"@method\" \"@target-uri\" \"content-type\" \"content-digest\" \"authorization\" \"appguard-app-id\");created=1700000000;expires=1700000120;nonce=\"AAECAwQFBgcICQoLDA0ODw\";keyid=\"test-key\";alg=\"ecdsa-p256-sha256\";tag=\"appguard-request-v0\"",
+    "expected_codes": [
+      "KEY_REJECTED"
+    ]
+  },
+  {
+    "id": "malformed-key",
+    "request": {
+      "method": "POST",
+      "target": "/v1/items?b=2&a=1",
+      "headers": [
+        [
+          "Content-Type",
+          "application/json"
+        ],
+        [
+          "Content-Digest",
+          "sha-256=:RBNvo1WzZ4oRRq0W9+hknpT7T8If536DEMBg9hyq/4o=:"
+        ],
+        [
+          "Authorization",
+          "Bearer TEST_ONLY_TOKEN"
+        ],
+        [
+          "AppGuard-App-Id",
+          "test-app"
+        ]
+      ],
+      "body_b64": "e30="
+    },
+    "parameters": {
+      "created": 1700000000,
+      "expires": 1700000120,
+      "nonce": "AAECAwQFBgcICQoLDA0ODw",
+      "key_id": "test-key",
+      "algorithm": "ecdsa-p256-sha256",
+      "tag": "appguard-request-v0"
+    },
+    "signature_b64": "4VcXRWhH6ZX8fo2Rg7fboR0oKDB9nLWFZKpFQGZbz/kztRo6H0JxYwR2rWS8SXKM8XJ4ELzqlaIFb7v2QWOK6w==",
+    "key": {
+      "app_id": "test-app",
+      "key_id": "test-key",
+      "subject": "test-user",
+      "public_key_pem": "NOT_A_KEY",
+      "algorithm": "ecdsa-p256-sha256",
+      "revoked": false
+    },
+    "context": {
+      "origin": "https://api.example.test",
+      "app_id": "test-app",
+      "subject": "test-user",
+      "now": 1700000000
+    },
+    "replay_store": "memory",
+    "expected_signature_base": "\"@method\": POST\n\"@target-uri\": https://api.example.test/v1/items?b=2&a=1\n\"content-type\": application/json\n\"content-digest\": sha-256=:RBNvo1WzZ4oRRq0W9+hknpT7T8If536DEMBg9hyq/4o=:\n\"authorization\": Bearer TEST_ONLY_TOKEN\n\"appguard-app-id\": test-app\n\"@signature-params\": (\"@method\" \"@target-uri\" \"content-type\" \"content-digest\" \"authorization\" \"appguard-app-id\");created=1700000000;expires=1700000120;nonce=\"AAECAwQFBgcICQoLDA0ODw\";keyid=\"test-key\";alg=\"ecdsa-p256-sha256\";tag=\"appguard-request-v0\"",
+    "expected_codes": [
+      "KEY_REJECTED"
+    ]
+  },
+  {
+    "id": "expired-at-boundary",
+    "request": {
+      "method": "POST",
+      "target": "/v1/items?b=2&a=1",
+      "headers": [
+        [
+          "Content-Type",
+          "application/json"
+        ],
+        [
+          "Content-Digest",
+          "sha-256=:RBNvo1WzZ4oRRq0W9+hknpT7T8If536DEMBg9hyq/4o=:"
+        ],
+        [
+          "Authorization",
+          "Bearer TEST_ONLY_TOKEN"
+        ],
+        [
+          "AppGuard-App-Id",
+          "test-app"
+        ]
+      ],
+      "body_b64": "e30="
+    },
+    "parameters": {
+      "created": 1700000000,
+      "expires": 1700000120,
+      "nonce": "AAECAwQFBgcICQoLDA0ODw",
+      "key_id": "test-key",
+      "algorithm": "ecdsa-p256-sha256",
+      "tag": "appguard-request-v0"
+    },
+    "signature_b64": "4VcXRWhH6ZX8fo2Rg7fboR0oKDB9nLWFZKpFQGZbz/kztRo6H0JxYwR2rWS8SXKM8XJ4ELzqlaIFb7v2QWOK6w==",
+    "key": {
+      "app_id": "test-app",
+      "key_id": "test-key",
+      "subject": "test-user",
+      "public_key_pem": "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEN1mjSNnx5jTajvB5nfqM8Q4fhPQH\nX1HEiwDcM05xWlF7Os9IKP5XmGkUsdiQpUNYmdImFW6o3PXZ+HF5kpUiLw==\n-----END PUBLIC KEY-----\n",
+      "algorithm": "ecdsa-p256-sha256",
+      "revoked": false
+    },
+    "context": {
+      "origin": "https://api.example.test",
+      "app_id": "test-app",
+      "subject": "test-user",
+      "now": 1700000120
+    },
+    "replay_store": "memory",
+    "expected_signature_base": "\"@method\": POST\n\"@target-uri\": https://api.example.test/v1/items?b=2&a=1\n\"content-type\": application/json\n\"content-digest\": sha-256=:RBNvo1WzZ4oRRq0W9+hknpT7T8If536DEMBg9hyq/4o=:\n\"authorization\": Bearer TEST_ONLY_TOKEN\n\"appguard-app-id\": test-app\n\"@signature-params\": (\"@method\" \"@target-uri\" \"content-type\" \"content-digest\" \"authorization\" \"appguard-app-id\");created=1700000000;expires=1700000120;nonce=\"AAECAwQFBgcICQoLDA0ODw\";keyid=\"test-key\";alg=\"ecdsa-p256-sha256\";tag=\"appguard-request-v0\"",
+    "expected_codes": [
+      "INVALID_TIME"
+    ]
+  },
+  {
+    "id": "future-clock-skew",
+    "request": {
+      "method": "POST",
+      "target": "/v1/items?b=2&a=1",
+      "headers": [
+        [
+          "Content-Type",
+          "application/json"
+        ],
+        [
+          "Content-Digest",
+          "sha-256=:RBNvo1WzZ4oRRq0W9+hknpT7T8If536DEMBg9hyq/4o=:"
+        ],
+        [
+          "Authorization",
+          "Bearer TEST_ONLY_TOKEN"
+        ],
+        [
+          "AppGuard-App-Id",
+          "test-app"
+        ]
+      ],
+      "body_b64": "e30="
+    },
+    "parameters": {
+      "created": 1700000000,
+      "expires": 1700000120,
+      "nonce": "AAECAwQFBgcICQoLDA0ODw",
+      "key_id": "test-key",
+      "algorithm": "ecdsa-p256-sha256",
+      "tag": "appguard-request-v0"
+    },
+    "signature_b64": "4VcXRWhH6ZX8fo2Rg7fboR0oKDB9nLWFZKpFQGZbz/kztRo6H0JxYwR2rWS8SXKM8XJ4ELzqlaIFb7v2QWOK6w==",
+    "key": {
+      "app_id": "test-app",
+      "key_id": "test-key",
+      "subject": "test-user",
+      "public_key_pem": "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEN1mjSNnx5jTajvB5nfqM8Q4fhPQH\nX1HEiwDcM05xWlF7Os9IKP5XmGkUsdiQpUNYmdImFW6o3PXZ+HF5kpUiLw==\n-----END PUBLIC KEY-----\n",
+      "algorithm": "ecdsa-p256-sha256",
+      "revoked": false
+    },
+    "context": {
+      "origin": "https://api.example.test",
+      "app_id": "test-app",
+      "subject": "test-user",
+      "now": 1699999969
+    },
+    "replay_store": "memory",
+    "expected_signature_base": "\"@method\": POST\n\"@target-uri\": https://api.example.test/v1/items?b=2&a=1\n\"content-type\": application/json\n\"content-digest\": sha-256=:RBNvo1WzZ4oRRq0W9+hknpT7T8If536DEMBg9hyq/4o=:\n\"authorization\": Bearer TEST_ONLY_TOKEN\n\"appguard-app-id\": test-app\n\"@signature-params\": (\"@method\" \"@target-uri\" \"content-type\" \"content-digest\" \"authorization\" \"appguard-app-id\");created=1700000000;expires=1700000120;nonce=\"AAECAwQFBgcICQoLDA0ODw\";keyid=\"test-key\";alg=\"ecdsa-p256-sha256\";tag=\"appguard-request-v0\"",
+    "expected_codes": [
+      "INVALID_TIME"
+    ]
+  },
+  {
+    "id": "algorithm-downgrade",
+    "request": {
+      "method": "POST",
+      "target": "/v1/items?b=2&a=1",
+      "headers": [
+        [
+          "Content-Type",
+          "application/json"
+        ],
+        [
+          "Content-Digest",
+          "sha-256=:RBNvo1WzZ4oRRq0W9+hknpT7T8If536DEMBg9hyq/4o=:"
+        ],
+        [
+          "Authorization",
+          "Bearer TEST_ONLY_TOKEN"
+        ],
+        [
+          "AppGuard-App-Id",
+          "test-app"
+        ]
+      ],
+      "body_b64": "e30="
+    },
+    "parameters": {
+      "created": 1700000000,
+      "expires": 1700000120,
+      "nonce": "AAECAwQFBgcICQoLDA0ODw",
+      "key_id": "test-key",
+      "algorithm": "hmac-sha256",
+      "tag": "appguard-request-v0"
+    },
+    "signature_b64": "4VcXRWhH6ZX8fo2Rg7fboR0oKDB9nLWFZKpFQGZbz/kztRo6H0JxYwR2rWS8SXKM8XJ4ELzqlaIFb7v2QWOK6w==",
+    "key": {
+      "app_id": "test-app",
+      "key_id": "test-key",
+      "subject": "test-user",
+      "public_key_pem": "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEN1mjSNnx5jTajvB5nfqM8Q4fhPQH\nX1HEiwDcM05xWlF7Os9IKP5XmGkUsdiQpUNYmdImFW6o3PXZ+HF5kpUiLw==\n-----END PUBLIC KEY-----\n",
+      "algorithm": "ecdsa-p256-sha256",
+      "revoked": false
+    },
+    "context": {
+      "origin": "https://api.example.test",
+      "app_id": "test-app",
+      "subject": "test-user",
+      "now": 1700000000
+    },
+    "replay_store": "memory",
+    "expected_signature_base": null,
+    "expected_codes": [
+      "UNSUPPORTED_PROFILE"
+    ]
+  },
+  {
+    "id": "unknown-profile",
+    "request": {
+      "method": "POST",
+      "target": "/v1/items?b=2&a=1",
+      "headers": [
+        [
+          "Content-Type",
+          "application/json"
+        ],
+        [
+          "Content-Digest",
+          "sha-256=:RBNvo1WzZ4oRRq0W9+hknpT7T8If536DEMBg9hyq/4o=:"
+        ],
+        [
+          "Authorization",
+          "Bearer TEST_ONLY_TOKEN"
+        ],
+        [
+          "AppGuard-App-Id",
+          "test-app"
+        ]
+      ],
+      "body_b64": "e30="
+    },
+    "parameters": {
+      "created": 1700000000,
+      "expires": 1700000120,
+      "nonce": "AAECAwQFBgcICQoLDA0ODw",
+      "key_id": "test-key",
+      "algorithm": "ecdsa-p256-sha256",
+      "tag": "appguard-request-v1"
+    },
+    "signature_b64": "4VcXRWhH6ZX8fo2Rg7fboR0oKDB9nLWFZKpFQGZbz/kztRo6H0JxYwR2rWS8SXKM8XJ4ELzqlaIFb7v2QWOK6w==",
+    "key": {
+      "app_id": "test-app",
+      "key_id": "test-key",
+      "subject": "test-user",
+      "public_key_pem": "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEN1mjSNnx5jTajvB5nfqM8Q4fhPQH\nX1HEiwDcM05xWlF7Os9IKP5XmGkUsdiQpUNYmdImFW6o3PXZ+HF5kpUiLw==\n-----END PUBLIC KEY-----\n",
+      "algorithm": "ecdsa-p256-sha256",
+      "revoked": false
+    },
+    "context": {
+      "origin": "https://api.example.test",
+      "app_id": "test-app",
+      "subject": "test-user",
+      "now": 1700000000
+    },
+    "replay_store": "memory",
+    "expected_signature_base": null,
+    "expected_codes": [
+      "UNSUPPORTED_PROFILE"
+    ]
+  },
+  {
+    "id": "bad-nonce-pad-bits",
+    "request": {
+      "method": "POST",
+      "target": "/v1/items?b=2&a=1",
+      "headers": [
+        [
+          "Content-Type",
+          "application/json"
+        ],
+        [
+          "Content-Digest",
+          "sha-256=:RBNvo1WzZ4oRRq0W9+hknpT7T8If536DEMBg9hyq/4o=:"
+        ],
+        [
+          "Authorization",
+          "Bearer TEST_ONLY_TOKEN"
+        ],
+        [
+          "AppGuard-App-Id",
+          "test-app"
+        ]
+      ],
+      "body_b64": "e30="
+    },
+    "parameters": {
+      "created": 1700000000,
+      "expires": 1700000120,
+      "nonce": "AAECAwQFBgcICQoLDA0ODx",
+      "key_id": "test-key",
+      "algorithm": "ecdsa-p256-sha256",
+      "tag": "appguard-request-v0"
+    },
+    "signature_b64": "4VcXRWhH6ZX8fo2Rg7fboR0oKDB9nLWFZKpFQGZbz/kztRo6H0JxYwR2rWS8SXKM8XJ4ELzqlaIFb7v2QWOK6w==",
+    "key": {
+      "app_id": "test-app",
+      "key_id": "test-key",
+      "subject": "test-user",
+      "public_key_pem": "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEN1mjSNnx5jTajvB5nfqM8Q4fhPQH\nX1HEiwDcM05xWlF7Os9IKP5XmGkUsdiQpUNYmdImFW6o3PXZ+HF5kpUiLw==\n-----END PUBLIC KEY-----\n",
+      "algorithm": "ecdsa-p256-sha256",
+      "revoked": false
+    },
+    "context": {
+      "origin": "https://api.example.test",
+      "app_id": "test-app",
+      "subject": "test-user",
+      "now": 1700000000
+    },
+    "replay_store": "memory",
+    "expected_signature_base": null,
+    "expected_codes": [
+      "INVALID_REQUEST"
+    ]
+  },
+  {
+    "id": "duplicate-authorization",
+    "request": {
+      "method": "POST",
+      "target": "/v1/items?b=2&a=1",
+      "headers": [
+        [
+          "Content-Type",
+          "application/json"
+        ],
+        [
+          "Content-Digest",
+          "sha-256=:RBNvo1WzZ4oRRq0W9+hknpT7T8If536DEMBg9hyq/4o=:"
+        ],
+        [
+          "Authorization",
+          "Bearer TEST_ONLY_TOKEN"
+        ],
+        [
+          "AppGuard-App-Id",
+          "test-app"
+        ],
+        [
+          "AUTHORIZATION",
+          "Bearer OTHER_TEST_TOKEN"
+        ]
+      ],
+      "body_b64": "e30="
+    },
+    "parameters": {
+      "created": 1700000000,
+      "expires": 1700000120,
+      "nonce": "AAECAwQFBgcICQoLDA0ODw",
+      "key_id": "test-key",
+      "algorithm": "ecdsa-p256-sha256",
+      "tag": "appguard-request-v0"
+    },
+    "signature_b64": "4VcXRWhH6ZX8fo2Rg7fboR0oKDB9nLWFZKpFQGZbz/kztRo6H0JxYwR2rWS8SXKM8XJ4ELzqlaIFb7v2QWOK6w==",
+    "key": {
+      "app_id": "test-app",
+      "key_id": "test-key",
+      "subject": "test-user",
+      "public_key_pem": "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEN1mjSNnx5jTajvB5nfqM8Q4fhPQH\nX1HEiwDcM05xWlF7Os9IKP5XmGkUsdiQpUNYmdImFW6o3PXZ+HF5kpUiLw==\n-----END PUBLIC KEY-----\n",
+      "algorithm": "ecdsa-p256-sha256",
+      "revoked": false
+    },
+    "context": {
+      "origin": "https://api.example.test",
+      "app_id": "test-app",
+      "subject": "test-user",
+      "now": 1700000000
+    },
+    "replay_store": "memory",
+    "expected_signature_base": null,
+    "expected_codes": [
+      "INVALID_REQUEST"
+    ]
+  },
+  {
+    "id": "duplicate-digest",
+    "request": {
+      "method": "POST",
+      "target": "/v1/items?b=2&a=1",
+      "headers": [
+        [
+          "Content-Type",
+          "application/json"
+        ],
+        [
+          "Content-Digest",
+          "sha-256=:RBNvo1WzZ4oRRq0W9+hknpT7T8If536DEMBg9hyq/4o=:"
+        ],
+        [
+          "Authorization",
+          "Bearer TEST_ONLY_TOKEN"
+        ],
+        [
+          "AppGuard-App-Id",
+          "test-app"
+        ],
+        [
+          "content-digest",
+          "sha-256=:RBNvo1WzZ4oRRq0W9+hknpT7T8If536DEMBg9hyq/4o=:"
+        ]
+      ],
+      "body_b64": "e30="
+    },
+    "parameters": {
+      "created": 1700000000,
+      "expires": 1700000120,
+      "nonce": "AAECAwQFBgcICQoLDA0ODw",
+      "key_id": "test-key",
+      "algorithm": "ecdsa-p256-sha256",
+      "tag": "appguard-request-v0"
+    },
+    "signature_b64": "4VcXRWhH6ZX8fo2Rg7fboR0oKDB9nLWFZKpFQGZbz/kztRo6H0JxYwR2rWS8SXKM8XJ4ELzqlaIFb7v2QWOK6w==",
+    "key": {
+      "app_id": "test-app",
+      "key_id": "test-key",
+      "subject": "test-user",
+      "public_key_pem": "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEN1mjSNnx5jTajvB5nfqM8Q4fhPQH\nX1HEiwDcM05xWlF7Os9IKP5XmGkUsdiQpUNYmdImFW6o3PXZ+HF5kpUiLw==\n-----END PUBLIC KEY-----\n",
+      "algorithm": "ecdsa-p256-sha256",
+      "revoked": false
+    },
+    "context": {
+      "origin": "https://api.example.test",
+      "app_id": "test-app",
+      "subject": "test-user",
+      "now": 1700000000
+    },
+    "replay_store": "memory",
+    "expected_signature_base": null,
+    "expected_codes": [
+      "INVALID_REQUEST"
+    ]
+  },
+  {
+    "id": "unsupported-content-encoding",
+    "request": {
+      "method": "POST",
+      "target": "/v1/items?b=2&a=1",
+      "headers": [
+        [
+          "Content-Type",
+          "application/json"
+        ],
+        [
+          "Content-Digest",
+          "sha-256=:RBNvo1WzZ4oRRq0W9+hknpT7T8If536DEMBg9hyq/4o=:"
+        ],
+        [
+          "Authorization",
+          "Bearer TEST_ONLY_TOKEN"
+        ],
+        [
+          "AppGuard-App-Id",
+          "test-app"
+        ],
+        [
+          "Content-Encoding",
+          "gzip"
+        ]
+      ],
+      "body_b64": "e30="
+    },
+    "parameters": {
+      "created": 1700000000,
+      "expires": 1700000120,
+      "nonce": "AAECAwQFBgcICQoLDA0ODw",
+      "key_id": "test-key",
+      "algorithm": "ecdsa-p256-sha256",
+      "tag": "appguard-request-v0"
+    },
+    "signature_b64": "4VcXRWhH6ZX8fo2Rg7fboR0oKDB9nLWFZKpFQGZbz/kztRo6H0JxYwR2rWS8SXKM8XJ4ELzqlaIFb7v2QWOK6w==",
+    "key": {
+      "app_id": "test-app",
+      "key_id": "test-key",
+      "subject": "test-user",
+      "public_key_pem": "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEN1mjSNnx5jTajvB5nfqM8Q4fhPQH\nX1HEiwDcM05xWlF7Os9IKP5XmGkUsdiQpUNYmdImFW6o3PXZ+HF5kpUiLw==\n-----END PUBLIC KEY-----\n",
+      "algorithm": "ecdsa-p256-sha256",
+      "revoked": false
+    },
+    "context": {
+      "origin": "https://api.example.test",
+      "app_id": "test-app",
+      "subject": "test-user",
+      "now": 1700000000
+    },
+    "replay_store": "memory",
+    "expected_signature_base": null,
+    "expected_codes": [
+      "INVALID_REQUEST"
+    ]
+  },
+  {
+    "id": "header-control",
+    "request": {
+      "method": "POST",
+      "target": "/v1/items?b=2&a=1",
+      "headers": [
+        [
+          "Content-Type",
+          "application/json"
+        ],
+        [
+          "Content-Digest",
+          "sha-256=:RBNvo1WzZ4oRRq0W9+hknpT7T8If536DEMBg9hyq/4o=:"
+        ],
+        [
+          "Authorization",
+          "Bearer TEST_ONLY_TOKEN"
+        ],
+        [
+          "AppGuard-App-Id",
+          "test-app"
+        ],
+        [
+          "X-Test",
+          "a\r\nb"
+        ]
+      ],
+      "body_b64": "e30="
+    },
+    "parameters": {
+      "created": 1700000000,
+      "expires": 1700000120,
+      "nonce": "AAECAwQFBgcICQoLDA0ODw",
+      "key_id": "test-key",
+      "algorithm": "ecdsa-p256-sha256",
+      "tag": "appguard-request-v0"
+    },
+    "signature_b64": "4VcXRWhH6ZX8fo2Rg7fboR0oKDB9nLWFZKpFQGZbz/kztRo6H0JxYwR2rWS8SXKM8XJ4ELzqlaIFb7v2QWOK6w==",
+    "key": {
+      "app_id": "test-app",
+      "key_id": "test-key",
+      "subject": "test-user",
+      "public_key_pem": "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEN1mjSNnx5jTajvB5nfqM8Q4fhPQH\nX1HEiwDcM05xWlF7Os9IKP5XmGkUsdiQpUNYmdImFW6o3PXZ+HF5kpUiLw==\n-----END PUBLIC KEY-----\n",
+      "algorithm": "ecdsa-p256-sha256",
+      "revoked": false
+    },
+    "context": {
+      "origin": "https://api.example.test",
+      "app_id": "test-app",
+      "subject": "test-user",
+      "now": 1700000000
+    },
+    "replay_store": "memory",
+    "expected_signature_base": null,
+    "expected_codes": [
+      "INVALID_REQUEST"
+    ]
+  },
+  {
+    "id": "invalid-percent-escape",
+    "request": {
+      "method": "POST",
+      "target": "/v1/%GG",
+      "headers": [
+        [
+          "Content-Type",
+          "application/json"
+        ],
+        [
+          "Content-Digest",
+          "sha-256=:RBNvo1WzZ4oRRq0W9+hknpT7T8If536DEMBg9hyq/4o=:"
+        ],
+        [
+          "Authorization",
+          "Bearer TEST_ONLY_TOKEN"
+        ],
+        [
+          "AppGuard-App-Id",
+          "test-app"
+        ]
+      ],
+      "body_b64": "e30="
+    },
+    "parameters": {
+      "created": 1700000000,
+      "expires": 1700000120,
+      "nonce": "AAECAwQFBgcICQoLDA0ODw",
+      "key_id": "test-key",
+      "algorithm": "ecdsa-p256-sha256",
+      "tag": "appguard-request-v0"
+    },
+    "signature_b64": "4VcXRWhH6ZX8fo2Rg7fboR0oKDB9nLWFZKpFQGZbz/kztRo6H0JxYwR2rWS8SXKM8XJ4ELzqlaIFb7v2QWOK6w==",
+    "key": {
+      "app_id": "test-app",
+      "key_id": "test-key",
+      "subject": "test-user",
+      "public_key_pem": "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEN1mjSNnx5jTajvB5nfqM8Q4fhPQH\nX1HEiwDcM05xWlF7Os9IKP5XmGkUsdiQpUNYmdImFW6o3PXZ+HF5kpUiLw==\n-----END PUBLIC KEY-----\n",
+      "algorithm": "ecdsa-p256-sha256",
+      "revoked": false
+    },
+    "context": {
+      "origin": "https://api.example.test",
+      "app_id": "test-app",
+      "subject": "test-user",
+      "now": 1700000000
+    },
+    "replay_store": "memory",
+    "expected_signature_base": null,
+    "expected_codes": [
+      "INVALID_REQUEST"
+    ]
+  },
+  {
+    "id": "dot-segment",
+    "request": {
+      "method": "POST",
+      "target": "/v1/%2e%2e/admin",
+      "headers": [
+        [
+          "Content-Type",
+          "application/json"
+        ],
+        [
+          "Content-Digest",
+          "sha-256=:RBNvo1WzZ4oRRq0W9+hknpT7T8If536DEMBg9hyq/4o=:"
+        ],
+        [
+          "Authorization",
+          "Bearer TEST_ONLY_TOKEN"
+        ],
+        [
+          "AppGuard-App-Id",
+          "test-app"
+        ]
+      ],
+      "body_b64": "e30="
+    },
+    "parameters": {
+      "created": 1700000000,
+      "expires": 1700000120,
+      "nonce": "AAECAwQFBgcICQoLDA0ODw",
+      "key_id": "test-key",
+      "algorithm": "ecdsa-p256-sha256",
+      "tag": "appguard-request-v0"
+    },
+    "signature_b64": "4VcXRWhH6ZX8fo2Rg7fboR0oKDB9nLWFZKpFQGZbz/kztRo6H0JxYwR2rWS8SXKM8XJ4ELzqlaIFb7v2QWOK6w==",
+    "key": {
+      "app_id": "test-app",
+      "key_id": "test-key",
+      "subject": "test-user",
+      "public_key_pem": "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEN1mjSNnx5jTajvB5nfqM8Q4fhPQH\nX1HEiwDcM05xWlF7Os9IKP5XmGkUsdiQpUNYmdImFW6o3PXZ+HF5kpUiLw==\n-----END PUBLIC KEY-----\n",
+      "algorithm": "ecdsa-p256-sha256",
+      "revoked": false
+    },
+    "context": {
+      "origin": "https://api.example.test",
+      "app_id": "test-app",
+      "subject": "test-user",
+      "now": 1700000000
+    },
+    "replay_store": "memory",
+    "expected_signature_base": null,
+    "expected_codes": [
+      "INVALID_REQUEST"
+    ]
+  },
+  {
+    "id": "network-path",
+    "request": {
+      "method": "POST",
+      "target": "//evil.example.test/path",
+      "headers": [
+        [
+          "Content-Type",
+          "application/json"
+        ],
+        [
+          "Content-Digest",
+          "sha-256=:RBNvo1WzZ4oRRq0W9+hknpT7T8If536DEMBg9hyq/4o=:"
+        ],
+        [
+          "Authorization",
+          "Bearer TEST_ONLY_TOKEN"
+        ],
+        [
+          "AppGuard-App-Id",
+          "test-app"
+        ]
+      ],
+      "body_b64": "e30="
+    },
+    "parameters": {
+      "created": 1700000000,
+      "expires": 1700000120,
+      "nonce": "AAECAwQFBgcICQoLDA0ODw",
+      "key_id": "test-key",
+      "algorithm": "ecdsa-p256-sha256",
+      "tag": "appguard-request-v0"
+    },
+    "signature_b64": "4VcXRWhH6ZX8fo2Rg7fboR0oKDB9nLWFZKpFQGZbz/kztRo6H0JxYwR2rWS8SXKM8XJ4ELzqlaIFb7v2QWOK6w==",
+    "key": {
+      "app_id": "test-app",
+      "key_id": "test-key",
+      "subject": "test-user",
+      "public_key_pem": "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEN1mjSNnx5jTajvB5nfqM8Q4fhPQH\nX1HEiwDcM05xWlF7Os9IKP5XmGkUsdiQpUNYmdImFW6o3PXZ+HF5kpUiLw==\n-----END PUBLIC KEY-----\n",
+      "algorithm": "ecdsa-p256-sha256",
+      "revoked": false
+    },
+    "context": {
+      "origin": "https://api.example.test",
+      "app_id": "test-app",
+      "subject": "test-user",
+      "now": 1700000000
+    },
+    "replay_store": "memory",
+    "expected_signature_base": null,
+    "expected_codes": [
+      "INVALID_REQUEST"
+    ]
+  },
+  {
+    "id": "changed-signature",
+    "request": {
+      "method": "POST",
+      "target": "/v1/items?b=2&a=1",
+      "headers": [
+        [
+          "Content-Type",
+          "application/json"
+        ],
+        [
+          "Content-Digest",
+          "sha-256=:RBNvo1WzZ4oRRq0W9+hknpT7T8If536DEMBg9hyq/4o=:"
+        ],
+        [
+          "Authorization",
+          "Bearer TEST_ONLY_TOKEN"
+        ],
+        [
+          "AppGuard-App-Id",
+          "test-app"
+        ]
+      ],
+      "body_b64": "e30="
+    },
+    "parameters": {
+      "created": 1700000000,
+      "expires": 1700000120,
+      "nonce": "AAECAwQFBgcICQoLDA0ODw",
+      "key_id": "test-key",
+      "algorithm": "ecdsa-p256-sha256",
+      "tag": "appguard-request-v0"
+    },
+    "signature_b64": "4FcXRWhH6ZX8fo2Rg7fboR0oKDB9nLWFZKpFQGZbz/kztRo6H0JxYwR2rWS8SXKM8XJ4ELzqlaIFb7v2QWOK6w==",
+    "key": {
+      "app_id": "test-app",
+      "key_id": "test-key",
+      "subject": "test-user",
+      "public_key_pem": "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEN1mjSNnx5jTajvB5nfqM8Q4fhPQH\nX1HEiwDcM05xWlF7Os9IKP5XmGkUsdiQpUNYmdImFW6o3PXZ+HF5kpUiLw==\n-----END PUBLIC KEY-----\n",
+      "algorithm": "ecdsa-p256-sha256",
+      "revoked": false
+    },
+    "context": {
+      "origin": "https://api.example.test",
+      "app_id": "test-app",
+      "subject": "test-user",
+      "now": 1700000000
+    },
+    "replay_store": "memory",
+    "expected_signature_base": "\"@method\": POST\n\"@target-uri\": https://api.example.test/v1/items?b=2&a=1\n\"content-type\": application/json\n\"content-digest\": sha-256=:RBNvo1WzZ4oRRq0W9+hknpT7T8If536DEMBg9hyq/4o=:\n\"authorization\": Bearer TEST_ONLY_TOKEN\n\"appguard-app-id\": test-app\n\"@signature-params\": (\"@method\" \"@target-uri\" \"content-type\" \"content-digest\" \"authorization\" \"appguard-app-id\");created=1700000000;expires=1700000120;nonce=\"AAECAwQFBgcICQoLDA0ODw\";keyid=\"test-key\";alg=\"ecdsa-p256-sha256\";tag=\"appguard-request-v0\"",
+    "expected_codes": [
+      "INVALID_SIGNATURE"
+    ]
+  },
+  {
+    "id": "wrong-signature-length",
+    "request": {
+      "method": "POST",
+      "target": "/v1/items?b=2&a=1",
+      "headers": [
+        [
+          "Content-Type",
+          "application/json"
+        ],
+        [
+          "Content-Digest",
+          "sha-256=:RBNvo1WzZ4oRRq0W9+hknpT7T8If536DEMBg9hyq/4o=:"
+        ],
+        [
+          "Authorization",
+          "Bearer TEST_ONLY_TOKEN"
+        ],
+        [
+          "AppGuard-App-Id",
+          "test-app"
+        ]
+      ],
+      "body_b64": "e30="
+    },
+    "parameters": {
+      "created": 1700000000,
+      "expires": 1700000120,
+      "nonce": "AAECAwQFBgcICQoLDA0ODw",
+      "key_id": "test-key",
+      "algorithm": "ecdsa-p256-sha256",
+      "tag": "appguard-request-v0"
+    },
+    "signature_b64": "eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4",
+    "key": {
+      "app_id": "test-app",
+      "key_id": "test-key",
+      "subject": "test-user",
+      "public_key_pem": "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEN1mjSNnx5jTajvB5nfqM8Q4fhPQH\nX1HEiwDcM05xWlF7Os9IKP5XmGkUsdiQpUNYmdImFW6o3PXZ+HF5kpUiLw==\n-----END PUBLIC KEY-----\n",
+      "algorithm": "ecdsa-p256-sha256",
+      "revoked": false
+    },
+    "context": {
+      "origin": "https://api.example.test",
+      "app_id": "test-app",
+      "subject": "test-user",
+      "now": 1700000000
+    },
+    "replay_store": "memory",
+    "expected_signature_base": "\"@method\": POST\n\"@target-uri\": https://api.example.test/v1/items?b=2&a=1\n\"content-type\": application/json\n\"content-digest\": sha-256=:RBNvo1WzZ4oRRq0W9+hknpT7T8If536DEMBg9hyq/4o=:\n\"authorization\": Bearer TEST_ONLY_TOKEN\n\"appguard-app-id\": test-app\n\"@signature-params\": (\"@method\" \"@target-uri\" \"content-type\" \"content-digest\" \"authorization\" \"appguard-app-id\");created=1700000000;expires=1700000120;nonce=\"AAECAwQFBgcICQoLDA0ODw\";keyid=\"test-key\";alg=\"ecdsa-p256-sha256\";tag=\"appguard-request-v0\"",
+    "expected_codes": [
+      "INVALID_SIGNATURE"
+    ]
+  },
+  {
+    "id": "replay",
+    "request": {
+      "method": "POST",
+      "target": "/v1/items?b=2&a=1",
+      "headers": [
+        [
+          "Content-Type",
+          "application/json"
+        ],
+        [
+          "Content-Digest",
+          "sha-256=:RBNvo1WzZ4oRRq0W9+hknpT7T8If536DEMBg9hyq/4o=:"
+        ],
+        [
+          "Authorization",
+          "Bearer TEST_ONLY_TOKEN"
+        ],
+        [
+          "AppGuard-App-Id",
+          "test-app"
+        ]
+      ],
+      "body_b64": "e30="
+    },
+    "parameters": {
+      "created": 1700000000,
+      "expires": 1700000120,
+      "nonce": "AAECAwQFBgcICQoLDA0ODw",
+      "key_id": "test-key",
+      "algorithm": "ecdsa-p256-sha256",
+      "tag": "appguard-request-v0"
+    },
+    "signature_b64": "4VcXRWhH6ZX8fo2Rg7fboR0oKDB9nLWFZKpFQGZbz/kztRo6H0JxYwR2rWS8SXKM8XJ4ELzqlaIFb7v2QWOK6w==",
+    "key": {
+      "app_id": "test-app",
+      "key_id": "test-key",
+      "subject": "test-user",
+      "public_key_pem": "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEN1mjSNnx5jTajvB5nfqM8Q4fhPQH\nX1HEiwDcM05xWlF7Os9IKP5XmGkUsdiQpUNYmdImFW6o3PXZ+HF5kpUiLw==\n-----END PUBLIC KEY-----\n",
+      "algorithm": "ecdsa-p256-sha256",
+      "revoked": false
+    },
+    "context": {
+      "origin": "https://api.example.test",
+      "app_id": "test-app",
+      "subject": "test-user",
+      "now": 1700000000
+    },
+    "replay_store": "memory",
+    "expected_signature_base": "\"@method\": POST\n\"@target-uri\": https://api.example.test/v1/items?b=2&a=1\n\"content-type\": application/json\n\"content-digest\": sha-256=:RBNvo1WzZ4oRRq0W9+hknpT7T8If536DEMBg9hyq/4o=:\n\"authorization\": Bearer TEST_ONLY_TOKEN\n\"appguard-app-id\": test-app\n\"@signature-params\": (\"@method\" \"@target-uri\" \"content-type\" \"content-digest\" \"authorization\" \"appguard-app-id\");created=1700000000;expires=1700000120;nonce=\"AAECAwQFBgcICQoLDA0ODw\";keyid=\"test-key\";alg=\"ecdsa-p256-sha256\";tag=\"appguard-request-v0\"",
+    "expected_codes": [
+      "VERIFIED",
+      "REPLAY_DETECTED"
+    ]
+  },
+  {
+    "id": "store-unavailable",
+    "request": {
+      "method": "POST",
+      "target": "/v1/items?b=2&a=1",
+      "headers": [
+        [
+          "Content-Type",
+          "application/json"
+        ],
+        [
+          "Content-Digest",
+          "sha-256=:RBNvo1WzZ4oRRq0W9+hknpT7T8If536DEMBg9hyq/4o=:"
+        ],
+        [
+          "Authorization",
+          "Bearer TEST_ONLY_TOKEN"
+        ],
+        [
+          "AppGuard-App-Id",
+          "test-app"
+        ]
+      ],
+      "body_b64": "e30="
+    },
+    "parameters": {
+      "created": 1700000000,
+      "expires": 1700000120,
+      "nonce": "AAECAwQFBgcICQoLDA0ODw",
+      "key_id": "test-key",
+      "algorithm": "ecdsa-p256-sha256",
+      "tag": "appguard-request-v0"
+    },
+    "signature_b64": "4VcXRWhH6ZX8fo2Rg7fboR0oKDB9nLWFZKpFQGZbz/kztRo6H0JxYwR2rWS8SXKM8XJ4ELzqlaIFb7v2QWOK6w==",
+    "key": {
+      "app_id": "test-app",
+      "key_id": "test-key",
+      "subject": "test-user",
+      "public_key_pem": "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEN1mjSNnx5jTajvB5nfqM8Q4fhPQH\nX1HEiwDcM05xWlF7Os9IKP5XmGkUsdiQpUNYmdImFW6o3PXZ+HF5kpUiLw==\n-----END PUBLIC KEY-----\n",
+      "algorithm": "ecdsa-p256-sha256",
+      "revoked": false
+    },
+    "context": {
+      "origin": "https://api.example.test",
+      "app_id": "test-app",
+      "subject": "test-user",
+      "now": 1700000000
+    },
+    "replay_store": "unavailable",
+    "expected_signature_base": "\"@method\": POST\n\"@target-uri\": https://api.example.test/v1/items?b=2&a=1\n\"content-type\": application/json\n\"content-digest\": sha-256=:RBNvo1WzZ4oRRq0W9+hknpT7T8If536DEMBg9hyq/4o=:\n\"authorization\": Bearer TEST_ONLY_TOKEN\n\"appguard-app-id\": test-app\n\"@signature-params\": (\"@method\" \"@target-uri\" \"content-type\" \"content-digest\" \"authorization\" \"appguard-app-id\");created=1700000000;expires=1700000120;nonce=\"AAECAwQFBgcICQoLDA0ODw\";keyid=\"test-key\";alg=\"ecdsa-p256-sha256\";tag=\"appguard-request-v0\"",
+    "expected_codes": [
+      "REPLAY_STORE_UNAVAILABLE"
+    ]
+  },
+  {
+    "id": "store-capacity",
+    "request": {
+      "method": "POST",
+      "target": "/v1/items?b=2&a=1",
+      "headers": [
+        [
+          "Content-Type",
+          "application/json"
+        ],
+        [
+          "Content-Digest",
+          "sha-256=:RBNvo1WzZ4oRRq0W9+hknpT7T8If536DEMBg9hyq/4o=:"
+        ],
+        [
+          "Authorization",
+          "Bearer TEST_ONLY_TOKEN"
+        ],
+        [
+          "AppGuard-App-Id",
+          "test-app"
+        ]
+      ],
+      "body_b64": "e30="
+    },
+    "parameters": {
+      "created": 1700000000,
+      "expires": 1700000120,
+      "nonce": "AAECAwQFBgcICQoLDA0ODw",
+      "key_id": "test-key",
+      "algorithm": "ecdsa-p256-sha256",
+      "tag": "appguard-request-v0"
+    },
+    "signature_b64": "4VcXRWhH6ZX8fo2Rg7fboR0oKDB9nLWFZKpFQGZbz/kztRo6H0JxYwR2rWS8SXKM8XJ4ELzqlaIFb7v2QWOK6w==",
+    "key": {
+      "app_id": "test-app",
+      "key_id": "test-key",
+      "subject": "test-user",
+      "public_key_pem": "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEN1mjSNnx5jTajvB5nfqM8Q4fhPQH\nX1HEiwDcM05xWlF7Os9IKP5XmGkUsdiQpUNYmdImFW6o3PXZ+HF5kpUiLw==\n-----END PUBLIC KEY-----\n",
+      "algorithm": "ecdsa-p256-sha256",
+      "revoked": false
+    },
+    "context": {
+      "origin": "https://api.example.test",
+      "app_id": "test-app",
+      "subject": "test-user",
+      "now": 1700000000
+    },
+    "replay_store": "full",
+    "expected_signature_base": "\"@method\": POST\n\"@target-uri\": https://api.example.test/v1/items?b=2&a=1\n\"content-type\": application/json\n\"content-digest\": sha-256=:RBNvo1WzZ4oRRq0W9+hknpT7T8If536DEMBg9hyq/4o=:\n\"authorization\": Bearer TEST_ONLY_TOKEN\n\"appguard-app-id\": test-app\n\"@signature-params\": (\"@method\" \"@target-uri\" \"content-type\" \"content-digest\" \"authorization\" \"appguard-app-id\");created=1700000000;expires=1700000120;nonce=\"AAECAwQFBgcICQoLDA0ODw\";keyid=\"test-key\";alg=\"ecdsa-p256-sha256\";tag=\"appguard-request-v0\"",
+    "expected_codes": [
+      "REPLAY_STORE_UNAVAILABLE"
+    ]
+  }
+]
