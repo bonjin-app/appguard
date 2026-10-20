@@ -36,5 +36,5 @@ GRADLE_USER_HOME=$PWD/.tools/gradle-home ./gradlew --offline --no-daemon
  <apksigner-current-test-APK-SHA256> io.appguard.android.test/androidx.test.runner.AndroidJUnitRunner.
 
 Exact logs/XML/source/artifact hashes and runtime readback are retained in owned
-.evidence/risk-bridge/ and the parent stage archive. No device/account/global AVD
+.evidence/risk-bridge/ and the parent stage archive. No existing device/account/global AVD
 configuration was changed; no publication or remote CI operation is included.

@@ -39,9 +39,14 @@ Final native sources were restaged after the parent confirmed the Android and
 Apple implementation sources were complete. The refreshed 44-file tarball passes
 relocated verification; its vendored hashes match current sibling SDK sources.
 BRIDGE_CONTRACT.md now reflects the updated shared client bridge protocol.
-Current-native consumer Android/iOS adapter builds are coordinated by the parent. Earlier build evidence in VERIFICATION.md
-is historical and does not establish compilation of the new scan sources. This
-receipt does not claim a new consumer native build, application/mobile runtime,
-physical-device root/hook detection, provider state, signing/archive privacy or
-store evidence. Ignored `.evidence/risk-bridge/` retains RED/GREEN/typecheck/pack
-logs and SHA-256 receipts; the parent retains responsibility for final consumer build evidence.
+Parent consumer verification then refreshed the installed package from this packed
+native snapshot and regenerated CocoaPods. Current Android Kotlin/Java module
+compilation passed (47 tasks), and the unsigned arm64 Simulator CocoaPods
+AppGuardExpo target passed with the current eight AppGuardApple Swift sources.
+The earlier installed package and native SDK products were preserved before this
+refresh. Parent logs/artifact hashes are retained in the stage evidence archive.
+These are adapter/library builds, not React Native engine/application execution,
+physical-device detection, provider verification, signing/archive privacy or store
+acceptance. The package still requires a native rebuild; no OTA-only support is
+implied. Package-owned `.evidence/risk-bridge/` retains the original RED/GREEN,
+typecheck and packed-source hash receipts; the parent stage records final artifacts.
