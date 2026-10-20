@@ -28,3 +28,14 @@ Syntax/profile errors precede time, trusted key binding, body digest, cryptograp
 The application must keep clock correctness and a long-lived replay store; constructing a fresh store per request defeats replay prevention. Process restart loses all local claims, so previously valid requests can replay within their lifetime. Persisted/distributed storage and restart protection are not provided.
 
 Verification does not authorize an action, supply idempotency, attest an app/device, detect all automation, prevent hooking or hide code. Apple/Google integration, production HTTP adapters, authentication systems, policy presets, obfuscation, AI and performance guarantees are later milestones. No production install, provider approval or device evidence follows from passing these tests.
+
+
+## Subsequent experimental integrations
+
+The milestone exclusions above describe the initial protocol foundation.
+Later client, provider, policy, build and server integrations have local evidence
+in the [current support matrix](../../README.md) and its linked verification
+receipts. Their narrower tests do not establish deployment, device, provider
+approval or broad production security/performance guarantees. Local root/hook/
+jailbreak heuristics, optional AI/console and unsupported deployment adapters
+remain future work; untrusted hints never establish integrity.

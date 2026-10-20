@@ -44,3 +44,6 @@ Input is one conformance-shaped JSON object or an array of 1..100 objects, at mo
 ## Limits and unverified deployments
 
 API syntax targets PHP 8.2+ on 64-bit runtimes; execution here proves PHP 8.5.11 only. No Laravel, Symfony, PSR-7/15, FPM, Apache, Linux, Windows or distributed replay deployment was run. The native callback adapter requires operator-supplied trusted pre-normalization evidence. Ordinary normalized front controllers cannot supply that proof and must fail closed. Local replay state is bounded, volatile and confined to one interpreter; PHP-FPM request/worker separation, restarts and multiple hosts require an explicit atomic shared implementation. No Redis adapter, distributed-lock or backend durability guarantee is claimed.
+
+
+Parent integration completed: fresh Android1+Apple8 public fixtures verified with replay/body/target/token mutations rejected; full extended runner passed. One fresh whole-stage review and exact remaining/deferred limits are recorded in [extended verification](../../docs/security/extended-server-verification.md).

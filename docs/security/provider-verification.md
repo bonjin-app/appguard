@@ -11,7 +11,7 @@ provider integration. They do not replace user authentication or authorization.
 | [Apple initial attestation](apple-provider.md) |126 Python tests after review fix, real generated PKI/P-256 and strict CBOR/DER; official pinned root; actual enrollment concurrency/expiry/binding | no current-device full attestation or assertion/receipt/counter lifecycle; iOS-only conservative ACL compatibility pin |
 
 Full Python suite after integration:474 passed with live owned disposable Redis,
-0 skips. Provider tests use generated synthetic PKI and trusted transport seams;
+0 skips. The223 provider tests also passed from a separately installed noneditable wheel with isolated imports; the bundled PEM matched source byte-for-byte. Provider tests use generated synthetic PKI and trusted transport seams;
 they do not claim provider approval. A separate offline Apple sample check proves
 its historical certificate chain/ACL only. Its `0x40` flags plus trailing
 extensions reject at the full-object ED/trailing-data guard. Preserve that
@@ -49,3 +49,5 @@ See per-provider documents for exact evidence encodings, bounds, trust-anchor
 provenance and configuration examples. Logs, review rulings and regression
 receipts remain in the checksummed local provider-stage archive. No accounts,
 secrets, provider projects, entitlements or releases were configured.
+
+Final Python wheel SHA-256: `90915ee14a235d6f86e76ca86a1e4a659258202eef84bc3d6c2cf2ee11089e52`. Locally built and unpublished.

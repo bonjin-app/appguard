@@ -126,3 +126,6 @@ redacted audit callback errors/panics.
   performed by the parent stage and are not asserted by this receipt.
 - No publication, provider account change, authorization decision, enrollment,
   physical-device/hardware attestation or production deployment occurred.
+
+
+Parent integration completed: fresh Android1+Apple8 public fixtures verified with replay/body/target/token mutations rejected; full extended runner passed. One fresh whole-stage review and exact remaining/deferred limits are recorded in [extended verification](../../docs/security/extended-server-verification.md).

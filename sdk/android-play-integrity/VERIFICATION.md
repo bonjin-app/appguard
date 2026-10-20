@@ -15,3 +15,5 @@ Date: 2026-10-20. Optional acquisition module and Google Python backend only. No
 Raw local logs and downloaded public artifacts are ignored under `.evidence/` and `.tools/`. Integrated whole-Python verification after the concurrent Apple implementation is coordinated with the integration owner.
 
 Offline fixtures are trusted test boundaries, not successful Google attestation. Genuine-token acquisition/decode, credential refresh, Cloud/Play linking, quotas, Play distribution and physical-device behavior remain unverified. See [provider policy and deployment limits](../../docs/security/google-provider.md).
+
+Parent integration: final full Python474 tests passed with live disposable Redis; all223 provider tests passed from the final installed wheel. Optional Android `assembleRelease --offline --no-daemon` also succeeded; release AAR SHA-256 `c214330fe84d57b49d5f835a9db2802cb59704d15b873e1f00842ffa92653802` (`.evidence/parent-release-build.log`). This is a local library artifact, not an app release or runtime proof.

@@ -31,41 +31,41 @@
 **Files:** Android `NativeBridge.java` and tests; Apple `NativeBridge.swift` and tests, package readmes.
 **Interfaces:** `NativeBridge.invoke(operation: String, payload: String) -> String`; Android constructor accepts Context, Apple default init uses installation keys. Schema and operation result names are fixed in the spec.
 
-- [ ] Write behavioral tests for binary/empty-query preservation, independent signature verification, enrollment binding, malformed input/type/base64, unsupported operations/hardware and redacted key failures; observe RED.
-- [ ] Implement facade over existing typed SDKs, with internal key-store/clock seams only for tests.
-- [ ] Run full Android host tests/AAR/lint and SwiftPM tests/unsigned iOS Simulator build; record GREEN and commit owned files.
+- [x] Write behavioral tests for binary/empty-query preservation, independent signature verification, enrollment binding, malformed input/type/base64, unsupported operations/hardware and redacted key failures; observe RED.
+- [x] Implement facade over existing typed SDKs, with internal key-store/clock seams only for tests.
+- [x] Run full Android host tests/AAR/lint and SwiftPM tests/unsigned iOS Simulator build; record GREEN and commit owned files.
 
 ### Task 2: Expo / React Native package
 
 **Files:** `sdk/expo/**` only.
 **Interfaces:** Expo module `AppGuard` with asynchronous `invoke(operation, payload)` calling Task 1. Public TypeScript `publicKey`, `prepare`, `enrollmentProof` APIs and typed results; config plugin and staged native dependencies.
 
-- [ ] Scaffold using create-expo-module, remove generated UI/web examples; write failing tests for delegation, exact payload/result bytes, missing module and error redaction.
-- [ ] Implement Android/Apple module bindings, typed client and minimal config plugin, reproducible native source staging.
-- [ ] Verify package typecheck/tests/pack contents and available actual native compile paths; document absent runtime evidence and commit.
+- [x] Scaffold using create-expo-module, remove generated UI/web examples; write failing tests for delegation, exact payload/result bytes, missing module and error redaction.
+- [x] Implement Android/Apple module bindings, typed client and minimal config plugin, reproducible native source staging.
+- [x] Verify package typecheck/tests/pack contents and available actual native compile paths; document absent runtime evidence and commit.
 
 ### Task 3: Unity UPM package
 
 **Files:** `sdk/unity/**` only.
 **Interfaces:** C# typed API over Android JNI `invoke` / iOS C ABI; fixed failures on unsupported editor/platform, no crypto fallback.
 
-- [ ] Write failing managed tests for binary/empty-query mapping, errors, invalid/missing platform and native return ownership.
-- [ ] Implement UPM package, Java and Swift/C ABI entry points with bounded string allocation/free, source/artifact staging and install instructions.
-- [ ] Run tests in an isolated Unity project or supported installed C# runtime; compile available native adapters and clearly label unexecuted platform runtime; commit.
+- [x] Write failing managed tests for binary/empty-query mapping, errors, invalid/missing platform and native return ownership.
+- [x] Implement UPM package, Java and Swift/C ABI entry points with bounded string allocation/free, source/artifact staging and install instructions.
+- [x] Run tests in an isolated Unity project or supported installed C# runtime; compile available native adapters and clearly label unexecuted platform runtime; commit.
 
 ### Task 4: Flutter plugin
 
 **Files:** `sdk/flutter/**` only.
 **Interfaces:** MethodChannel `io.appguard/client` method `invoke`, arguments `{operation,payload}`; native Task 1 facade. Typed Dart methods preserve JSON/header/body semantics.
 
-- [ ] Write failing Dart tests for exact round-trip, error redaction and missing plugin, and native adapter tests where practical.
-- [ ] Implement Android/iOS channels, plugin metadata and relocatable source staging.
-- [ ] Use a task-local official Flutter runtime if available to run analyze/tests/package validation and available native builds; record actual evidence and commit.
+- [x] Write failing Dart tests for exact round-trip, error redaction and missing plugin, and native adapter tests where practical.
+- [x] Implement Android/iOS channels, plugin metadata and relocatable source staging.
+- [x] Use a task-local official Flutter runtime if available to run analyze/tests/package validation and available native builds; record actual evidence and commit.
 
 ### Task 5: Integration and review
 
 **Files:** root README, bridge docs, verification record, stage ledger.
 
-- [ ] Re-run integrated native suites and consumer interoperability probes; exercise staged package installation paths, not only monorepo imports.
-- [ ] One fresh whole-change security review; fix Critical/Important issues using targeted RED/GREEN, explicitly defer any Minor issues with impact.
-- [ ] Update support matrix and plan from observed evidence, archive checksummed owned scratch, commit clean result and continue Build/CLI roadmap.
+- [x] Re-run integrated native suites and consumer interoperability probes; exercise staged package installation paths, not only monorepo imports.
+- [x] One fresh whole-change security review; fix Critical/Important issues using targeted RED/GREEN, explicitly defer any Minor issues with impact.
+- [x] Update support matrix and plan from observed evidence, archive checksummed owned scratch, commit clean result and continue Build/CLI roadmap.
