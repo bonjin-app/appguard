@@ -1,0 +1,5 @@
+.gradle/
+.tools/
+.evidence/
+local.properties
+build/

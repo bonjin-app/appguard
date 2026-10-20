@@ -1,0 +1,44 @@
+plugins { id 'com.android.library' version '8.10.1' }
+
+group = 'io.appguard'
+version = '0.0.0-experimental'
+android {
+    namespace 'io.appguard.android'
+    compileSdk 36
+    signingConfigs {
+        debug {
+            storeFile file('.tools/appguard-test-debug.keystore')
+            storePassword 'android'
+            keyAlias 'androiddebugkey'
+            keyPassword 'android'
+        }
+    }
+    buildToolsVersion '35.0.0'
+    defaultConfig {
+        minSdk 26
+        testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
+    }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+    testOptions {
+        unitTests.all {
+            systemProperty 'appguard.corpus', file('../../conformance/v0').absolutePath
+            testLogging { events 'passed', 'failed', 'skipped'; exceptionFormat 'full' }
+        }
+    }
+}
+dependencies {
+    testImplementation 'junit:junit:4.13.2'
+    testImplementation 'com.google.code.gson:gson:2.13.1'
+    androidTestImplementation 'androidx.test:runner:1.6.2'
+}
+
+// Instrumentation APKs use a test-only key under this package, never ~/.android/debug.keystore.
+tasks.register('prepareTestKeystore', Exec) {
+    commandLine 'sh', 'scripts/prepare-test-keystore.sh'
+}
+tasks.configureEach {
+    if (name == 'validateSigningDebugAndroidTest') dependsOn 'prepareTestKeystore'
+}
