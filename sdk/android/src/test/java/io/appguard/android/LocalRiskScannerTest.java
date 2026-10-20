@@ -46,6 +46,19 @@ public class LocalRiskScannerTest {
         os.maps="a-b r-xp 0 00:00 0 /data/libfrida-gadget.so\n".getBytes();assertEquals(detected,scan(os).checks().get("hook_artifact"));
         os.maps="unparseable secret\n".getBytes();assertEquals(unavailable,scan(os).checks().get("hook_artifact"));
     }
+    @Test public void blankMapsRemainUnavailableAndPositiveHooksStillWin() {
+        OS os=new OS();
+        for(String maps:List.of("", "\n", "\n\n", " \n")) {
+            os.maps=maps.getBytes(java.nio.charset.StandardCharsets.US_ASCII);
+            LocalRiskScanner.Report report=scan(os);
+            assertEquals(unavailable,report.checks().get("hook_artifact"));
+            assertEquals(List.of("local_checks_unavailable"),report.riskSignals());
+        }
+        os.maps="\na-b r-xp 0 00:00 0\n".getBytes();
+        assertEquals(not_observed,scan(os).checks().get("hook_artifact"));
+        os.maps="bad row\na-b r-xp 0 00:00 0 /data/libfrida-gadget.so\n".getBytes();
+        assertEquals(detected,scan(os).checks().get("hook_artifact"));
+    }
     @Test public void allCurrentSignersMustBeAllowed() {
         OS os=new OS(); LocalRiskScanner scanner=new LocalRiskScanner(os);
         LocalRiskScanner.Config c=new LocalRiskScanner.Config("io.other",Set.of(ABC),Map.of());

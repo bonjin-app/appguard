@@ -162,11 +162,12 @@ public final class LocalRiskScanner {
     private State hooks() {
         return probe(() -> {
             String text = readText(observations.maps(), 512 * 1024);
-            boolean positive = false; boolean malformed = text.isEmpty();
+            boolean positive = false; boolean malformed = false; boolean parsed = false;
             for (String line : text.split("\n", -1)) {
                 if (line.isEmpty()) continue;
                 Matcher matcher = MAP_LINE.matcher(line);
                 if (!matcher.matches()) { malformed = true; continue; }
+                parsed = true;
                 String path = matcher.group(1);
                 if (path == null) continue;
                 if (path.endsWith(" (deleted)")) path = path.substring(0, path.length() - 10);
@@ -176,7 +177,7 @@ public final class LocalRiskScanner {
                         name.equals("libsubstrate.so") || name.equals("libsubstrate-dvm.so")) positive = true;
             }
             if (positive) return true;
-            if (malformed) throw new IOException();
+            if (malformed || !parsed) throw new IOException();
             return false;
         });
     }

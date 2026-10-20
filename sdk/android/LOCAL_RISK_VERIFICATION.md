@@ -52,7 +52,7 @@ Instrumentation source/build and an emulator run are separate evidence tiers.
 The Android worker does not start/stop or alter existing emulators/AVDs; runtime
 execution and the whole-stage security review are coordinated by the parent.
 
-## Final local result
+## Pre-review local result
 
 `test assembleRelease lint assembleDebugAndroidTest` passed with 19 scanner tests
 and 27 existing native SDK tests in each of debug and release: 92 executions,
@@ -71,3 +71,22 @@ hardware-attestation result is established. Runtime receipts, when collected,
 are owned by the parent stage report and must be distinguished from these host
 and compilation checks. The scanner does not extend `NativeBridge` or alter any
 existing request or enrollment verification behavior.
+
+## Whole-stage review fix
+
+One fresh whole-stage security review found one Important malformed-observation
+case: LF-only proc maps were accepted without any parsed record, suppressing
+`local_checks_unavailable`. With an explicit health policy this could return allow
+instead of step-up; independent authentication/signature/attestation are not bypassed.
+The regression `blankMapsRemainUnavailableAndPositiveHooksStillWin` first failed
+with `not_observed`, then passed after requiring a valid map row. It also checks
+anonymous valid rows and positive hook precedence over malformed siblings.
+
+The final full `test assembleRelease lint assembleDebugAndroidTest` pass has
+20 scanner tests plus 27 existing tests in each debug/release variant: **94 test
+executions**, zero failures/errors/skips; lint is clear. The AAR/test APK were
+rebuilt. A fresh actual Android-report/Node-policy probe now yields unavailable,
+the health hint, and step-up for both empty and LF-only maps. Final source/artifact
+receipts and review-fix logs are retained separately from pre-review evidence.
+No second security review was dispatched; targeted RED-to-GREEN, the full affected
+suite and the cross-language consequence probe verify the fix.
