@@ -1,0 +1,1937 @@
+[
+  {
+    "id": "valid",
+    "headers": [
+      [
+        "Content-Type",
+        "application/json"
+      ],
+      [
+        "Content-Digest",
+        "sha-256=:RBNvo1WzZ4oRRq0W9+hknpT7T8If536DEMBg9hyq/4o=:"
+      ],
+      [
+        "Authorization",
+        "Bearer TEST_ONLY_TOKEN"
+      ],
+      [
+        "AppGuard-App-Id",
+        "test-app"
+      ],
+      [
+        "Signature-Input",
+        "appguard=(\"@method\" \"@target-uri\" \"content-type\" \"content-digest\" \"authorization\" \"appguard-app-id\");created=1700000000;expires=1700000120;nonce=\"AAECAwQFBgcICQoLDA0ODw\";keyid=\"test-key\";alg=\"ecdsa-p256-sha256\";tag=\"appguard-request-v0\""
+      ],
+      [
+        "Signature",
+        "appguard=:4VcXRWhH6ZX8fo2Rg7fboR0oKDB9nLWFZKpFQGZbz/kztRo6H0JxYwR2rWS8SXKM8XJ4ELzqlaIFb7v2QWOK6w==:"
+      ]
+    ],
+    "expected_code": "PARSED",
+    "expected": {
+      "parameters": {
+        "created": 1700000000,
+        "expires": 1700000120,
+        "nonce": "AAECAwQFBgcICQoLDA0ODw",
+        "key_id": "test-key",
+        "algorithm": "ecdsa-p256-sha256",
+        "tag": "appguard-request-v0"
+      },
+      "signature_b64": "4VcXRWhH6ZX8fo2Rg7fboR0oKDB9nLWFZKpFQGZbz/kztRo6H0JxYwR2rWS8SXKM8XJ4ELzqlaIFb7v2QWOK6w=="
+    }
+  },
+  {
+    "id": "mixed-header-case",
+    "headers": [
+      [
+        "Content-Type",
+        "application/json"
+      ],
+      [
+        "Content-Digest",
+        "sha-256=:RBNvo1WzZ4oRRq0W9+hknpT7T8If536DEMBg9hyq/4o=:"
+      ],
+      [
+        "Authorization",
+        "Bearer TEST_ONLY_TOKEN"
+      ],
+      [
+        "AppGuard-App-Id",
+        "test-app"
+      ],
+      [
+        "sIgNaTuRe-InPuT",
+        "appguard=(\"@method\" \"@target-uri\" \"content-type\" \"content-digest\" \"authorization\" \"appguard-app-id\");created=1700000000;expires=1700000120;nonce=\"AAECAwQFBgcICQoLDA0ODw\";keyid=\"test-key\";alg=\"ecdsa-p256-sha256\";tag=\"appguard-request-v0\""
+      ],
+      [
+        "sIgNaTuRe",
+        "appguard=:4VcXRWhH6ZX8fo2Rg7fboR0oKDB9nLWFZKpFQGZbz/kztRo6H0JxYwR2rWS8SXKM8XJ4ELzqlaIFb7v2QWOK6w==:"
+      ]
+    ],
+    "expected_code": "PARSED",
+    "expected": {
+      "parameters": {
+        "created": 1700000000,
+        "expires": 1700000120,
+        "nonce": "AAECAwQFBgcICQoLDA0ODw",
+        "key_id": "test-key",
+        "algorithm": "ecdsa-p256-sha256",
+        "tag": "appguard-request-v0"
+      },
+      "signature_b64": "4VcXRWhH6ZX8fo2Rg7fboR0oKDB9nLWFZKpFQGZbz/kztRo6H0JxYwR2rWS8SXKM8XJ4ELzqlaIFb7v2QWOK6w=="
+    }
+  },
+  {
+    "id": "missing-input",
+    "headers": [
+      [
+        "Content-Type",
+        "application/json"
+      ],
+      [
+        "Content-Digest",
+        "sha-256=:RBNvo1WzZ4oRRq0W9+hknpT7T8If536DEMBg9hyq/4o=:"
+      ],
+      [
+        "Authorization",
+        "Bearer TEST_ONLY_TOKEN"
+      ],
+      [
+        "AppGuard-App-Id",
+        "test-app"
+      ],
+      [
+        "Signature",
+        "appguard=:4VcXRWhH6ZX8fo2Rg7fboR0oKDB9nLWFZKpFQGZbz/kztRo6H0JxYwR2rWS8SXKM8XJ4ELzqlaIFb7v2QWOK6w==:"
+      ]
+    ],
+    "expected_code": "INVALID_REQUEST",
+    "expected": null
+  },
+  {
+    "id": "missing-signature",
+    "headers": [
+      [
+        "Content-Type",
+        "application/json"
+      ],
+      [
+        "Content-Digest",
+        "sha-256=:RBNvo1WzZ4oRRq0W9+hknpT7T8If536DEMBg9hyq/4o=:"
+      ],
+      [
+        "Authorization",
+        "Bearer TEST_ONLY_TOKEN"
+      ],
+      [
+        "AppGuard-App-Id",
+        "test-app"
+      ],
+      [
+        "Signature-Input",
+        "appguard=(\"@method\" \"@target-uri\" \"content-type\" \"content-digest\" \"authorization\" \"appguard-app-id\");created=1700000000;expires=1700000120;nonce=\"AAECAwQFBgcICQoLDA0ODw\";keyid=\"test-key\";alg=\"ecdsa-p256-sha256\";tag=\"appguard-request-v0\""
+      ]
+    ],
+    "expected_code": "INVALID_REQUEST",
+    "expected": null
+  },
+  {
+    "id": "duplicate-input",
+    "headers": [
+      [
+        "Content-Type",
+        "application/json"
+      ],
+      [
+        "Content-Digest",
+        "sha-256=:RBNvo1WzZ4oRRq0W9+hknpT7T8If536DEMBg9hyq/4o=:"
+      ],
+      [
+        "Authorization",
+        "Bearer TEST_ONLY_TOKEN"
+      ],
+      [
+        "AppGuard-App-Id",
+        "test-app"
+      ],
+      [
+        "Signature-Input",
+        "appguard=(\"@method\" \"@target-uri\" \"content-type\" \"content-digest\" \"authorization\" \"appguard-app-id\");created=1700000000;expires=1700000120;nonce=\"AAECAwQFBgcICQoLDA0ODw\";keyid=\"test-key\";alg=\"ecdsa-p256-sha256\";tag=\"appguard-request-v0\""
+      ],
+      [
+        "Signature",
+        "appguard=:4VcXRWhH6ZX8fo2Rg7fboR0oKDB9nLWFZKpFQGZbz/kztRo6H0JxYwR2rWS8SXKM8XJ4ELzqlaIFb7v2QWOK6w==:"
+      ],
+      [
+        "Signature-Input",
+        "appguard=(\"@method\" \"@target-uri\" \"content-type\" \"content-digest\" \"authorization\" \"appguard-app-id\");created=1700000000;expires=1700000120;nonce=\"AAECAwQFBgcICQoLDA0ODw\";keyid=\"test-key\";alg=\"ecdsa-p256-sha256\";tag=\"appguard-request-v0\""
+      ]
+    ],
+    "expected_code": "INVALID_REQUEST",
+    "expected": null
+  },
+  {
+    "id": "duplicate-signature",
+    "headers": [
+      [
+        "Content-Type",
+        "application/json"
+      ],
+      [
+        "Content-Digest",
+        "sha-256=:RBNvo1WzZ4oRRq0W9+hknpT7T8If536DEMBg9hyq/4o=:"
+      ],
+      [
+        "Authorization",
+        "Bearer TEST_ONLY_TOKEN"
+      ],
+      [
+        "AppGuard-App-Id",
+        "test-app"
+      ],
+      [
+        "Signature-Input",
+        "appguard=(\"@method\" \"@target-uri\" \"content-type\" \"content-digest\" \"authorization\" \"appguard-app-id\");created=1700000000;expires=1700000120;nonce=\"AAECAwQFBgcICQoLDA0ODw\";keyid=\"test-key\";alg=\"ecdsa-p256-sha256\";tag=\"appguard-request-v0\""
+      ],
+      [
+        "Signature",
+        "appguard=:4VcXRWhH6ZX8fo2Rg7fboR0oKDB9nLWFZKpFQGZbz/kztRo6H0JxYwR2rWS8SXKM8XJ4ELzqlaIFb7v2QWOK6w==:"
+      ],
+      [
+        "Signature",
+        "appguard=:4VcXRWhH6ZX8fo2Rg7fboR0oKDB9nLWFZKpFQGZbz/kztRo6H0JxYwR2rWS8SXKM8XJ4ELzqlaIFb7v2QWOK6w==:"
+      ]
+    ],
+    "expected_code": "INVALID_REQUEST",
+    "expected": null
+  },
+  {
+    "id": "extra-component",
+    "headers": [
+      [
+        "Content-Type",
+        "application/json"
+      ],
+      [
+        "Content-Digest",
+        "sha-256=:RBNvo1WzZ4oRRq0W9+hknpT7T8If536DEMBg9hyq/4o=:"
+      ],
+      [
+        "Authorization",
+        "Bearer TEST_ONLY_TOKEN"
+      ],
+      [
+        "AppGuard-App-Id",
+        "test-app"
+      ],
+      [
+        "Signature-Input",
+        "appguard=(\"@method\" \"@target-uri\" \"content-type\" \"content-digest\" \"authorization\" \"appguard-app-id\" \"x-extra\");created=1700000000;expires=1700000120;nonce=\"AAECAwQFBgcICQoLDA0ODw\";keyid=\"test-key\";alg=\"ecdsa-p256-sha256\";tag=\"appguard-request-v0\""
+      ],
+      [
+        "Signature",
+        "appguard=:4VcXRWhH6ZX8fo2Rg7fboR0oKDB9nLWFZKpFQGZbz/kztRo6H0JxYwR2rWS8SXKM8XJ4ELzqlaIFb7v2QWOK6w==:"
+      ]
+    ],
+    "expected_code": "INVALID_REQUEST",
+    "expected": null
+  },
+  {
+    "id": "missing-component",
+    "headers": [
+      [
+        "Content-Type",
+        "application/json"
+      ],
+      [
+        "Content-Digest",
+        "sha-256=:RBNvo1WzZ4oRRq0W9+hknpT7T8If536DEMBg9hyq/4o=:"
+      ],
+      [
+        "Authorization",
+        "Bearer TEST_ONLY_TOKEN"
+      ],
+      [
+        "AppGuard-App-Id",
+        "test-app"
+      ],
+      [
+        "Signature-Input",
+        "appguard=(\"@method\" \"@target-uri\" \"content-type\" \"content-digest\" \"appguard-app-id\");created=1700000000;expires=1700000120;nonce=\"AAECAwQFBgcICQoLDA0ODw\";keyid=\"test-key\";alg=\"ecdsa-p256-sha256\";tag=\"appguard-request-v0\""
+      ],
+      [
+        "Signature",
+        "appguard=:4VcXRWhH6ZX8fo2Rg7fboR0oKDB9nLWFZKpFQGZbz/kztRo6H0JxYwR2rWS8SXKM8XJ4ELzqlaIFb7v2QWOK6w==:"
+      ]
+    ],
+    "expected_code": "INVALID_REQUEST",
+    "expected": null
+  },
+  {
+    "id": "extra-parameter",
+    "headers": [
+      [
+        "Content-Type",
+        "application/json"
+      ],
+      [
+        "Content-Digest",
+        "sha-256=:RBNvo1WzZ4oRRq0W9+hknpT7T8If536DEMBg9hyq/4o=:"
+      ],
+      [
+        "Authorization",
+        "Bearer TEST_ONLY_TOKEN"
+      ],
+      [
+        "AppGuard-App-Id",
+        "test-app"
+      ],
+      [
+        "Signature-Input",
+        "appguard=(\"@method\" \"@target-uri\" \"content-type\" \"content-digest\" \"authorization\" \"appguard-app-id\");created=1700000000;expires=1700000120;nonce=\"AAECAwQFBgcICQoLDA0ODw\";keyid=\"test-key\";alg=\"ecdsa-p256-sha256\";tag=\"appguard-request-v0\";extra=\"x\""
+      ],
+      [
+        "Signature",
+        "appguard=:4VcXRWhH6ZX8fo2Rg7fboR0oKDB9nLWFZKpFQGZbz/kztRo6H0JxYwR2rWS8SXKM8XJ4ELzqlaIFb7v2QWOK6w==:"
+      ]
+    ],
+    "expected_code": "INVALID_REQUEST",
+    "expected": null
+  },
+  {
+    "id": "unknown-label",
+    "headers": [
+      [
+        "Content-Type",
+        "application/json"
+      ],
+      [
+        "Content-Digest",
+        "sha-256=:RBNvo1WzZ4oRRq0W9+hknpT7T8If536DEMBg9hyq/4o=:"
+      ],
+      [
+        "Authorization",
+        "Bearer TEST_ONLY_TOKEN"
+      ],
+      [
+        "AppGuard-App-Id",
+        "test-app"
+      ],
+      [
+        "Signature-Input",
+        "other=(\"@method\" \"@target-uri\" \"content-type\" \"content-digest\" \"authorization\" \"appguard-app-id\");created=1700000000;expires=1700000120;nonce=\"AAECAwQFBgcICQoLDA0ODw\";keyid=\"test-key\";alg=\"ecdsa-p256-sha256\";tag=\"appguard-request-v0\""
+      ],
+      [
+        "Signature",
+        "appguard=:4VcXRWhH6ZX8fo2Rg7fboR0oKDB9nLWFZKpFQGZbz/kztRo6H0JxYwR2rWS8SXKM8XJ4ELzqlaIFb7v2QWOK6w==:"
+      ]
+    ],
+    "expected_code": "INVALID_REQUEST",
+    "expected": null
+  },
+  {
+    "id": "parameter-reorder",
+    "headers": [
+      [
+        "Content-Type",
+        "application/json"
+      ],
+      [
+        "Content-Digest",
+        "sha-256=:RBNvo1WzZ4oRRq0W9+hknpT7T8If536DEMBg9hyq/4o=:"
+      ],
+      [
+        "Authorization",
+        "Bearer TEST_ONLY_TOKEN"
+      ],
+      [
+        "AppGuard-App-Id",
+        "test-app"
+      ],
+      [
+        "Signature-Input",
+        "appguard=(\"@method\" \"@target-uri\" \"content-type\" \"content-digest\" \"authorization\" \"appguard-app-id\");expires=1700000120;created=1700000000;nonce=\"AAECAwQFBgcICQoLDA0ODw\";keyid=\"test-key\";alg=\"ecdsa-p256-sha256\";tag=\"appguard-request-v0\""
+      ],
+      [
+        "Signature",
+        "appguard=:4VcXRWhH6ZX8fo2Rg7fboR0oKDB9nLWFZKpFQGZbz/kztRo6H0JxYwR2rWS8SXKM8XJ4ELzqlaIFb7v2QWOK6w==:"
+      ]
+    ],
+    "expected_code": "INVALID_REQUEST",
+    "expected": null
+  },
+  {
+    "id": "leading-zero-integer",
+    "headers": [
+      [
+        "Content-Type",
+        "application/json"
+      ],
+      [
+        "Content-Digest",
+        "sha-256=:RBNvo1WzZ4oRRq0W9+hknpT7T8If536DEMBg9hyq/4o=:"
+      ],
+      [
+        "Authorization",
+        "Bearer TEST_ONLY_TOKEN"
+      ],
+      [
+        "AppGuard-App-Id",
+        "test-app"
+      ],
+      [
+        "Signature-Input",
+        "appguard=(\"@method\" \"@target-uri\" \"content-type\" \"content-digest\" \"authorization\" \"appguard-app-id\");created=01700000000;expires=1700000120;nonce=\"AAECAwQFBgcICQoLDA0ODw\";keyid=\"test-key\";alg=\"ecdsa-p256-sha256\";tag=\"appguard-request-v0\""
+      ],
+      [
+        "Signature",
+        "appguard=:4VcXRWhH6ZX8fo2Rg7fboR0oKDB9nLWFZKpFQGZbz/kztRo6H0JxYwR2rWS8SXKM8XJ4ELzqlaIFb7v2QWOK6w==:"
+      ]
+    ],
+    "expected_code": "INVALID_REQUEST",
+    "expected": null
+  },
+  {
+    "id": "negative-zero-integer",
+    "headers": [
+      [
+        "Content-Type",
+        "application/json"
+      ],
+      [
+        "Content-Digest",
+        "sha-256=:RBNvo1WzZ4oRRq0W9+hknpT7T8If536DEMBg9hyq/4o=:"
+      ],
+      [
+        "Authorization",
+        "Bearer TEST_ONLY_TOKEN"
+      ],
+      [
+        "AppGuard-App-Id",
+        "test-app"
+      ],
+      [
+        "Signature-Input",
+        "appguard=(\"@method\" \"@target-uri\" \"content-type\" \"content-digest\" \"authorization\" \"appguard-app-id\");created=-0;expires=1700000120;nonce=\"AAECAwQFBgcICQoLDA0ODw\";keyid=\"test-key\";alg=\"ecdsa-p256-sha256\";tag=\"appguard-request-v0\""
+      ],
+      [
+        "Signature",
+        "appguard=:4VcXRWhH6ZX8fo2Rg7fboR0oKDB9nLWFZKpFQGZbz/kztRo6H0JxYwR2rWS8SXKM8XJ4ELzqlaIFb7v2QWOK6w==:"
+      ]
+    ],
+    "expected_code": "INVALID_REQUEST",
+    "expected": null
+  },
+  {
+    "id": "boolean-integer",
+    "headers": [
+      [
+        "Content-Type",
+        "application/json"
+      ],
+      [
+        "Content-Digest",
+        "sha-256=:RBNvo1WzZ4oRRq0W9+hknpT7T8If536DEMBg9hyq/4o=:"
+      ],
+      [
+        "Authorization",
+        "Bearer TEST_ONLY_TOKEN"
+      ],
+      [
+        "AppGuard-App-Id",
+        "test-app"
+      ],
+      [
+        "Signature-Input",
+        "appguard=(\"@method\" \"@target-uri\" \"content-type\" \"content-digest\" \"authorization\" \"appguard-app-id\");created=?1;expires=1700000120;nonce=\"AAECAwQFBgcICQoLDA0ODw\";keyid=\"test-key\";alg=\"ecdsa-p256-sha256\";tag=\"appguard-request-v0\""
+      ],
+      [
+        "Signature",
+        "appguard=:4VcXRWhH6ZX8fo2Rg7fboR0oKDB9nLWFZKpFQGZbz/kztRo6H0JxYwR2rWS8SXKM8XJ4ELzqlaIFb7v2QWOK6w==:"
+      ]
+    ],
+    "expected_code": "INVALID_REQUEST",
+    "expected": null
+  },
+  {
+    "id": "fraction-integer",
+    "headers": [
+      [
+        "Content-Type",
+        "application/json"
+      ],
+      [
+        "Content-Digest",
+        "sha-256=:RBNvo1WzZ4oRRq0W9+hknpT7T8If536DEMBg9hyq/4o=:"
+      ],
+      [
+        "Authorization",
+        "Bearer TEST_ONLY_TOKEN"
+      ],
+      [
+        "AppGuard-App-Id",
+        "test-app"
+      ],
+      [
+        "Signature-Input",
+        "appguard=(\"@method\" \"@target-uri\" \"content-type\" \"content-digest\" \"authorization\" \"appguard-app-id\");created=1700000000.0;expires=1700000120;nonce=\"AAECAwQFBgcICQoLDA0ODw\";keyid=\"test-key\";alg=\"ecdsa-p256-sha256\";tag=\"appguard-request-v0\""
+      ],
+      [
+        "Signature",
+        "appguard=:4VcXRWhH6ZX8fo2Rg7fboR0oKDB9nLWFZKpFQGZbz/kztRo6H0JxYwR2rWS8SXKM8XJ4ELzqlaIFb7v2QWOK6w==:"
+      ]
+    ],
+    "expected_code": "INVALID_REQUEST",
+    "expected": null
+  },
+  {
+    "id": "oversized-integer",
+    "headers": [
+      [
+        "Content-Type",
+        "application/json"
+      ],
+      [
+        "Content-Digest",
+        "sha-256=:RBNvo1WzZ4oRRq0W9+hknpT7T8If536DEMBg9hyq/4o=:"
+      ],
+      [
+        "Authorization",
+        "Bearer TEST_ONLY_TOKEN"
+      ],
+      [
+        "AppGuard-App-Id",
+        "test-app"
+      ],
+      [
+        "Signature-Input",
+        "appguard=(\"@method\" \"@target-uri\" \"content-type\" \"content-digest\" \"authorization\" \"appguard-app-id\");created=1000000000000000;expires=1700000120;nonce=\"AAECAwQFBgcICQoLDA0ODw\";keyid=\"test-key\";alg=\"ecdsa-p256-sha256\";tag=\"appguard-request-v0\""
+      ],
+      [
+        "Signature",
+        "appguard=:4VcXRWhH6ZX8fo2Rg7fboR0oKDB9nLWFZKpFQGZbz/kztRo6H0JxYwR2rWS8SXKM8XJ4ELzqlaIFb7v2QWOK6w==:"
+      ]
+    ],
+    "expected_code": "INVALID_REQUEST",
+    "expected": null
+  },
+  {
+    "id": "negative-time-parses",
+    "headers": [
+      [
+        "Content-Type",
+        "application/json"
+      ],
+      [
+        "Content-Digest",
+        "sha-256=:RBNvo1WzZ4oRRq0W9+hknpT7T8If536DEMBg9hyq/4o=:"
+      ],
+      [
+        "Authorization",
+        "Bearer TEST_ONLY_TOKEN"
+      ],
+      [
+        "AppGuard-App-Id",
+        "test-app"
+      ],
+      [
+        "Signature-Input",
+        "appguard=(\"@method\" \"@target-uri\" \"content-type\" \"content-digest\" \"authorization\" \"appguard-app-id\");created=-1;expires=1700000120;nonce=\"AAECAwQFBgcICQoLDA0ODw\";keyid=\"test-key\";alg=\"ecdsa-p256-sha256\";tag=\"appguard-request-v0\""
+      ],
+      [
+        "Signature",
+        "appguard=:4VcXRWhH6ZX8fo2Rg7fboR0oKDB9nLWFZKpFQGZbz/kztRo6H0JxYwR2rWS8SXKM8XJ4ELzqlaIFb7v2QWOK6w==:"
+      ]
+    ],
+    "expected_code": "PARSED",
+    "expected": {
+      "parameters": {
+        "created": -1,
+        "expires": 1700000120,
+        "nonce": "AAECAwQFBgcICQoLDA0ODw",
+        "key_id": "test-key",
+        "algorithm": "ecdsa-p256-sha256",
+        "tag": "appguard-request-v0"
+      },
+      "signature_b64": "4VcXRWhH6ZX8fo2Rg7fboR0oKDB9nLWFZKpFQGZbz/kztRo6H0JxYwR2rWS8SXKM8XJ4ELzqlaIFb7v2QWOK6w=="
+    }
+  },
+  {
+    "id": "unsupported-algorithm",
+    "headers": [
+      [
+        "Content-Type",
+        "application/json"
+      ],
+      [
+        "Content-Digest",
+        "sha-256=:RBNvo1WzZ4oRRq0W9+hknpT7T8If536DEMBg9hyq/4o=:"
+      ],
+      [
+        "Authorization",
+        "Bearer TEST_ONLY_TOKEN"
+      ],
+      [
+        "AppGuard-App-Id",
+        "test-app"
+      ],
+      [
+        "Signature-Input",
+        "appguard=(\"@method\" \"@target-uri\" \"content-type\" \"content-digest\" \"authorization\" \"appguard-app-id\");created=1700000000;expires=1700000120;nonce=\"AAECAwQFBgcICQoLDA0ODw\";keyid=\"test-key\";alg=\"hmac-sha256\";tag=\"appguard-request-v0\""
+      ],
+      [
+        "Signature",
+        "appguard=:4VcXRWhH6ZX8fo2Rg7fboR0oKDB9nLWFZKpFQGZbz/kztRo6H0JxYwR2rWS8SXKM8XJ4ELzqlaIFb7v2QWOK6w==:"
+      ]
+    ],
+    "expected_code": "UNSUPPORTED_PROFILE",
+    "expected": null
+  },
+  {
+    "id": "unsupported-tag",
+    "headers": [
+      [
+        "Content-Type",
+        "application/json"
+      ],
+      [
+        "Content-Digest",
+        "sha-256=:RBNvo1WzZ4oRRq0W9+hknpT7T8If536DEMBg9hyq/4o=:"
+      ],
+      [
+        "Authorization",
+        "Bearer TEST_ONLY_TOKEN"
+      ],
+      [
+        "AppGuard-App-Id",
+        "test-app"
+      ],
+      [
+        "Signature-Input",
+        "appguard=(\"@method\" \"@target-uri\" \"content-type\" \"content-digest\" \"authorization\" \"appguard-app-id\");created=1700000000;expires=1700000120;nonce=\"AAECAwQFBgcICQoLDA0ODw\";keyid=\"test-key\";alg=\"ecdsa-p256-sha256\";tag=\"appguard-request-v1\""
+      ],
+      [
+        "Signature",
+        "appguard=:4VcXRWhH6ZX8fo2Rg7fboR0oKDB9nLWFZKpFQGZbz/kztRo6H0JxYwR2rWS8SXKM8XJ4ELzqlaIFb7v2QWOK6w==:"
+      ]
+    ],
+    "expected_code": "UNSUPPORTED_PROFILE",
+    "expected": null
+  },
+  {
+    "id": "surrounding-whitespace",
+    "headers": [
+      [
+        "Content-Type",
+        "application/json"
+      ],
+      [
+        "Content-Digest",
+        "sha-256=:RBNvo1WzZ4oRRq0W9+hknpT7T8If536DEMBg9hyq/4o=:"
+      ],
+      [
+        "Authorization",
+        "Bearer TEST_ONLY_TOKEN"
+      ],
+      [
+        "AppGuard-App-Id",
+        "test-app"
+      ],
+      [
+        "Signature-Input",
+        " appguard=(\"@method\" \"@target-uri\" \"content-type\" \"content-digest\" \"authorization\" \"appguard-app-id\");created=1700000000;expires=1700000120;nonce=\"AAECAwQFBgcICQoLDA0ODw\";keyid=\"test-key\";alg=\"ecdsa-p256-sha256\";tag=\"appguard-request-v0\""
+      ],
+      [
+        "Signature",
+        "appguard=:4VcXRWhH6ZX8fo2Rg7fboR0oKDB9nLWFZKpFQGZbz/kztRo6H0JxYwR2rWS8SXKM8XJ4ELzqlaIFb7v2QWOK6w==:"
+      ]
+    ],
+    "expected_code": "INVALID_REQUEST",
+    "expected": null
+  },
+  {
+    "id": "extra-list-member",
+    "headers": [
+      [
+        "Content-Type",
+        "application/json"
+      ],
+      [
+        "Content-Digest",
+        "sha-256=:RBNvo1WzZ4oRRq0W9+hknpT7T8If536DEMBg9hyq/4o=:"
+      ],
+      [
+        "Authorization",
+        "Bearer TEST_ONLY_TOKEN"
+      ],
+      [
+        "AppGuard-App-Id",
+        "test-app"
+      ],
+      [
+        "Signature-Input",
+        "appguard=(\"@method\" \"@target-uri\" \"content-type\" \"content-digest\" \"authorization\" \"appguard-app-id\");created=1700000000;expires=1700000120;nonce=\"AAECAwQFBgcICQoLDA0ODw\";keyid=\"test-key\";alg=\"ecdsa-p256-sha256\";tag=\"appguard-request-v0\",other=(\"@method\")"
+      ],
+      [
+        "Signature",
+        "appguard=:4VcXRWhH6ZX8fo2Rg7fboR0oKDB9nLWFZKpFQGZbz/kztRo6H0JxYwR2rWS8SXKM8XJ4ELzqlaIFb7v2QWOK6w==:"
+      ]
+    ],
+    "expected_code": "INVALID_REQUEST",
+    "expected": null
+  },
+  {
+    "id": "escaped-key-id",
+    "headers": [
+      [
+        "Content-Type",
+        "application/json"
+      ],
+      [
+        "Content-Digest",
+        "sha-256=:RBNvo1WzZ4oRRq0W9+hknpT7T8If536DEMBg9hyq/4o=:"
+      ],
+      [
+        "Authorization",
+        "Bearer TEST_ONLY_TOKEN"
+      ],
+      [
+        "AppGuard-App-Id",
+        "test-app"
+      ],
+      [
+        "Signature-Input",
+        "appguard=(\"@method\" \"@target-uri\" \"content-type\" \"content-digest\" \"authorization\" \"appguard-app-id\");created=1700000000;expires=1700000120;nonce=\"AAECAwQFBgcICQoLDA0ODw\";keyid=\"test\\\"key\";alg=\"ecdsa-p256-sha256\";tag=\"appguard-request-v0\""
+      ],
+      [
+        "Signature",
+        "appguard=:4VcXRWhH6ZX8fo2Rg7fboR0oKDB9nLWFZKpFQGZbz/kztRo6H0JxYwR2rWS8SXKM8XJ4ELzqlaIFb7v2QWOK6w==:"
+      ]
+    ],
+    "expected_code": "INVALID_REQUEST",
+    "expected": null
+  },
+  {
+    "id": "wrong-signature-label",
+    "headers": [
+      [
+        "Content-Type",
+        "application/json"
+      ],
+      [
+        "Content-Digest",
+        "sha-256=:RBNvo1WzZ4oRRq0W9+hknpT7T8If536DEMBg9hyq/4o=:"
+      ],
+      [
+        "Authorization",
+        "Bearer TEST_ONLY_TOKEN"
+      ],
+      [
+        "AppGuard-App-Id",
+        "test-app"
+      ],
+      [
+        "Signature-Input",
+        "appguard=(\"@method\" \"@target-uri\" \"content-type\" \"content-digest\" \"authorization\" \"appguard-app-id\");created=1700000000;expires=1700000120;nonce=\"AAECAwQFBgcICQoLDA0ODw\";keyid=\"test-key\";alg=\"ecdsa-p256-sha256\";tag=\"appguard-request-v0\""
+      ],
+      [
+        "Signature",
+        "other=:4VcXRWhH6ZX8fo2Rg7fboR0oKDB9nLWFZKpFQGZbz/kztRo6H0JxYwR2rWS8SXKM8XJ4ELzqlaIFb7v2QWOK6w==:"
+      ]
+    ],
+    "expected_code": "INVALID_REQUEST",
+    "expected": null
+  },
+  {
+    "id": "bad-signature-base64",
+    "headers": [
+      [
+        "Content-Type",
+        "application/json"
+      ],
+      [
+        "Content-Digest",
+        "sha-256=:RBNvo1WzZ4oRRq0W9+hknpT7T8If536DEMBg9hyq/4o=:"
+      ],
+      [
+        "Authorization",
+        "Bearer TEST_ONLY_TOKEN"
+      ],
+      [
+        "AppGuard-App-Id",
+        "test-app"
+      ],
+      [
+        "Signature-Input",
+        "appguard=(\"@method\" \"@target-uri\" \"content-type\" \"content-digest\" \"authorization\" \"appguard-app-id\");created=1700000000;expires=1700000120;nonce=\"AAECAwQFBgcICQoLDA0ODw\";keyid=\"test-key\";alg=\"ecdsa-p256-sha256\";tag=\"appguard-request-v0\""
+      ],
+      [
+        "Signature",
+        "appguard=:!bad!:"
+      ]
+    ],
+    "expected_code": "INVALID_REQUEST",
+    "expected": null
+  },
+  {
+    "id": "short-signature",
+    "headers": [
+      [
+        "Content-Type",
+        "application/json"
+      ],
+      [
+        "Content-Digest",
+        "sha-256=:RBNvo1WzZ4oRRq0W9+hknpT7T8If536DEMBg9hyq/4o=:"
+      ],
+      [
+        "Authorization",
+        "Bearer TEST_ONLY_TOKEN"
+      ],
+      [
+        "AppGuard-App-Id",
+        "test-app"
+      ],
+      [
+        "Signature-Input",
+        "appguard=(\"@method\" \"@target-uri\" \"content-type\" \"content-digest\" \"authorization\" \"appguard-app-id\");created=1700000000;expires=1700000120;nonce=\"AAECAwQFBgcICQoLDA0ODw\";keyid=\"test-key\";alg=\"ecdsa-p256-sha256\";tag=\"appguard-request-v0\""
+      ],
+      [
+        "Signature",
+        "appguard=:eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4eHh4:"
+      ]
+    ],
+    "expected_code": "INVALID_REQUEST",
+    "expected": null
+  },
+  {
+    "id": "signature-newline",
+    "headers": [
+      [
+        "Content-Type",
+        "application/json"
+      ],
+      [
+        "Content-Digest",
+        "sha-256=:RBNvo1WzZ4oRRq0W9+hknpT7T8If536DEMBg9hyq/4o=:"
+      ],
+      [
+        "Authorization",
+        "Bearer TEST_ONLY_TOKEN"
+      ],
+      [
+        "AppGuard-App-Id",
+        "test-app"
+      ],
+      [
+        "Signature-Input",
+        "appguard=(\"@method\" \"@target-uri\" \"content-type\" \"content-digest\" \"authorization\" \"appguard-app-id\");created=1700000000;expires=1700000120;nonce=\"AAECAwQFBgcICQoLDA0ODw\";keyid=\"test-key\";alg=\"ecdsa-p256-sha256\";tag=\"appguard-request-v0\""
+      ],
+      [
+        "Signature",
+        "appguard=:4VcXRWhH6ZX8fo2Rg7fboR0oKDB9nLWFZKpFQGZbz/kztRo6H0JxYwR2rWS8SXKM8XJ4ELzqlaIFb7v2QWOK6w==:\n"
+      ]
+    ],
+    "expected_code": "INVALID_REQUEST",
+    "expected": null
+  },
+  {
+    "id": "noncanonical-signature-pad-bits",
+    "headers": [
+      [
+        "Content-Type",
+        "application/json"
+      ],
+      [
+        "Content-Digest",
+        "sha-256=:RBNvo1WzZ4oRRq0W9+hknpT7T8If536DEMBg9hyq/4o=:"
+      ],
+      [
+        "Authorization",
+        "Bearer TEST_ONLY_TOKEN"
+      ],
+      [
+        "AppGuard-App-Id",
+        "test-app"
+      ],
+      [
+        "Signature-Input",
+        "appguard=(\"@method\" \"@target-uri\" \"content-type\" \"content-digest\" \"authorization\" \"appguard-app-id\");created=1700000000;expires=1700000120;nonce=\"AAECAwQFBgcICQoLDA0ODw\";keyid=\"test-key\";alg=\"ecdsa-p256-sha256\";tag=\"appguard-request-v0\""
+      ],
+      [
+        "Signature",
+        "appguard=:4VcXRWhH6ZX8fo2Rg7fboR0oKDB9nLWFZKpFQGZbz/kztRo6H0JxYwR2rWS8SXKM8XJ4ELzqlaIFb7v2QWOK6x==:"
+      ]
+    ],
+    "expected_code": "INVALID_REQUEST",
+    "expected": null
+  },
+  {
+    "id": "duplicate-authorization",
+    "headers": [
+      [
+        "Content-Type",
+        "application/json"
+      ],
+      [
+        "Content-Digest",
+        "sha-256=:RBNvo1WzZ4oRRq0W9+hknpT7T8If536DEMBg9hyq/4o=:"
+      ],
+      [
+        "Authorization",
+        "Bearer TEST_ONLY_TOKEN"
+      ],
+      [
+        "AppGuard-App-Id",
+        "test-app"
+      ],
+      [
+        "Signature-Input",
+        "appguard=(\"@method\" \"@target-uri\" \"content-type\" \"content-digest\" \"authorization\" \"appguard-app-id\");created=1700000000;expires=1700000120;nonce=\"AAECAwQFBgcICQoLDA0ODw\";keyid=\"test-key\";alg=\"ecdsa-p256-sha256\";tag=\"appguard-request-v0\""
+      ],
+      [
+        "Signature",
+        "appguard=:4VcXRWhH6ZX8fo2Rg7fboR0oKDB9nLWFZKpFQGZbz/kztRo6H0JxYwR2rWS8SXKM8XJ4ELzqlaIFb7v2QWOK6w==:"
+      ],
+      [
+        "authorization",
+        "Bearer OTHER"
+      ]
+    ],
+    "expected_code": "INVALID_REQUEST",
+    "expected": null
+  },
+  {
+    "id": "duplicate-digest",
+    "headers": [
+      [
+        "Content-Type",
+        "application/json"
+      ],
+      [
+        "Content-Digest",
+        "sha-256=:RBNvo1WzZ4oRRq0W9+hknpT7T8If536DEMBg9hyq/4o=:"
+      ],
+      [
+        "Authorization",
+        "Bearer TEST_ONLY_TOKEN"
+      ],
+      [
+        "AppGuard-App-Id",
+        "test-app"
+      ],
+      [
+        "Signature-Input",
+        "appguard=(\"@method\" \"@target-uri\" \"content-type\" \"content-digest\" \"authorization\" \"appguard-app-id\");created=1700000000;expires=1700000120;nonce=\"AAECAwQFBgcICQoLDA0ODw\";keyid=\"test-key\";alg=\"ecdsa-p256-sha256\";tag=\"appguard-request-v0\""
+      ],
+      [
+        "Signature",
+        "appguard=:4VcXRWhH6ZX8fo2Rg7fboR0oKDB9nLWFZKpFQGZbz/kztRo6H0JxYwR2rWS8SXKM8XJ4ELzqlaIFb7v2QWOK6w==:"
+      ],
+      [
+        "content-digest",
+        "sha-256=:RBNvo1WzZ4oRRq0W9+hknpT7T8If536DEMBg9hyq/4o=:"
+      ]
+    ],
+    "expected_code": "INVALID_REQUEST",
+    "expected": null
+  },
+  {
+    "id": "header-control",
+    "headers": [
+      [
+        "Content-Type",
+        "application/json"
+      ],
+      [
+        "Content-Digest",
+        "sha-256=:RBNvo1WzZ4oRRq0W9+hknpT7T8If536DEMBg9hyq/4o=:"
+      ],
+      [
+        "Authorization",
+        "Bearer TEST_ONLY_TOKEN"
+      ],
+      [
+        "AppGuard-App-Id",
+        "test-app"
+      ],
+      [
+        "Signature-Input",
+        "appguard=(\"@method\" \"@target-uri\" \"content-type\" \"content-digest\" \"authorization\" \"appguard-app-id\");created=1700000000;expires=1700000120;nonce=\"AAECAwQFBgcICQoLDA0ODw\";keyid=\"test-key\";alg=\"ecdsa-p256-sha256\";tag=\"appguard-request-v0\""
+      ],
+      [
+        "Signature",
+        "appguard=:4VcXRWhH6ZX8fo2Rg7fboR0oKDB9nLWFZKpFQGZbz/kztRo6H0JxYwR2rWS8SXKM8XJ4ELzqlaIFb7v2QWOK6w==:"
+      ],
+      [
+        "X-Test",
+        "a\tb"
+      ]
+    ],
+    "expected_code": "INVALID_REQUEST",
+    "expected": null
+  },
+  {
+    "id": "invalid-name",
+    "headers": [
+      [
+        "Content-Type",
+        "application/json"
+      ],
+      [
+        "Content-Digest",
+        "sha-256=:RBNvo1WzZ4oRRq0W9+hknpT7T8If536DEMBg9hyq/4o=:"
+      ],
+      [
+        "Authorization",
+        "Bearer TEST_ONLY_TOKEN"
+      ],
+      [
+        "AppGuard-App-Id",
+        "test-app"
+      ],
+      [
+        "Signature-Input",
+        "appguard=(\"@method\" \"@target-uri\" \"content-type\" \"content-digest\" \"authorization\" \"appguard-app-id\");created=1700000000;expires=1700000120;nonce=\"AAECAwQFBgcICQoLDA0ODw\";keyid=\"test-key\";alg=\"ecdsa-p256-sha256\";tag=\"appguard-request-v0\""
+      ],
+      [
+        "Signature",
+        "appguard=:4VcXRWhH6ZX8fo2Rg7fboR0oKDB9nLWFZKpFQGZbz/kztRo6H0JxYwR2rWS8SXKM8XJ4ELzqlaIFb7v2QWOK6w==:"
+      ],
+      [
+        "bad name",
+        "value"
+      ]
+    ],
+    "expected_code": "INVALID_REQUEST",
+    "expected": null
+  },
+  {
+    "id": "unsupported-encoding",
+    "headers": [
+      [
+        "Content-Type",
+        "application/json"
+      ],
+      [
+        "Content-Digest",
+        "sha-256=:RBNvo1WzZ4oRRq0W9+hknpT7T8If536DEMBg9hyq/4o=:"
+      ],
+      [
+        "Authorization",
+        "Bearer TEST_ONLY_TOKEN"
+      ],
+      [
+        "AppGuard-App-Id",
+        "test-app"
+      ],
+      [
+        "Signature-Input",
+        "appguard=(\"@method\" \"@target-uri\" \"content-type\" \"content-digest\" \"authorization\" \"appguard-app-id\");created=1700000000;expires=1700000120;nonce=\"AAECAwQFBgcICQoLDA0ODw\";keyid=\"test-key\";alg=\"ecdsa-p256-sha256\";tag=\"appguard-request-v0\""
+      ],
+      [
+        "Signature",
+        "appguard=:4VcXRWhH6ZX8fo2Rg7fboR0oKDB9nLWFZKpFQGZbz/kztRo6H0JxYwR2rWS8SXKM8XJ4ELzqlaIFb7v2QWOK6w==:"
+      ],
+      [
+        "Content-Encoding",
+        "gzip"
+      ]
+    ],
+    "expected_code": "INVALID_REQUEST",
+    "expected": null
+  },
+  {
+    "id": "noncanonical-content-length",
+    "headers": [
+      [
+        "Content-Type",
+        "application/json"
+      ],
+      [
+        "Content-Digest",
+        "sha-256=:RBNvo1WzZ4oRRq0W9+hknpT7T8If536DEMBg9hyq/4o=:"
+      ],
+      [
+        "Authorization",
+        "Bearer TEST_ONLY_TOKEN"
+      ],
+      [
+        "AppGuard-App-Id",
+        "test-app"
+      ],
+      [
+        "Signature-Input",
+        "appguard=(\"@method\" \"@target-uri\" \"content-type\" \"content-digest\" \"authorization\" \"appguard-app-id\");created=1700000000;expires=1700000120;nonce=\"AAECAwQFBgcICQoLDA0ODw\";keyid=\"test-key\";alg=\"ecdsa-p256-sha256\";tag=\"appguard-request-v0\""
+      ],
+      [
+        "Signature",
+        "appguard=:4VcXRWhH6ZX8fo2Rg7fboR0oKDB9nLWFZKpFQGZbz/kztRo6H0JxYwR2rWS8SXKM8XJ4ELzqlaIFb7v2QWOK6w==:"
+      ],
+      [
+        "Content-Length",
+        "02"
+      ]
+    ],
+    "expected_code": "INVALID_REQUEST",
+    "expected": null
+  },
+  {
+    "id": "negative-content-length",
+    "headers": [
+      [
+        "Content-Type",
+        "application/json"
+      ],
+      [
+        "Content-Digest",
+        "sha-256=:RBNvo1WzZ4oRRq0W9+hknpT7T8If536DEMBg9hyq/4o=:"
+      ],
+      [
+        "Authorization",
+        "Bearer TEST_ONLY_TOKEN"
+      ],
+      [
+        "AppGuard-App-Id",
+        "test-app"
+      ],
+      [
+        "Signature-Input",
+        "appguard=(\"@method\" \"@target-uri\" \"content-type\" \"content-digest\" \"authorization\" \"appguard-app-id\");created=1700000000;expires=1700000120;nonce=\"AAECAwQFBgcICQoLDA0ODw\";keyid=\"test-key\";alg=\"ecdsa-p256-sha256\";tag=\"appguard-request-v0\""
+      ],
+      [
+        "Signature",
+        "appguard=:4VcXRWhH6ZX8fo2Rg7fboR0oKDB9nLWFZKpFQGZbz/kztRo6H0JxYwR2rWS8SXKM8XJ4ELzqlaIFb7v2QWOK6w==:"
+      ],
+      [
+        "Content-Length",
+        "-1"
+      ]
+    ],
+    "expected_code": "INVALID_REQUEST",
+    "expected": null
+  },
+  {
+    "id": "unsupported-transfer-encoding",
+    "headers": [
+      [
+        "Content-Type",
+        "application/json"
+      ],
+      [
+        "Content-Digest",
+        "sha-256=:RBNvo1WzZ4oRRq0W9+hknpT7T8If536DEMBg9hyq/4o=:"
+      ],
+      [
+        "Authorization",
+        "Bearer TEST_ONLY_TOKEN"
+      ],
+      [
+        "AppGuard-App-Id",
+        "test-app"
+      ],
+      [
+        "Signature-Input",
+        "appguard=(\"@method\" \"@target-uri\" \"content-type\" \"content-digest\" \"authorization\" \"appguard-app-id\");created=1700000000;expires=1700000120;nonce=\"AAECAwQFBgcICQoLDA0ODw\";keyid=\"test-key\";alg=\"ecdsa-p256-sha256\";tag=\"appguard-request-v0\""
+      ],
+      [
+        "Signature",
+        "appguard=:4VcXRWhH6ZX8fo2Rg7fboR0oKDB9nLWFZKpFQGZbz/kztRo6H0JxYwR2rWS8SXKM8XJ4ELzqlaIFb7v2QWOK6w==:"
+      ],
+      [
+        "Transfer-Encoding",
+        "gzip"
+      ]
+    ],
+    "expected_code": "INVALID_REQUEST",
+    "expected": null
+  },
+  {
+    "id": "duplicate-host",
+    "headers": [
+      [
+        "Content-Type",
+        "application/json"
+      ],
+      [
+        "Content-Digest",
+        "sha-256=:RBNvo1WzZ4oRRq0W9+hknpT7T8If536DEMBg9hyq/4o=:"
+      ],
+      [
+        "Authorization",
+        "Bearer TEST_ONLY_TOKEN"
+      ],
+      [
+        "AppGuard-App-Id",
+        "test-app"
+      ],
+      [
+        "Signature-Input",
+        "appguard=(\"@method\" \"@target-uri\" \"content-type\" \"content-digest\" \"authorization\" \"appguard-app-id\");created=1700000000;expires=1700000120;nonce=\"AAECAwQFBgcICQoLDA0ODw\";keyid=\"test-key\";alg=\"ecdsa-p256-sha256\";tag=\"appguard-request-v0\""
+      ],
+      [
+        "Signature",
+        "appguard=:4VcXRWhH6ZX8fo2Rg7fboR0oKDB9nLWFZKpFQGZbz/kztRo6H0JxYwR2rWS8SXKM8XJ4ELzqlaIFb7v2QWOK6w==:"
+      ],
+      [
+        "Host",
+        "a.test"
+      ],
+      [
+        "host",
+        "b.test"
+      ]
+    ],
+    "expected_code": "INVALID_REQUEST",
+    "expected": null
+  },
+  {
+    "id": "conflicting-framing",
+    "headers": [
+      [
+        "Content-Type",
+        "application/json"
+      ],
+      [
+        "Content-Digest",
+        "sha-256=:RBNvo1WzZ4oRRq0W9+hknpT7T8If536DEMBg9hyq/4o=:"
+      ],
+      [
+        "Authorization",
+        "Bearer TEST_ONLY_TOKEN"
+      ],
+      [
+        "AppGuard-App-Id",
+        "test-app"
+      ],
+      [
+        "Signature-Input",
+        "appguard=(\"@method\" \"@target-uri\" \"content-type\" \"content-digest\" \"authorization\" \"appguard-app-id\");created=1700000000;expires=1700000120;nonce=\"AAECAwQFBgcICQoLDA0ODw\";keyid=\"test-key\";alg=\"ecdsa-p256-sha256\";tag=\"appguard-request-v0\""
+      ],
+      [
+        "Signature",
+        "appguard=:4VcXRWhH6ZX8fo2Rg7fboR0oKDB9nLWFZKpFQGZbz/kztRo6H0JxYwR2rWS8SXKM8XJ4ELzqlaIFb7v2QWOK6w==:"
+      ],
+      [
+        "Content-Length",
+        "2"
+      ],
+      [
+        "Transfer-Encoding",
+        "chunked"
+      ]
+    ],
+    "expected_code": "INVALID_REQUEST",
+    "expected": null
+  },
+  {
+    "id": "valid-content-length",
+    "headers": [
+      [
+        "Content-Type",
+        "application/json"
+      ],
+      [
+        "Content-Digest",
+        "sha-256=:RBNvo1WzZ4oRRq0W9+hknpT7T8If536DEMBg9hyq/4o=:"
+      ],
+      [
+        "Authorization",
+        "Bearer TEST_ONLY_TOKEN"
+      ],
+      [
+        "AppGuard-App-Id",
+        "test-app"
+      ],
+      [
+        "Signature-Input",
+        "appguard=(\"@method\" \"@target-uri\" \"content-type\" \"content-digest\" \"authorization\" \"appguard-app-id\");created=1700000000;expires=1700000120;nonce=\"AAECAwQFBgcICQoLDA0ODw\";keyid=\"test-key\";alg=\"ecdsa-p256-sha256\";tag=\"appguard-request-v0\""
+      ],
+      [
+        "Signature",
+        "appguard=:4VcXRWhH6ZX8fo2Rg7fboR0oKDB9nLWFZKpFQGZbz/kztRo6H0JxYwR2rWS8SXKM8XJ4ELzqlaIFb7v2QWOK6w==:"
+      ],
+      [
+        "Content-Length",
+        "2"
+      ]
+    ],
+    "expected_code": "PARSED",
+    "expected": {
+      "parameters": {
+        "created": 1700000000,
+        "expires": 1700000120,
+        "nonce": "AAECAwQFBgcICQoLDA0ODw",
+        "key_id": "test-key",
+        "algorithm": "ecdsa-p256-sha256",
+        "tag": "appguard-request-v0"
+      },
+      "signature_b64": "4VcXRWhH6ZX8fo2Rg7fboR0oKDB9nLWFZKpFQGZbz/kztRo6H0JxYwR2rWS8SXKM8XJ4ELzqlaIFb7v2QWOK6w=="
+    }
+  },
+  {
+    "id": "valid-chunked",
+    "headers": [
+      [
+        "Content-Type",
+        "application/json"
+      ],
+      [
+        "Content-Digest",
+        "sha-256=:RBNvo1WzZ4oRRq0W9+hknpT7T8If536DEMBg9hyq/4o=:"
+      ],
+      [
+        "Authorization",
+        "Bearer TEST_ONLY_TOKEN"
+      ],
+      [
+        "AppGuard-App-Id",
+        "test-app"
+      ],
+      [
+        "Signature-Input",
+        "appguard=(\"@method\" \"@target-uri\" \"content-type\" \"content-digest\" \"authorization\" \"appguard-app-id\");created=1700000000;expires=1700000120;nonce=\"AAECAwQFBgcICQoLDA0ODw\";keyid=\"test-key\";alg=\"ecdsa-p256-sha256\";tag=\"appguard-request-v0\""
+      ],
+      [
+        "Signature",
+        "appguard=:4VcXRWhH6ZX8fo2Rg7fboR0oKDB9nLWFZKpFQGZbz/kztRo6H0JxYwR2rWS8SXKM8XJ4ELzqlaIFb7v2QWOK6w==:"
+      ],
+      [
+        "Transfer-Encoding",
+        "chunked"
+      ]
+    ],
+    "expected_code": "PARSED",
+    "expected": {
+      "parameters": {
+        "created": 1700000000,
+        "expires": 1700000120,
+        "nonce": "AAECAwQFBgcICQoLDA0ODw",
+        "key_id": "test-key",
+        "algorithm": "ecdsa-p256-sha256",
+        "tag": "appguard-request-v0"
+      },
+      "signature_b64": "4VcXRWhH6ZX8fo2Rg7fboR0oKDB9nLWFZKpFQGZbz/kztRo6H0JxYwR2rWS8SXKM8XJ4ELzqlaIFb7v2QWOK6w=="
+    }
+  },
+  {
+    "id": "maximum-header-count",
+    "headers": [
+      [
+        "Content-Type",
+        "application/json"
+      ],
+      [
+        "Content-Digest",
+        "sha-256=:RBNvo1WzZ4oRRq0W9+hknpT7T8If536DEMBg9hyq/4o=:"
+      ],
+      [
+        "Authorization",
+        "Bearer TEST_ONLY_TOKEN"
+      ],
+      [
+        "AppGuard-App-Id",
+        "test-app"
+      ],
+      [
+        "Signature-Input",
+        "appguard=(\"@method\" \"@target-uri\" \"content-type\" \"content-digest\" \"authorization\" \"appguard-app-id\");created=1700000000;expires=1700000120;nonce=\"AAECAwQFBgcICQoLDA0ODw\";keyid=\"test-key\";alg=\"ecdsa-p256-sha256\";tag=\"appguard-request-v0\""
+      ],
+      [
+        "Signature",
+        "appguard=:4VcXRWhH6ZX8fo2Rg7fboR0oKDB9nLWFZKpFQGZbz/kztRo6H0JxYwR2rWS8SXKM8XJ4ELzqlaIFb7v2QWOK6w==:"
+      ],
+      [
+        "X",
+        "v"
+      ],
+      [
+        "X",
+        "v"
+      ],
+      [
+        "X",
+        "v"
+      ],
+      [
+        "X",
+        "v"
+      ],
+      [
+        "X",
+        "v"
+      ],
+      [
+        "X",
+        "v"
+      ],
+      [
+        "X",
+        "v"
+      ],
+      [
+        "X",
+        "v"
+      ],
+      [
+        "X",
+        "v"
+      ],
+      [
+        "X",
+        "v"
+      ],
+      [
+        "X",
+        "v"
+      ],
+      [
+        "X",
+        "v"
+      ],
+      [
+        "X",
+        "v"
+      ],
+      [
+        "X",
+        "v"
+      ],
+      [
+        "X",
+        "v"
+      ],
+      [
+        "X",
+        "v"
+      ],
+      [
+        "X",
+        "v"
+      ],
+      [
+        "X",
+        "v"
+      ],
+      [
+        "X",
+        "v"
+      ],
+      [
+        "X",
+        "v"
+      ],
+      [
+        "X",
+        "v"
+      ],
+      [
+        "X",
+        "v"
+      ],
+      [
+        "X",
+        "v"
+      ],
+      [
+        "X",
+        "v"
+      ],
+      [
+        "X",
+        "v"
+      ],
+      [
+        "X",
+        "v"
+      ],
+      [
+        "X",
+        "v"
+      ],
+      [
+        "X",
+        "v"
+      ],
+      [
+        "X",
+        "v"
+      ],
+      [
+        "X",
+        "v"
+      ],
+      [
+        "X",
+        "v"
+      ],
+      [
+        "X",
+        "v"
+      ],
+      [
+        "X",
+        "v"
+      ],
+      [
+        "X",
+        "v"
+      ],
+      [
+        "X",
+        "v"
+      ],
+      [
+        "X",
+        "v"
+      ],
+      [
+        "X",
+        "v"
+      ],
+      [
+        "X",
+        "v"
+      ],
+      [
+        "X",
+        "v"
+      ],
+      [
+        "X",
+        "v"
+      ],
+      [
+        "X",
+        "v"
+      ],
+      [
+        "X",
+        "v"
+      ],
+      [
+        "X",
+        "v"
+      ],
+      [
+        "X",
+        "v"
+      ],
+      [
+        "X",
+        "v"
+      ],
+      [
+        "X",
+        "v"
+      ],
+      [
+        "X",
+        "v"
+      ],
+      [
+        "X",
+        "v"
+      ],
+      [
+        "X",
+        "v"
+      ],
+      [
+        "X",
+        "v"
+      ],
+      [
+        "X",
+        "v"
+      ],
+      [
+        "X",
+        "v"
+      ],
+      [
+        "X",
+        "v"
+      ],
+      [
+        "X",
+        "v"
+      ],
+      [
+        "X",
+        "v"
+      ],
+      [
+        "X",
+        "v"
+      ],
+      [
+        "X",
+        "v"
+      ],
+      [
+        "X",
+        "v"
+      ]
+    ],
+    "expected_code": "PARSED",
+    "expected": {
+      "parameters": {
+        "created": 1700000000,
+        "expires": 1700000120,
+        "nonce": "AAECAwQFBgcICQoLDA0ODw",
+        "key_id": "test-key",
+        "algorithm": "ecdsa-p256-sha256",
+        "tag": "appguard-request-v0"
+      },
+      "signature_b64": "4VcXRWhH6ZX8fo2Rg7fboR0oKDB9nLWFZKpFQGZbz/kztRo6H0JxYwR2rWS8SXKM8XJ4ELzqlaIFb7v2QWOK6w=="
+    }
+  },
+  {
+    "id": "too-many-headers",
+    "headers": [
+      [
+        "Content-Type",
+        "application/json"
+      ],
+      [
+        "Content-Digest",
+        "sha-256=:RBNvo1WzZ4oRRq0W9+hknpT7T8If536DEMBg9hyq/4o=:"
+      ],
+      [
+        "Authorization",
+        "Bearer TEST_ONLY_TOKEN"
+      ],
+      [
+        "AppGuard-App-Id",
+        "test-app"
+      ],
+      [
+        "Signature-Input",
+        "appguard=(\"@method\" \"@target-uri\" \"content-type\" \"content-digest\" \"authorization\" \"appguard-app-id\");created=1700000000;expires=1700000120;nonce=\"AAECAwQFBgcICQoLDA0ODw\";keyid=\"test-key\";alg=\"ecdsa-p256-sha256\";tag=\"appguard-request-v0\""
+      ],
+      [
+        "Signature",
+        "appguard=:4VcXRWhH6ZX8fo2Rg7fboR0oKDB9nLWFZKpFQGZbz/kztRo6H0JxYwR2rWS8SXKM8XJ4ELzqlaIFb7v2QWOK6w==:"
+      ],
+      [
+        "X",
+        "v"
+      ],
+      [
+        "X",
+        "v"
+      ],
+      [
+        "X",
+        "v"
+      ],
+      [
+        "X",
+        "v"
+      ],
+      [
+        "X",
+        "v"
+      ],
+      [
+        "X",
+        "v"
+      ],
+      [
+        "X",
+        "v"
+      ],
+      [
+        "X",
+        "v"
+      ],
+      [
+        "X",
+        "v"
+      ],
+      [
+        "X",
+        "v"
+      ],
+      [
+        "X",
+        "v"
+      ],
+      [
+        "X",
+        "v"
+      ],
+      [
+        "X",
+        "v"
+      ],
+      [
+        "X",
+        "v"
+      ],
+      [
+        "X",
+        "v"
+      ],
+      [
+        "X",
+        "v"
+      ],
+      [
+        "X",
+        "v"
+      ],
+      [
+        "X",
+        "v"
+      ],
+      [
+        "X",
+        "v"
+      ],
+      [
+        "X",
+        "v"
+      ],
+      [
+        "X",
+        "v"
+      ],
+      [
+        "X",
+        "v"
+      ],
+      [
+        "X",
+        "v"
+      ],
+      [
+        "X",
+        "v"
+      ],
+      [
+        "X",
+        "v"
+      ],
+      [
+        "X",
+        "v"
+      ],
+      [
+        "X",
+        "v"
+      ],
+      [
+        "X",
+        "v"
+      ],
+      [
+        "X",
+        "v"
+      ],
+      [
+        "X",
+        "v"
+      ],
+      [
+        "X",
+        "v"
+      ],
+      [
+        "X",
+        "v"
+      ],
+      [
+        "X",
+        "v"
+      ],
+      [
+        "X",
+        "v"
+      ],
+      [
+        "X",
+        "v"
+      ],
+      [
+        "X",
+        "v"
+      ],
+      [
+        "X",
+        "v"
+      ],
+      [
+        "X",
+        "v"
+      ],
+      [
+        "X",
+        "v"
+      ],
+      [
+        "X",
+        "v"
+      ],
+      [
+        "X",
+        "v"
+      ],
+      [
+        "X",
+        "v"
+      ],
+      [
+        "X",
+        "v"
+      ],
+      [
+        "X",
+        "v"
+      ],
+      [
+        "X",
+        "v"
+      ],
+      [
+        "X",
+        "v"
+      ],
+      [
+        "X",
+        "v"
+      ],
+      [
+        "X",
+        "v"
+      ],
+      [
+        "X",
+        "v"
+      ],
+      [
+        "X",
+        "v"
+      ],
+      [
+        "X",
+        "v"
+      ],
+      [
+        "X",
+        "v"
+      ],
+      [
+        "X",
+        "v"
+      ],
+      [
+        "X",
+        "v"
+      ],
+      [
+        "X",
+        "v"
+      ],
+      [
+        "X",
+        "v"
+      ],
+      [
+        "X",
+        "v"
+      ],
+      [
+        "X",
+        "v"
+      ],
+      [
+        "X",
+        "v"
+      ]
+    ],
+    "expected_code": "INVALID_REQUEST",
+    "expected": null
+  },
+  {
+    "id": "maximum-header-bytes",
+    "headers": [
+      [
+        "Content-Type",
+        "application/json"
+      ],
+      [
+        "Content-Digest",
+        "sha-256=:RBNvo1WzZ4oRRq0W9+hknpT7T8If536DEMBg9hyq/4o=:"
+      ],
+      [
+        "Authorization",
+        "Bearer TEST_ONLY_TOKEN"
+      ],
+      [
+        "AppGuard-App-Id",
+        "test-app"
+      ],
+      [
+        "Signature-Input",
+        "appguard=(\"@method\" \"@target-uri\" \"content-type\" \"content-digest\" \"authorization\" \"appguard-app-id\");created=1700000000;expires=1700000120;nonce=\"AAECAwQFBgcICQoLDA0ODw\";keyid=\"test-key\";alg=\"ecdsa-p256-sha256\";tag=\"appguard-request-v0\""
+      ],
+      [
+        "Signature",
+        "appguard=:4VcXRWhH6ZX8fo2Rg7fboR0oKDB9nLWFZKpFQGZbz/kztRo6H0JxYwR2rWS8SXKM8XJ4ELzqlaIFb7v2QWOK6w==:"
+      ],
+      [
+        "X-Pad",
+        "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+      ]
+    ],
+    "expected_code": "PARSED",
+    "expected": {
+      "parameters": {
+        "created": 1700000000,
+        "expires": 1700000120,
+        "nonce": "AAECAwQFBgcICQoLDA0ODw",
+        "key_id": "test-key",
+        "algorithm": "ecdsa-p256-sha256",
+        "tag": "appguard-request-v0"
+      },
+      "signature_b64": "4VcXRWhH6ZX8fo2Rg7fboR0oKDB9nLWFZKpFQGZbz/kztRo6H0JxYwR2rWS8SXKM8XJ4ELzqlaIFb7v2QWOK6w=="
+    }
+  },
+  {
+    "id": "too-many-header-bytes",
+    "headers": [
+      [
+        "Content-Type",
+        "application/json"
+      ],
+      [
+        "Content-Digest",
+        "sha-256=:RBNvo1WzZ4oRRq0W9+hknpT7T8If536DEMBg9hyq/4o=:"
+      ],
+      [
+        "Authorization",
+        "Bearer TEST_ONLY_TOKEN"
+      ],
+      [
+        "AppGuard-App-Id",
+        "test-app"
+      ],
+      [
+        "Signature-Input",
+        "appguard=(\"@method\" \"@target-uri\" \"content-type\" \"content-digest\" \"authorization\" \"appguard-app-id\");created=1700000000;expires=1700000120;nonce=\"AAECAwQFBgcICQoLDA0ODw\";keyid=\"test-key\";alg=\"ecdsa-p256-sha256\";tag=\"appguard-request-v0\""
+      ],
+      [
+        "Signature",
+        "appguard=:4VcXRWhH6ZX8fo2Rg7fboR0oKDB9nLWFZKpFQGZbz/kztRo6H0JxYwR2rWS8SXKM8XJ4ELzqlaIFb7v2QWOK6w==:"
+      ],
+      [
+        "X-Pad",
+        "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+      ]
+    ],
+    "expected_code": "INVALID_REQUEST",
+    "expected": null
+  }
+]
