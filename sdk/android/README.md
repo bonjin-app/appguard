@@ -180,3 +180,42 @@ Official sources checked for this package:
 [Android Keystore](https://developer.android.com/privacy-and-security/keystore),
 [KeyInfo security levels](https://developer.android.com/reference/android/security/keystore/KeyInfo#getSecurityLevel()),
 [StrongBox generation](https://developer.android.com/reference/android/security/keystore/KeyGenParameterSpec.Builder#setIsStrongBoxBacked(boolean)).
+
+## Optional local risk hints
+
+```java
+LocalRiskScanner.Config config = new LocalRiskScanner.Config(
+    "io.example.app",                        // optional expected application ID
+    Collections.singleton(currentSignerSha256), // optional lowercase SHA-256 pins
+    Collections.singletonMap("rules.bin", resourceSha256)); // optional assets
+LocalRiskScanner.Report hints = new LocalRiskScanner(context).scan(config);
+String json = hints.toJson();
+```
+
+Call synchronously off the UI thread. `new LocalRiskScanner.Config()` leaves
+identity, signer and asset checks `not_configured`. `Report.checks()` is an
+immutable ordered map from fixed check codes to `LocalRiskScanner.State`;
+`riskSignals()` is an immutable ordered list compatible with existing policy
+categories. `toJson()` emits only `schema`, `platform`, `checks` and `riskSignals`.
+There is no clean-device flag. Empty signals do not establish integrity.
+
+Configuration is validated before observations. Expected app IDs use 1–255 ASCII
+characters; signer pins are at most eight lowercase 64-character SHA-256 hashes.
+Every current APK signer must be pinned (API 28+ current APK signers, never signing
+history; API 26/27 legacy current signatures). Assets are at most eight relative
+paths, each at most 256 ASCII characters with safe components of at most 128;
+no absolute paths, traversal, empty segments or backslashes. Each asset read is
+limited to 1 MiB. Pin exact deployed untransformed app-owned bytes.
+
+The scanner reads only public debug/application/signature APIs, fixed root
+artifact metadata, bounded own-process proc files and configured AssetManager
+assets. It performs no network, shell, write, package inventory or permission
+request. A positive subprobe wins over sibling failures; otherwise a failed,
+denied, malformed or truncated observation is `unavailable` and also emits
+`local_checks_unavailable`. Missing configured assets are mismatches. Configure
+that health signal explicitly if server policy needs to react to unavailable
+checks. No authentication, signing or authorization behavior changes implicitly.
+
+Root and hook checks are incomplete heuristics that can be bypassed or modified
+along with the application and its pins. See `LOCAL_RISK_VERIFICATION.md` for
+host, build and runtime evidence; tests do not prove rooted/hooked device efficacy.
