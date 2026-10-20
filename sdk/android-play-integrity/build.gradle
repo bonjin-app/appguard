@@ -1,0 +1,22 @@
+plugins { id 'com.android.library' version '8.10.1' }
+group = 'io.appguard'
+version = '0.0.0-experimental'
+android {
+    namespace 'io.appguard.playintegrity'
+    compileSdk 36
+    buildToolsVersion '35.0.0'
+    defaultConfig { minSdk 26 }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+    testOptions {
+        // Task callbacks use injected executors, not Android service/Looper behavior.
+        unitTests.returnDefaultValues = true
+        unitTests.all { testLogging { events 'passed', 'failed', 'skipped'; exceptionFormat 'full' } }
+    }
+}
+dependencies {
+    api 'com.google.android.play:integrity:1.6.0'
+    testImplementation 'junit:junit:4.13.2'
+}

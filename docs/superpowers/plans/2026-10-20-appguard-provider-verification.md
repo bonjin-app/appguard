@@ -32,22 +32,22 @@
 **Files:** `sdk/android-play-integrity/**`; `sdk/python/src/appguard/providers/google.py`, provider-specific tests/docs. Shared `pyproject.toml`/lock changes coordinated with parent.
 **Interfaces:** Optional Android acquisition returns opaque token+requestHash metadata/errors using official standard requests; Python callable `(Challenge, evidence: bytes) -> AttestationVerdict` integrates with EnrollmentService.
 
-- [ ] Confirm official API/dependency/credential requirements; add tests first for acquisition support/errors/hash syntax and strict decoded request/app/device/licensing/time/context decisions.
-- [ ] Implement actual official API transport with explicit credential injection, bounded responses/timeouts and no client-decoded-payload shortcut; test with an isolated injected transport.
-- [ ] Run optional Android compile/tests and full Python provider/enrollment suites, frozen package install; document external genuine-token verification gap.
+- [x] Confirm official API/dependency/credential requirements; add tests first for acquisition support/errors/hash syntax and strict decoded request/app/device/licensing/time/context decisions.
+- [x] Implement actual official API transport with explicit credential injection, bounded responses/timeouts and no client-decoded-payload shortcut; test with an isolated injected transport.
+- [x] Run optional Android compile/tests and full Python provider/enrollment suites, frozen package install; document external genuine-token verification gap.
 
 ### Task 2: Apple backend
 
 **Files:** `sdk/python/src/appguard/providers/apple.py` and strictly necessary provider support files; provider-specific tests/docs and pinned public trust-anchor provenance. Shared dependency metadata coordinated with parent.
 **Interfaces:** Enrollment verifier callable over the existing challenge and a precisely documented bounded evidence envelope, returning a context-bound AttestationVerdict after chain/authenticator checks.
 
-- [ ] Read official verification steps and inspect current native AppAttestEvidence; define evidence encoding and explicit app/environment configuration.
-- [ ] Write RED tests using real generated synthetic certificate chains and P-256 keys for each required check, including official-root rejection of synthetic evidence. Distinguish these fixtures from genuine Apple evidence.
-- [ ] Implement bounded strict CBOR/DER handling, pinned trust chain, challenge nonce/RP ID/AAGUID/counter/credential key bindings and validity checks. Never replace cryptographic validation with client labels.
-- [ ] Run provider/enrollment/package suites; document initial-attestation scope and any assertion/counter persistence lifecycle not implemented. Successful genuine Apple tokens require separate account/device evidence.
+- [x] Read official verification steps and inspect current native AppAttestEvidence; define evidence encoding and explicit app/environment configuration.
+- [x] Write RED tests using real generated synthetic certificate chains and P-256 keys for each required check, including official-root rejection of synthetic evidence. Distinguish these fixtures from genuine Apple evidence.
+- [x] Implement bounded strict CBOR/DER handling, pinned trust chain, challenge nonce/RP ID/AAGUID/counter/credential key bindings and validity checks. Never replace cryptographic validation with client labels.
+- [x] Run provider/enrollment/package suites; document initial-attestation scope and any assertion/counter persistence lifecycle not implemented. Successful genuine Apple tokens require separate account/device evidence.
 
 ### Task 3: Integration and review
 
-- [ ] Exercise actual EnrollmentService with synthetic trusted-backend fixtures: correct binding, cross-context rejection, expiry after backend work and one-use concurrency.
-- [ ] One fresh whole-provider security review, targeted RED/GREEN fixes and exact support documentation.
-- [ ] Keep physical-device/provider-account proof explicitly pending; do not simulate successful provider access or silently relax Balanced/Strict.
+- [x] Exercise actual EnrollmentService with synthetic trusted-backend fixtures: correct binding, cross-context rejection, expiry after backend work and one-use concurrency.
+- [x] One fresh whole-provider security review, targeted RED/GREEN fixes and exact support documentation.
+- [x] Keep physical-device/provider-account proof explicitly pending; do not simulate successful provider access or silently relax Balanced/Strict.

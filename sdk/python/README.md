@@ -73,3 +73,21 @@ SDK failures contain fixed JSON codes only: 400 malformed request/evidence, 413 
 ## Verified scope
 
 Locally tested on Python 3.11.15 with cryptography 50.0.2, FastAPI 0.150.0 / Starlette 1.9.0, Django 5.2.18, Flask 3.1.3 / asgiref 3.12.1, redis-py 8.1.0 and Redis 7.2.10. The SDK suite uses actual framework applications through HTTPX ASGITransport plus direct ASGI stream-boundary checks. These are in-process framework tests, not live ASGI-server/TLS deployment evidence. The 209 reference tests exercise the promoted core, including all 40 shared request scenarios. The SDK separately consumes all 43 HTTP-envelope scenarios and tests authentication failures, exact target/body preservation, limits, Redis concurrency and failure redaction. A standalone wheel install is checked without reference checkout imports. See [verification evidence](../../docs/security/server-sdk-verification.md).
+
+
+## Optional enrollment, policy and provider backends
+
+The explicit experimental SQLite-backed enrollment service, deterministic policy
+presets and allowlisted audit API are documented in
+[enrollment/policy integration](../../docs/security/enrollment-policy.md).
+[Google Standard](../../docs/security/google-provider.md) and
+[Apple initial attestation](../../docs/security/apple-provider.md) can supply its
+trusted provider callback. They do not acquire deployment credentials or establish
+provider/device approval. Apple uses a conservative iOS-only compatibility pin;
+its assertion/receipt/counter lifecycle remains incomplete. Importing a provider
+performs no network or credential discovery.
+
+The full integrated SDK suite passed474 tests with a disposable Redis after the
+provider review fix; all223 provider tests also run from a separately installed
+wheel. See [provider verification](../../docs/security/provider-verification.md)
+for exact offline proof and remaining external checks.
