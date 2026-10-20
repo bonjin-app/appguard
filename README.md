@@ -6,6 +6,10 @@ Framework-independent, self-hostable app security. Apache-2.0 licensed.
 
 See the [completed local milestone and remaining roadmap](docs/security/local-milestone-verification.md) and [subsequent boundary hardening](docs/security/hardening-verification.md) for verification, fixes and explicit deferred scope.
 
+The [native local risk stage](docs/security/local-risk-verification.md) adds optional
+Android/iOS tamper, root and hook hints with explicit unavailable states. These
+observations supplement server checks; they do not establish device integrity.
+
 ## Architecture
 
 - Client SDKs: native installation keys and request binding; Apple evidence wrapper and optional Android Play Integrity acquisition; provider configuration remains explicit.
@@ -35,7 +39,7 @@ The core will run without an AI model, paid AI API, or mandatory AppGuard cloud 
 | [Enrollment / policy / audit](docs/security/enrollment-policy.md) | Python SQLite challenge/proof/revocation; all six server languages pass deterministic42-case presets and allowlisted audit output |
 | [Apple/Google provider verification](docs/security/provider-verification.md) | Experimental Python backends;223 offline provider tests and Android acquisition module. Genuine current-device/account verification pending; Apple lifecycle incomplete |
 | [Build / CLI](tools/cli/README.md) | Android R8 setup/build; Flutter obfuscation/Expo minification commands; encrypted mapping archive/restore.19 tests and actual isolated Android release build |
-| Local root/hook/jailbreak heuristics | Not implemented; provider attestation and untrusted policy hints are separate |
+| [Local root/hook/jailbreak hints](protocol/local-risk-v0.md) | Experimental Android/iOS typed scanners; host tests and platform builds; physical rooted/hooked-device efficacy unverified |
 | Optional console / AI | Planned, not implemented; core works without either |
 
 ## Local reference development
