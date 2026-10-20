@@ -81,18 +81,18 @@ native operation to an older binary. React Native requires Expo Modules integrat
 
 ## Review and local integration
 
-One fresh read-only whole-stage security review found **0 Critical, 0 Important,
+The original fresh read-only whole-stage security review found **0 Critical, 0 Important,
 1 Minor**. Its independent checks reran all seven Android facade tests, 24 actual
 Apple host C ABI calls, 32 Unity and 32 Expo shared vectors, Flutter in-flight
 detach/success/throw probes, and all staged native/privacy/corpus hashes.
 No Critical/Important fix pass or second review was needed.
 
-Minor deferred: Unity's JsonTextReader accepts single-quoted/unquoted keys,
-trailing commas and comments around an otherwise valid response. Native emitters
-produce standard JSON; the Unity decoder still rejects duplicate keys and enforces
-finite fields, check order/states and signal consistency. No authorization or
-integrity bypass was identified. This is a protocol parity/hardening gap; a bounded
-strict JSON syntax pass with raw-response regressions remains follow-up work.
+The original Minor concerned Unity's acceptance of single-quoted/unquoted keys,
+trailing commas and comments around an otherwise valid response. It is now
+resolved by the [strict JSON follow-up](../../sdk/unity/STRICT_JSON_VERIFICATION.md):
+a bounded syntax pass precedes the unchanged duplicate-key and semantic checks,
+and 138 Unity EditMode tests pass. Original stage counts and evidence above remain
+historical; the follow-up records its own review and current native interop checks.
 
 Rulings retained: reject unsupported signer expectations explicitly (shared configs
 need platform-specific pins); dispatch explicit snapshots off UI threads (callers

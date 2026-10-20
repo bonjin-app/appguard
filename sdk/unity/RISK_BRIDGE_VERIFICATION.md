@@ -4,11 +4,11 @@ Observed 2026-10-20 on macOS with Unity 6000.3.24f1, installed Xcode and its iOS
 
 ## Results
 
-Whole-stage review follow-up: zero Critical/Important findings. One Minor is
-deferred: Newtonsoft JsonTextReader accepts comments, single quotes, unquoted keys
-and trailing commas around a structurally valid response. The finite report schema,
-duplicate-key rejection, states and signal consistency remain enforced. Native
-emitters produce standard JSON; strict raw JSON grammar parity remains follow-up.
+The original whole-stage review found zero Critical/Important findings and one
+Minor: permissive Newtonsoft response syntax. That finding is now resolved by the
+[Unity strict JSON follow-up](STRICT_JSON_VERIFICATION.md), which adds bounded
+syntax validation and 67 regression cases (138 total passing tests). The results
+below retain the original bridge-stage evidence and counts.
 
 - RED: existing 20 tests passed and the missing `ScanLocalRiskAsync` API test failed. Receipt: `red-managed.xml` and `red-managed.log`.
 - GREEN: **71/71 actual Unity EditMode tests** passed: the original 20, API existence, 32 individual shared report vectors (8 valid / 24 invalid), and 18 other async/config/error/thread/ownership cases. The package corpus is byte-identical to `conformance/v0/local-risk-bridge.json`. Receipt: `managed-final/managed.xml`, `managed-final/managed.log` and `managed-final.log`.
