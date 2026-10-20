@@ -7,14 +7,18 @@ import pytest
 
 from appguard.policy import Policy, PolicyContext, PolicyDecision, PolicyError, evaluate_policy
 
-VECTORS = json.loads((Path(__file__).resolve().parents[3] / "conformance/v0/policy.json").read_text())
+CORPUS = Path(__file__).resolve().parents[3] / "conformance/v0"
+VECTORS = json.loads((CORPUS / "policy.json").read_text()) + json.loads((CORPUS / "local-risk-policy.json").read_text())
 
 
 @pytest.mark.parametrize("case", VECTORS, ids=lambda c: c["id"])
 def test_portable_policy_vectors(case):
     context = dict(case["context"])
     context["risk_signals"] = tuple(context.get("risk_signals", []))
-    decision = evaluate_policy(Policy(**case["policy"]), PolicyContext(**context), now=case["now"])
+    policy = dict(case["policy"])
+    if "suspicious_signals" in policy:
+        policy["suspicious_signals"] = tuple(policy["suspicious_signals"])
+    decision = evaluate_policy(Policy(**policy), PolicyContext(**context), now=case["now"])
     assert {"action": decision.action, "code": decision.code, "profile": decision.profile} == case["expected"]
 
 

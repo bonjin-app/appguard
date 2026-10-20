@@ -25,6 +25,7 @@ foreach($rows as $v){
 $rows=vectors('http');eq(count($rows),43,'wire corpus count');
 foreach($rows as $v){$parsed=null;$actual=code(function()use($v,&$parsed){$parsed=Wire::parse($v['headers']);return (object)['code'=>'PARSED'];});eq($actual,$v['expected_code'],'wire '.$v['id']);if($actual==='PARSED'){eq(get_object_vars($parsed->parameters),$v['expected']['parameters'],'wire params');eq(base64_encode($parsed->signature),$v['expected']['signature_b64'],'wire signature');}}
 $rows=vectors('policy');eq(count($rows),42,'policy corpus count');
-foreach($rows as $v){eq(get_object_vars(PolicyEngine::evaluate(new Policy(...$v['policy']),new PolicyContext(...$v['context']),$v['now'])),$v['expected'],'policy '.$v['id']);}
+$localRisk=vectors('local-risk-policy');eq(count($localRisk),24,'local risk policy corpus count');
+foreach(array_merge($rows,$localRisk) as $v){eq(get_object_vars(PolicyEngine::evaluate(new Policy(...$v['policy']),new PolicyContext(...$v['context']),$v['now'])),$v['expected'],'policy '.$v['id']);}
 require __DIR__.'/security.php';
-echo "PASS: 40 request, 43 HTTP, 42 policy vectors; $count assertions\n";
+echo "PASS: 40 request, 43 HTTP, 42 baseline+24 local-risk policy vectors; $count assertions\n";

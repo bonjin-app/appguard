@@ -10,7 +10,8 @@ class PolicyTest {
     static List<String> strings(JsonNode node, List<String> fallback) { if(node==null)return fallback; List<String> out=new ArrayList<>();node.forEach(n->out.add(n.textValue()));return out; }
     @TestFactory Stream<DynamicTest> portableCases() throws Exception {
         JsonNode rows=new ObjectMapper().readTree(Path.of(System.getProperty("appguard.corpus"),"policy.json").toFile()); assertThat(rows.size()).isEqualTo(42);
-        return StreamSupport.stream(rows.spliterator(),false).map(row->DynamicTest.dynamicTest(row.get("id").asText(),()->{
+        JsonNode localRisk=new ObjectMapper().readTree(Path.of(System.getProperty("appguard.corpus"),"local-risk-policy.json").toFile()); assertThat(localRisk.size()).isEqualTo(24);
+        return Stream.concat(StreamSupport.stream(rows.spliterator(),false),StreamSupport.stream(localRisk.spliterator(),false)).map(row->DynamicTest.dynamicTest(row.get("id").asText(),()->{
             JsonNode p=row.get("policy"),c=row.get("context"),e=row.get("expected");
             Policy policy=new Policy(p.path("profile").asText("basic"),p.path("require_signature").asBoolean(true),strings(p.get("suspicious_signals"),List.of("debugger","root","hook","tamper")));
             PolicyContext context=new PolicyContext(c.path("authentication").asText("missing"),c.path("verification").asText("missing"),c.path("attestation").asText("missing"),c.hasNonNull("attestation_expires")?c.get("attestation_expires").longValue():null,strings(c.get("risk_signals"),List.of()),c.path("rate_limited").asBoolean(false));

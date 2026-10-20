@@ -159,7 +159,11 @@ func TestPolicyCorpus(t *testing.T) {
 	if len(vectors) != 42 {
 		t.Fatal(len(vectors))
 	}
-	for _, v := range vectors {
+	localRisk := loadVectors[row](t, "local-risk-policy")
+	if len(localRisk) != 24 {
+		t.Fatal(len(localRisk))
+	}
+	for _, v := range append(vectors, localRisk...) {
 		t.Run(v.ID, func(t *testing.T) {
 			d, err := EvaluatePolicy(v.Policy, v.Context, v.Now)
 			if err != nil {

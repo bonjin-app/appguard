@@ -4,7 +4,9 @@ import { readFileSync } from 'node:fs';
 import { Policy, PolicyContext, PolicyDecision, PolicyError, evaluatePolicy, auditEvent, AuditError, AuditUnavailable, JsonAuditSink } from '../src/index.js';
 const vectors = JSON.parse(readFileSync(new URL('../../../conformance/v0/policy.json', import.meta.url)));
 assert.equal(vectors.length, 42);
-for (const row of vectors) test(`policy corpus: ${row.id}`, () => {
+const localRiskVectors = JSON.parse(readFileSync(new URL('../../../conformance/v0/local-risk-policy.json', import.meta.url)));
+assert.equal(localRiskVectors.length,24);
+for (const row of [...vectors,...localRiskVectors]) test(`policy corpus: ${row.id}`, () => {
   assert.deepEqual({...evaluatePolicy(new Policy(row.policy), new PolicyContext(row.context), {now:row.now})}, row.expected);
 });
 const fresh = {authentication:'authenticated', verification:'verified', attestation:'verified', attestation_expires:101};

@@ -9,7 +9,7 @@ public class CorpusTests
 {
     public static IEnumerable<object[]> Requests() => Cases("requests");
     public static IEnumerable<object[]> Http() => Cases("http");
-    public static IEnumerable<object[]> Policies() => Cases("policy");
+    public static IEnumerable<object[]> Policies() => Cases("policy").Concat(Cases("local-risk-policy"));
     static IEnumerable<object[]> Cases(string name) => JsonDocument.Parse(File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "corpus", name + ".json"))).RootElement.EnumerateArray().Select(v => new object[] { v.GetProperty("id").GetString()!, v.Clone() }).ToArray();
     internal static string S(JsonElement o, string key) => o.GetProperty(key).GetString()!;
     internal static string S(JsonElement o, string key, string fallback) => o.TryGetProperty(key, out var v) ? v.GetString()! : fallback;
@@ -54,7 +54,7 @@ public class CorpusTests
     public void PolicyCorpus(string id, JsonElement v)
     {
         var p=v.GetProperty("policy");var c=v.GetProperty("context"); var expected=v.GetProperty("expected");
-        var policy=new Policy(S(p,"profile"), !p.TryGetProperty("require_signature",out var rs) || rs.GetBoolean());
+        var policy=new Policy(S(p,"profile"), !p.TryGetProperty("require_signature",out var rs) || rs.GetBoolean(),p.TryGetProperty("suspicious_signals",out var hints)?hints.EnumerateArray().Select(x=>x.GetString()!).ToArray():null);
         var context=new PolicyContext(S(c,"authentication","missing"),S(c,"verification","missing"),S(c,"attestation","missing"),c.TryGetProperty("attestation_expires",out var ex) && ex.ValueKind!=JsonValueKind.Null ? ex.GetInt64():null,c.TryGetProperty("risk_signals",out var r)?r.EnumerateArray().Select(x=>x.GetString()!).ToArray():[],c.TryGetProperty("rate_limited",out var rl)&&rl.GetBoolean());
         var decision=PolicyEngine.Evaluate(policy,context,v.GetProperty("now").GetInt64());
         Assert.True(decision == new PolicyDecision(S(expected,"action"),S(expected,"code"),S(expected,"profile")), id);

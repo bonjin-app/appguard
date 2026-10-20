@@ -1,0 +1,539 @@
+[
+  {
+    "id": "local-basic-debugger",
+    "policy": {
+      "profile": "basic"
+    },
+    "now": 100,
+    "context": {
+      "authentication": "authenticated",
+      "verification": "verified",
+      "attestation": "verified",
+      "attestation_expires": 101,
+      "risk_signals": [
+        "debugger"
+      ],
+      "rate_limited": false
+    },
+    "expected": {
+      "action": "observe",
+      "code": "RISK_DETECTED",
+      "profile": "basic"
+    }
+  },
+  {
+    "id": "local-basic-root",
+    "policy": {
+      "profile": "basic"
+    },
+    "now": 100,
+    "context": {
+      "authentication": "authenticated",
+      "verification": "verified",
+      "attestation": "verified",
+      "attestation_expires": 101,
+      "risk_signals": [
+        "root"
+      ],
+      "rate_limited": false
+    },
+    "expected": {
+      "action": "observe",
+      "code": "RISK_DETECTED",
+      "profile": "basic"
+    }
+  },
+  {
+    "id": "local-basic-hook",
+    "policy": {
+      "profile": "basic"
+    },
+    "now": 100,
+    "context": {
+      "authentication": "authenticated",
+      "verification": "verified",
+      "attestation": "verified",
+      "attestation_expires": 101,
+      "risk_signals": [
+        "hook"
+      ],
+      "rate_limited": false
+    },
+    "expected": {
+      "action": "observe",
+      "code": "RISK_DETECTED",
+      "profile": "basic"
+    }
+  },
+  {
+    "id": "local-basic-tamper",
+    "policy": {
+      "profile": "basic"
+    },
+    "now": 100,
+    "context": {
+      "authentication": "authenticated",
+      "verification": "verified",
+      "attestation": "verified",
+      "attestation_expires": 101,
+      "risk_signals": [
+        "tamper"
+      ],
+      "rate_limited": false
+    },
+    "expected": {
+      "action": "observe",
+      "code": "RISK_DETECTED",
+      "profile": "basic"
+    }
+  },
+  {
+    "id": "local-basic-unknown-default",
+    "policy": {
+      "profile": "basic"
+    },
+    "now": 100,
+    "context": {
+      "authentication": "authenticated",
+      "verification": "verified",
+      "attestation": "verified",
+      "attestation_expires": 101,
+      "risk_signals": [
+        "local_checks_unavailable"
+      ],
+      "rate_limited": false
+    },
+    "expected": {
+      "action": "allow",
+      "code": "ALLOWED",
+      "profile": "basic"
+    }
+  },
+  {
+    "id": "local-basic-unknown-explicit",
+    "policy": {
+      "profile": "basic",
+      "suspicious_signals": [
+        "debugger",
+        "root",
+        "hook",
+        "tamper",
+        "local_checks_unavailable"
+      ]
+    },
+    "now": 100,
+    "context": {
+      "authentication": "authenticated",
+      "verification": "verified",
+      "attestation": "verified",
+      "attestation_expires": 101,
+      "risk_signals": [
+        "local_checks_unavailable"
+      ],
+      "rate_limited": false
+    },
+    "expected": {
+      "action": "observe",
+      "code": "RISK_DETECTED",
+      "profile": "basic"
+    }
+  },
+  {
+    "id": "local-basic-no-hints-missing-auth",
+    "policy": {
+      "profile": "basic"
+    },
+    "now": 100,
+    "context": {
+      "authentication": "missing",
+      "verification": "verified",
+      "attestation": "verified",
+      "attestation_expires": 101,
+      "risk_signals": [],
+      "rate_limited": false
+    },
+    "expected": {
+      "action": "deny",
+      "code": "AUTHENTICATION_REQUIRED",
+      "profile": "basic"
+    }
+  },
+  {
+    "id": "local-basic-no-hints-missing-attestation",
+    "policy": {
+      "profile": "basic"
+    },
+    "now": 100,
+    "context": {
+      "authentication": "authenticated",
+      "verification": "verified",
+      "attestation": "missing",
+      "attestation_expires": null,
+      "risk_signals": [],
+      "rate_limited": false
+    },
+    "expected": {
+      "action": "observe",
+      "code": "ATTESTATION_MISSING",
+      "profile": "basic"
+    }
+  },
+  {
+    "id": "local-balanced-debugger",
+    "policy": {
+      "profile": "balanced"
+    },
+    "now": 100,
+    "context": {
+      "authentication": "authenticated",
+      "verification": "verified",
+      "attestation": "verified",
+      "attestation_expires": 101,
+      "risk_signals": [
+        "debugger"
+      ],
+      "rate_limited": false
+    },
+    "expected": {
+      "action": "step_up",
+      "code": "RISK_DETECTED",
+      "profile": "balanced"
+    }
+  },
+  {
+    "id": "local-balanced-root",
+    "policy": {
+      "profile": "balanced"
+    },
+    "now": 100,
+    "context": {
+      "authentication": "authenticated",
+      "verification": "verified",
+      "attestation": "verified",
+      "attestation_expires": 101,
+      "risk_signals": [
+        "root"
+      ],
+      "rate_limited": false
+    },
+    "expected": {
+      "action": "step_up",
+      "code": "RISK_DETECTED",
+      "profile": "balanced"
+    }
+  },
+  {
+    "id": "local-balanced-hook",
+    "policy": {
+      "profile": "balanced"
+    },
+    "now": 100,
+    "context": {
+      "authentication": "authenticated",
+      "verification": "verified",
+      "attestation": "verified",
+      "attestation_expires": 101,
+      "risk_signals": [
+        "hook"
+      ],
+      "rate_limited": false
+    },
+    "expected": {
+      "action": "step_up",
+      "code": "RISK_DETECTED",
+      "profile": "balanced"
+    }
+  },
+  {
+    "id": "local-balanced-tamper",
+    "policy": {
+      "profile": "balanced"
+    },
+    "now": 100,
+    "context": {
+      "authentication": "authenticated",
+      "verification": "verified",
+      "attestation": "verified",
+      "attestation_expires": 101,
+      "risk_signals": [
+        "tamper"
+      ],
+      "rate_limited": false
+    },
+    "expected": {
+      "action": "step_up",
+      "code": "RISK_DETECTED",
+      "profile": "balanced"
+    }
+  },
+  {
+    "id": "local-balanced-unknown-default",
+    "policy": {
+      "profile": "balanced"
+    },
+    "now": 100,
+    "context": {
+      "authentication": "authenticated",
+      "verification": "verified",
+      "attestation": "verified",
+      "attestation_expires": 101,
+      "risk_signals": [
+        "local_checks_unavailable"
+      ],
+      "rate_limited": false
+    },
+    "expected": {
+      "action": "allow",
+      "code": "ALLOWED",
+      "profile": "balanced"
+    }
+  },
+  {
+    "id": "local-balanced-unknown-explicit",
+    "policy": {
+      "profile": "balanced",
+      "suspicious_signals": [
+        "debugger",
+        "root",
+        "hook",
+        "tamper",
+        "local_checks_unavailable"
+      ]
+    },
+    "now": 100,
+    "context": {
+      "authentication": "authenticated",
+      "verification": "verified",
+      "attestation": "verified",
+      "attestation_expires": 101,
+      "risk_signals": [
+        "local_checks_unavailable"
+      ],
+      "rate_limited": false
+    },
+    "expected": {
+      "action": "step_up",
+      "code": "RISK_DETECTED",
+      "profile": "balanced"
+    }
+  },
+  {
+    "id": "local-balanced-no-hints-missing-auth",
+    "policy": {
+      "profile": "balanced"
+    },
+    "now": 100,
+    "context": {
+      "authentication": "missing",
+      "verification": "verified",
+      "attestation": "verified",
+      "attestation_expires": 101,
+      "risk_signals": [],
+      "rate_limited": false
+    },
+    "expected": {
+      "action": "deny",
+      "code": "AUTHENTICATION_REQUIRED",
+      "profile": "balanced"
+    }
+  },
+  {
+    "id": "local-balanced-no-hints-missing-attestation",
+    "policy": {
+      "profile": "balanced"
+    },
+    "now": 100,
+    "context": {
+      "authentication": "authenticated",
+      "verification": "verified",
+      "attestation": "missing",
+      "attestation_expires": null,
+      "risk_signals": [],
+      "rate_limited": false
+    },
+    "expected": {
+      "action": "step_up",
+      "code": "ATTESTATION_MISSING",
+      "profile": "balanced"
+    }
+  },
+  {
+    "id": "local-strict-debugger",
+    "policy": {
+      "profile": "strict"
+    },
+    "now": 100,
+    "context": {
+      "authentication": "authenticated",
+      "verification": "verified",
+      "attestation": "verified",
+      "attestation_expires": 101,
+      "risk_signals": [
+        "debugger"
+      ],
+      "rate_limited": false
+    },
+    "expected": {
+      "action": "deny",
+      "code": "RISK_DETECTED",
+      "profile": "strict"
+    }
+  },
+  {
+    "id": "local-strict-root",
+    "policy": {
+      "profile": "strict"
+    },
+    "now": 100,
+    "context": {
+      "authentication": "authenticated",
+      "verification": "verified",
+      "attestation": "verified",
+      "attestation_expires": 101,
+      "risk_signals": [
+        "root"
+      ],
+      "rate_limited": false
+    },
+    "expected": {
+      "action": "deny",
+      "code": "RISK_DETECTED",
+      "profile": "strict"
+    }
+  },
+  {
+    "id": "local-strict-hook",
+    "policy": {
+      "profile": "strict"
+    },
+    "now": 100,
+    "context": {
+      "authentication": "authenticated",
+      "verification": "verified",
+      "attestation": "verified",
+      "attestation_expires": 101,
+      "risk_signals": [
+        "hook"
+      ],
+      "rate_limited": false
+    },
+    "expected": {
+      "action": "deny",
+      "code": "RISK_DETECTED",
+      "profile": "strict"
+    }
+  },
+  {
+    "id": "local-strict-tamper",
+    "policy": {
+      "profile": "strict"
+    },
+    "now": 100,
+    "context": {
+      "authentication": "authenticated",
+      "verification": "verified",
+      "attestation": "verified",
+      "attestation_expires": 101,
+      "risk_signals": [
+        "tamper"
+      ],
+      "rate_limited": false
+    },
+    "expected": {
+      "action": "deny",
+      "code": "RISK_DETECTED",
+      "profile": "strict"
+    }
+  },
+  {
+    "id": "local-strict-unknown-default",
+    "policy": {
+      "profile": "strict"
+    },
+    "now": 100,
+    "context": {
+      "authentication": "authenticated",
+      "verification": "verified",
+      "attestation": "verified",
+      "attestation_expires": 101,
+      "risk_signals": [
+        "local_checks_unavailable"
+      ],
+      "rate_limited": false
+    },
+    "expected": {
+      "action": "allow",
+      "code": "ALLOWED",
+      "profile": "strict"
+    }
+  },
+  {
+    "id": "local-strict-unknown-explicit",
+    "policy": {
+      "profile": "strict",
+      "suspicious_signals": [
+        "debugger",
+        "root",
+        "hook",
+        "tamper",
+        "local_checks_unavailable"
+      ]
+    },
+    "now": 100,
+    "context": {
+      "authentication": "authenticated",
+      "verification": "verified",
+      "attestation": "verified",
+      "attestation_expires": 101,
+      "risk_signals": [
+        "local_checks_unavailable"
+      ],
+      "rate_limited": false
+    },
+    "expected": {
+      "action": "deny",
+      "code": "RISK_DETECTED",
+      "profile": "strict"
+    }
+  },
+  {
+    "id": "local-strict-no-hints-missing-auth",
+    "policy": {
+      "profile": "strict"
+    },
+    "now": 100,
+    "context": {
+      "authentication": "missing",
+      "verification": "verified",
+      "attestation": "verified",
+      "attestation_expires": 101,
+      "risk_signals": [],
+      "rate_limited": false
+    },
+    "expected": {
+      "action": "deny",
+      "code": "AUTHENTICATION_REQUIRED",
+      "profile": "strict"
+    }
+  },
+  {
+    "id": "local-strict-no-hints-missing-attestation",
+    "policy": {
+      "profile": "strict"
+    },
+    "now": 100,
+    "context": {
+      "authentication": "authenticated",
+      "verification": "verified",
+      "attestation": "missing",
+      "attestation_expires": null,
+      "risk_signals": [],
+      "rate_limited": false
+    },
+    "expected": {
+      "action": "deny",
+      "code": "ATTESTATION_MISSING",
+      "profile": "strict"
+    }
+  }
+]
