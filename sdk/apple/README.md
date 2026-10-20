@@ -64,11 +64,11 @@ The helper checks every identity/origin binding, canonical 32-byte server nonce,
 
 `NativeBridge().invoke(operation:payload:)` returns the fixed JSON envelope in
 [client-bridge-v0](../../protocol/client-bridge-v0.md). Supported operations are `publicKey`,
-`prepare`, and `enrollmentProof`. Bindings carry the exact target, canonical base64 body, and ordered
+`prepare`, `enrollmentProof`, and `scanLocalRisk`. Signing bindings carry the exact target, canonical base64 body, and ordered
 header pairs from the result; this API does not send HTTP requests, expose unrestricted signing or
 private-key import/export, acquire provider evidence, or return an authorization verdict.
 
-Every payload requires `alias` and `hardwareRequirement`. `any` uses the installation-key default;
+The three signing/enrollment payloads require `alias` and `hardwareRequirement`. `any` uses the installation-key default;
 `hardware` requires Secure Enclave without fallback; `strongbox` returns `APPGUARD_UNSUPPORTED`.
 `publicKey` reports `keychain` or `secureEnclave` without claiming remote attestation. Request and
 enrollment timestamps are validated against native wall-clock time. Internal ephemeral-key/clock
@@ -87,6 +87,13 @@ removing duplicate-key detection fails its regression. The bridge-stage baseline
 the unsigned generic iOS Simulator build passes arm64 and x86_64. No bridge test writes persistent
 Keychain items or boots a Simulator. Persistent storage, physical Secure Enclave, framework runtime,
 provider and store evidence remain separate requirements.
+
+`scanLocalRisk` accepts optional `expectedAppId`, `androidSignerSha256` and
+`protectedResources`, default `{}`; it uses no key or clock. Scan input/envelope
+limits are 8192/4096 UTF-8 bytes. A nonempty Android signer allowlist returns
+`APPGUARD_UNSUPPORTED` after all configuration is validated. See the current
+[risk bridge verification](RISK_BRIDGE_VERIFICATION.md): 79 Swift tests and unsigned
+Simulator/device builds, with no persistent key or mobile runtime claim.
 
 ## Optional local risk hints
 
@@ -107,7 +114,7 @@ The immutable Codable report contains exactly `schema`, `platform`, ordered `che
 
 The own-process debugger probe uses the public `sysctl` example only in iOS debug builds, following Apple's [QA1361 debug-only restriction](https://developer.apple.com/library/archive/qa/qa1361/_index.html). Release builds and macOS return `unavailable` for debugger observations. Root and hook checks run only on iOS devices; macOS and Simulator return `unavailable` rather than diagnosing their host. Device heuristics examine a fixed small set of artifact existence probes, global symbols via `dlsym`, and bounded selected environment values. They never enumerate the unsafe dyld image list, load or invoke suspicious code, write files, deny debugger attachment, make network calls or touch Keychain.
 
-These heuristics can produce false positives and be bypassed by a modified process, hidden artifacts, renamed/local symbols, stripped environment variables or replacement embedded pins. Empty signals never establish integrity, attestation, authentication or authorization. Release scans normally include `local_checks_unavailable`; server policies must explicitly decide how to handle that category. This API does not extend the JSON signing bridge.
+These heuristics can produce false positives and be bypassed by a modified process, hidden artifacts, renamed/local symbols, stripped environment variables or replacement embedded pins. Empty signals never establish integrity, attestation, authentication or authorization. Release scans normally include `local_checks_unavailable`; server policies must explicitly decide how to handle that category. The JSON bridge's `scanLocalRisk` operation exposes the same report without signing it.
 
 SwiftPM copies `Sources/AppGuardApple/Resources/PrivacyInfo.xcprivacy` into its resource bundle. It declares `NSPrivacyAccessedAPICategoryFileTimestamp` reason `C617.1` for regular-file/size validation of resources inside the app bundle. Fixed external artifact probes use `access(F_OK)` and do not read external metadata. Consumers using other packaging systems must include the SDK manifest in the resulting application; verify the final archive. This declaration is not App Store approval. See [local-risk verification](LOCAL_RISK_VERIFICATION.md) for exact commands, hashes, API references and remaining evidence limits.
 

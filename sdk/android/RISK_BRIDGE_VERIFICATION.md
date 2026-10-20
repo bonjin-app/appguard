@@ -37,4 +37,4 @@ GRADLE_USER_HOME=$PWD/.tools/gradle-home ./gradlew --offline --no-daemon
 
 Exact logs/XML/source/artifact hashes and runtime readback are retained in owned
 .evidence/risk-bridge/ and the parent stage archive. No device/account/global AVD
-configuration,publication or remote CI operation is part of this verification.
+configuration was changed; no publication or remote CI operation is included.

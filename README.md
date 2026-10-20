@@ -9,6 +9,8 @@ See the [completed local milestone and remaining roadmap](docs/security/local-mi
 The [native local risk stage](docs/security/local-risk-verification.md) adds optional
 Android/iOS tamper, root and hook hints with explicit unavailable states. These
 observations supplement server checks; they do not establish device integrity.
+The [framework risk bridge stage](docs/security/risk-bridges-verification.md) exposes
+the same reports through Unity, Expo/React Native and Flutter async APIs.
 
 ## Architecture
 
@@ -29,9 +31,9 @@ The core will run without an AI model, paid AI API, or mandatory AppGuard cloud 
 | [Node.js 22+](sdk/node/README.md) | Experimental native verifier; Express, Fastify, NestJS and Redis adapter |
 | [Android Java/Kotlin](sdk/android/README.md) | Native signer, Keystore and enrollment proofs; AAR/JVM tests/API35 emulator checks |
 | [Apple Swift/iOS](sdk/apple/README.md) | Native signer, Security key adapter, enrollment proofs and App Attest acquisition wrapper; host tests/unsigned Simulator build |
-| [Unity UPM](sdk/unity/README.md) | Typed JNI/C ABI package;20 EditMode tests; native libraries built; mobile player/IL2CPP runtime pending |
-| [Expo / React Native](sdk/expo/README.md) | Expo58 native module;23 tests, packed Android compile and actual unsigned arm64 Simulator CocoaPods library build; device/runtime pending |
-| [Flutter](sdk/flutter/README.md) | Typed platform-channel plugin;17 tests, Java adapter checks, relocated CocoaPods/Simulator app build; device/runtime pending |
+| [Unity UPM](sdk/unity/README.md) | Typed JNI/C ABI package and async local risk API;71 EditMode tests, actual host managed/native scan and buffer checks; mobile player/IL2CPP runtime pending |
+| [Expo / React Native](sdk/expo/README.md) | Expo58 async native module;61 tests,44-file relocation, packed Android and unsigned arm64 Simulator CocoaPods compile; engine/device runtime pending |
+| [Flutter](sdk/flutter/README.md) | Async platform-channel local risk API;64 tests, background queue/native adapter checks and Simulator library compile; engine/device runtime pending |
 | [ASP.NET Core](sdk/dotnet/README.md) | Experimental strict verifier/middleware; mandatory original-header feature;175 tests and isolated NuGet consumer |
 | [Go net/http](sdk/go/README.md) | Experimental verifier/middleware; race/vet and isolated consumer; trusted pre-parser evidence required |
 | [PHP](sdk/php/README.md) | Experimental verifier/explicit ingress adapter;514 assertions and5 raw loopback requests; no Laravel/Symfony integration claim |

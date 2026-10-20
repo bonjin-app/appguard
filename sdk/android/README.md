@@ -100,11 +100,11 @@ should expose this validated operation, not an unrestricted arbitrary-message si
 
 `new NativeBridge(context).invoke(operation, payloadJSON)` returns one JSON string under the
 [client-bridge-v0 contract](../../protocol/client-bridge-v0.md). Operations are exactly `publicKey`,
-`prepare`, and `enrollmentProof`. The framework binding must carry this string without rebuilding
+`prepare`, `enrollmentProof`, and `scanLocalRisk`. The framework binding must carry signing results without rebuilding
 signed targets, binary bodies, or ordered headers. There is no HTTP transport or unrestricted sign,
 private-key import/export, provider acquisition, or authorization verdict operation.
 
-All payloads require `alias` and `hardwareRequirement`: `any`, `hardware`, or `strongbox` map to
+The three signing/enrollment payloads require `alias` and `hardwareRequirement`: `any`, `hardware`, or `strongbox` map to
 `ANY_KEYSTORE`, `HARDWARE_REQUIRED`, and `STRONGBOX_REQUIRED`. The installation-key adapter owns
 storage checks and fails closed; returned `backing` is its explicit native enum label. The bridge
 uses native wall-clock time to reject expired requests and creation more than 30 seconds ahead.
@@ -123,6 +123,13 @@ enrollment signatures are independently verified. Exact body/JSON boundaries, bi
 queries, invalid input before key lookup, hardware mapping, native-clock rejection, and redacted
 key/signing failures are covered. Disabling duplicate-key rejection makes its regression fail.
 These host bridge tests do not exercise actual Android Keystore or framework/device runtime.
+
+`scanLocalRisk` accepts optional `expectedAppId`, `androidSignerSha256` and
+`protectedResources`, default `{}`. It validates all configuration before probing
+and performs no key or clock access. Scan JSON input/envelope limits are 8192/4096
+UTF-8 bytes. See [risk bridge verification](RISK_BRIDGE_VERIFICATION.md) for the
+current 108 unit executions and three isolated native runtime tests. These tests
+do not establish framework engine runtime or physical-device root/hook efficacy.
 
 ## Build and verification
 

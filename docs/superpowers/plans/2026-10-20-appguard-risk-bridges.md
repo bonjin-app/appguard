@@ -30,35 +30,37 @@ Existing operations/protection and privacy resources remain unchanged.
 
 ### Task1 Native JSON facades — parent Android, Apple worker sdk/apple/**
 
-- [ ] RED tests for default/configured scan, exact state serialization,
+- [x] RED tests for default/configured scan, exact state serialization,
   bounds/null/unknown/duplicates/arrays and no-key/no-clock/no-probe invalid config.
-- [ ] Implement scanLocalRisk; keep existing strict parsers, add bounded string
+- [x] Implement scanLocalRisk; keep existing strict parsers, add bounded string
   arrays; iOS signer unsupported distinction; fixed error mapping.
-- [ ] Full native tests/lint/builds and source/artifact receipts.
+- [x] Full native tests/lint/builds and source/artifact receipts.
 
 ### Task2 Expo — worker sdk/expo/** only
 
-- [ ] RED tests for exported async API, optional config mapping/shared corpus,
+- [x] RED tests for exported async API, optional config mapping/shared corpus,
   malformed/native-unavailable/errors, mutation and exact byte limits.
-- [ ] Implement typed defensive options/report and strict decoder using existing
+- [x] Implement typed defensive options/report and strict decoder using existing
   AsyncFunction native boundary; document React Native/Expo Go limits.
-- [ ] Full23+newtests/typecheck, final packed relocation/native adapter compile.
+- [x] Full23+newtests/typecheck, final packed relocation/native adapter compile.
 
 ### Task3 Flutter — worker sdk/flutter/** only
 
-- [ ] RED shared corpus/config/error/immutability tests and adapter lifecycle tests.
-- [ ] Add typed Future API and actual background native task queue registration.
-- [ ] Full17+newtests/analyzer/Java probes/Swift compile, staged archive/resource checks.
+- [x] RED shared corpus/config/error/immutability tests and adapter lifecycle tests.
+- [x] Add typed Future API and actual background native task queue registration.
+- [x] Full17+newtests/analyzer/Java probes/Swift compile, staged archive/resource checks.
 
 ### Task4 Unity — worker sdk/unity/** only
 
-- [ ] RED shared corpus/config/error/async snapshot/thread/memory ownership tests.
-- [ ] Add immutable report/options and async API with owned JNI-safe worker execution.
-- [ ] Full20+newEditMode, platform compile/C ABI/relocation/privacy export checks.
+- [x] RED shared corpus/config/error/async snapshot/thread/memory ownership tests.
+- [x] Add immutable report/options and async API with owned JNI-safe worker execution.
+- [x] Full20+newEditMode, platform compile/C ABI/relocation/privacy export checks.
 
 ### Task5 Review and integration — parent
 
-- [ ] Verify latest staged source bytes; targeted policy integration preserves
+- [x] Verify latest staged source bytes; targeted policy integration preserves
   untrusted hints; one fresh security review and required fix pass.
-- [ ] Update docs/support evidence, collect rulings/costs, archive checksummed owned
+- [x] Update docs/support evidence, collect rulings/costs, archive checksummed owned
   scratch; clean local main fast-forward and exact source readback. No push.
+
+Observed results and the deferred Minor JSON-syntax hardening item are recorded in docs/security/risk-bridges-verification.md. Final source/hash and clean main integration receipts are retained in the owned stage archive.
