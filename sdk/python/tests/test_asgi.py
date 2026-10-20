@@ -223,6 +223,102 @@ def test_flask_asgi_real_request(headers, key):
     assert (result.status_code, result.content) == (200, b"{}")
 
 
+@pytest.mark.parametrize("framing", ["chunked", "no-length"])
+@pytest.mark.parametrize("read_mode", ["bytes", "json"])
+def test_flask_without_content_length_preserves_verified_body(framing, read_mode, signed_case):
+    from flask import Flask, request, Response, jsonify
+    from appguard.flask import protect_flask
+
+    api = Flask(__name__)
+    body = b'{"ok":true}'
+    headers, key = signed_case(VECTOR["request"]["target"], body)
+    if framing == "chunked":
+        headers.append(("Transfer-Encoding", "chunked"))
+    reached = []
+
+    @api.post("/v1/items")
+    def endpoint():
+        reached.append(True)
+        if read_mode == "json":
+            return jsonify(request.get_json())
+        return Response(request.get_data(), content_type="application/json")
+
+    app = protect_flask(api, **options(key))
+    events = [dict(type="http.request", body=body[:4], more_body=True),
+              dict(type="http.request", body=body[4:], more_body=False)]
+    status, result = asyncio.run(invoke(headers, app, events))
+    assert status == 200
+    assert json.loads(result) == {"ok": True}
+    if read_mode == "bytes":
+        assert result == body
+    # A real endpoint runs once, and the captured request cannot be replayed.
+    assert asyncio.run(invoke(headers, app, events)) == (403, b'{"code":"REPLAY_DETECTED"}')
+    assert reached == [True]
+
+
+def test_flask_httpx_chunked_upload_preserves_body(headers, key):
+    from flask import Flask, request, Response
+    from appguard.flask import protect_flask
+
+    api = Flask(__name__)
+
+    @api.post("/v1/items")
+    def endpoint():
+        return Response(request.get_data(), content_type="application/json")
+
+    async def chunks():
+        yield b"{"
+        yield b"}"
+
+    async def run():
+        app = protect_flask(api, **options(key))
+        async with httpx.AsyncClient(transport=httpx.ASGITransport(app), base_url=ORIGIN) as client:
+            return await client.post(VECTOR["request"]["target"], headers=headers, content=chunks())
+
+    result = asyncio.run(run())
+    assert (result.status_code, result.content) == (200, b"{}")
+
+
+@pytest.mark.parametrize("alias", ["AppGuard_App_Id", "Content_Digest", "Signature_Input"])
+def test_flask_rejects_wsgi_header_alias_collision_before_auth(headers, key, alias):
+    from flask import Flask, request, Response
+    from appguard.flask import protect_flask
+
+    api = Flask(__name__)
+    calls = []
+
+    @api.post("/v1/items")
+    def endpoint():
+        calls.append("endpoint")
+        return Response(request.get_data())
+
+    def identity(scope, kid):
+        calls.append("identity")
+        return Identity("test-user", key)
+
+    app = protect_flask(api, **options(key, identity_resolver=identity))
+    assert asyncio.run(invoke(headers + [[alias, "untrusted"]], app)) == (400, b'{"code":"INVALID_REQUEST"}')
+    assert calls == []
+    # An alias rejection must not burn the original valid request's nonce.
+    assert asyncio.run(invoke(headers, app)) == (200, b"{}")
+    assert calls == ["identity", "endpoint"]
+
+
+def test_flask_preserves_noncolliding_underscore_headers(headers, key):
+    from flask import Flask, request, Response
+    from appguard.flask import protect_flask
+
+    api = Flask(__name__)
+
+    @api.post("/v1/items")
+    def endpoint():
+        assert request.headers["X-Trace"] == "trace-value"
+        return Response(request.get_data())
+
+    app = protect_flask(api, **options(key))
+    assert asyncio.run(invoke(headers + [["X_Trace", "trace-value"]], app)) == (200, b"{}")
+
+
 @pytest.mark.parametrize("target", ["/v1/items", "/v1/items?"])
 def test_exact_target_extension_preserves_empty_query_distinction(target, signed_case):
     headers, key = signed_case(target)

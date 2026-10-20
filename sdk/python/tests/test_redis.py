@@ -12,6 +12,23 @@ import redis
 from appguard.redis import RedisReplayStore, redis_replay_key
 from appguard.replay import ReplayStoreUnavailable
 
+NONCE = "AAECAwQFBgcICQoLDA0ODw"
+
+
+@pytest.mark.parametrize("nonce", ["bad", "AAECAwQFBgcICQoLDA0ODx", "AAECAwQFBgcICQoLDA0ODw=="])
+def test_invalid_nonce_never_reaches_redis(nonce):
+    class Client:
+        calls = 0
+
+        def set(self, *args, **kwargs):
+            self.calls += 1
+            return True
+
+    client = Client()
+    with pytest.raises(ReplayStoreUnavailable):
+        RedisReplayStore(client).claim(("app", "key", nonce), expires=120, now=1)
+    assert client.calls == 0
+
 
 def test_replay_key_is_language_neutral():
     # Independent literal generated with the Redis contract's compact JSON/hash.
@@ -28,7 +45,7 @@ def test_unexpected_backend_result_fails_closed(answer):
             return answer
 
     with pytest.raises(ReplayStoreUnavailable):
-        RedisReplayStore(Client()).claim(("app", "key", "nonce"), expires=120, now=1)
+        RedisReplayStore(Client()).claim(("app", "key", NONCE), expires=120, now=1)
 
 
 def test_backend_exception_is_redacted():
@@ -37,7 +54,7 @@ def test_backend_exception_is_redacted():
             raise RuntimeError("TEST_ONLY_TOKEN")
 
     with pytest.raises(ReplayStoreUnavailable) as caught:
-        RedisReplayStore(Client()).claim(("app", "key", "nonce"), expires=120, now=1)
+        RedisReplayStore(Client()).claim(("app", "key", NONCE), expires=120, now=1)
     assert "TEST_ONLY_TOKEN" not in str(caught.value)
 
 
@@ -48,7 +65,7 @@ def test_invalid_expiry_never_claims(expires, now):
             raise AssertionError("invalid claim must not reach Redis")
 
     with pytest.raises(ReplayStoreUnavailable):
-        RedisReplayStore(Client()).claim(("app", "key", "nonce"), expires=expires, now=now)
+        RedisReplayStore(Client()).claim(("app", "key", NONCE), expires=expires, now=now)
 
 
 @pytest.fixture
@@ -63,7 +80,7 @@ def client():
 
 
 def test_live_two_instances_and_retention(client):
-    scope = ("python-test", uuid.uuid4().hex, "nonce")
+    scope = ("python-test", uuid.uuid4().hex, NONCE)
     key = redis_replay_key(scope)
     now = int(time.time())
     try:
@@ -75,7 +92,7 @@ def test_live_two_instances_and_retention(client):
 
 
 def test_live_32_concurrent_claims(client):
-    scope = ("python-test", uuid.uuid4().hex, "nonce")
+    scope = ("python-test", uuid.uuid4().hex, NONCE)
     key = redis_replay_key(scope)
     barrier = Barrier(32)
     now = int(time.time())
@@ -100,6 +117,6 @@ def test_live_disconnected_client_fails_closed(client):
         broken = redis.Redis(host="127.0.0.1", port=port, socket_connect_timeout=.1, socket_timeout=.1)
         try:
             with pytest.raises(ReplayStoreUnavailable):
-                RedisReplayStore(broken).claim(("app", "key", "nonce"), expires=120, now=1)
+                RedisReplayStore(broken).claim(("app", "key", NONCE), expires=120, now=1)
         finally:
             broken.close()

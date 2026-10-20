@@ -1,5 +1,6 @@
 """Optional Redis replay store; no connection is created implicitly."""
 
+import base64
 import hashlib
 import json
 import re
@@ -10,6 +11,10 @@ from .replay import ReplayStoreUnavailable
 def redis_replay_key(scope: tuple[str, str, str]) -> str:
     if (type(scope) is not tuple or len(scope) != 3
             or any(type(part) is not str or not re.fullmatch(r"[A-Za-z0-9._:-]{1,128}", part) for part in scope)):
+        raise ReplayStoreUnavailable("invalid replay scope")
+    nonce = scope[2]
+    if (not re.fullmatch(r"[A-Za-z0-9_-]{22}", nonce)
+            or base64.urlsafe_b64encode(base64.urlsafe_b64decode(nonce + "==")).decode().rstrip("=") != nonce):
         raise ReplayStoreUnavailable("invalid replay scope")
     encoded = json.dumps(list(scope), separators=(",", ":")).encode("ascii")
     return "appguard:v0:replay:" + hashlib.sha256(encoded).hexdigest()
