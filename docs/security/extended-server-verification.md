@@ -77,3 +77,6 @@ rejection is future hardening. It does not relax P-256 or exact signature checks
 
 No package publication, physical device, provider account, hosted CI or production
 security assurance is established by these local checks.
+
+
+Follow-up: the previously deferred enrollment exception-context, Go PEM-envelope and Expo error-classification defects are resolved in [boundary hardening](hardening-verification.md). Original stage counts and review findings above remain historical evidence.

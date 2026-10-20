@@ -24,10 +24,10 @@ a subset of Python474. Native/bridge/build results are separately recorded:
 [provider](provider-verification.md), [CI](../development/continuous-integration.md).
 
 One whole-stage review per implemented stage, followed by targeted fixes without
-re-review, is recorded in those receipts. Remaining Minor issues are explicit:
+re-review, is recorded in those receipts. Minor issues deferred at this milestone were:
 Python EnrollmentService callback exception context, Expo unavailable/error
 classification, Go malformed-leading-PEM tolerance for trusted registry records.
-No Critical or Important finding remains open in these stage reviews. This is
+Those three defects were subsequently resolved in the [boundary hardening follow-up](hardening-verification.md). No Critical or Important finding remained open in the original stage reviews. This is
 scoped local review evidence, not independent security certification.
 
 The roadmap's local experimental implementation goal is bounded by these

@@ -4,7 +4,7 @@ Framework-independent, self-hostable app security. Apache-2.0 licensed.
 
 **Status: experimental client/server SDKs and Build/CLI implemented locally.** There are no published SDKs or production security claims. Android/iOS signing interoperates with Spring Boot, Python, Node.js, ASP.NET Core, Go and PHP using one draft protocol. Framework bridges package the native signing boundary; Python additionally provides explicit local enrollment and optional experimental Apple/Google verification backends. See the [approved design](docs/superpowers/specs/2026-10-20-appguard-foundation-design.md) and the [server](docs/security/server-sdk-verification.md), [native](docs/security/mobile-foundation-verification.md), [bridge/Build](docs/security/client-bridges-build-verification.md), [extended server](docs/security/extended-server-verification.md) and [provider](docs/security/provider-verification.md) evidence boundaries.
 
-See the [completed local milestone and remaining roadmap](docs/security/local-milestone-verification.md) for aggregate verification and explicit deferred scope.
+See the [completed local milestone and remaining roadmap](docs/security/local-milestone-verification.md) and [subsequent boundary hardening](docs/security/hardening-verification.md) for verification, fixes and explicit deferred scope.
 
 ## Architecture
 
@@ -26,7 +26,7 @@ The core will run without an AI model, paid AI API, or mandatory AppGuard cloud 
 | [Android Java/Kotlin](sdk/android/README.md) | Native signer, Keystore and enrollment proofs; AAR/JVM tests/API35 emulator checks |
 | [Apple Swift/iOS](sdk/apple/README.md) | Native signer, Security key adapter, enrollment proofs and App Attest acquisition wrapper; host tests/unsigned Simulator build |
 | [Unity UPM](sdk/unity/README.md) | Typed JNI/C ABI package;20 EditMode tests; native libraries built; mobile player/IL2CPP runtime pending |
-| [Expo / React Native](sdk/expo/README.md) | Expo58 native module;22 tests, packed Android compile and actual unsigned arm64 Simulator CocoaPods library build; device/runtime pending |
+| [Expo / React Native](sdk/expo/README.md) | Expo58 native module;23 tests, packed Android compile and actual unsigned arm64 Simulator CocoaPods library build; device/runtime pending |
 | [Flutter](sdk/flutter/README.md) | Typed platform-channel plugin;17 tests, Java adapter checks, relocated CocoaPods/Simulator app build; device/runtime pending |
 | [ASP.NET Core](sdk/dotnet/README.md) | Experimental strict verifier/middleware; mandatory original-header feature;175 tests and isolated NuGet consumer |
 | [Go net/http](sdk/go/README.md) | Experimental verifier/middleware; race/vet and isolated consumer; trusted pre-parser evidence required |

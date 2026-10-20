@@ -36,3 +36,6 @@ Deferred Minor: Expo's native error allowlist maps Android's absent-React-contex
 - Node/Java policy parity is a separate implementation stage; signatures alone do not install policy, authentication, rate counters or provider verification. Applications remain responsible for these dependencies.
 
 All artifacts remain local. Generic Simulator builds use disabled signing, with any linker-generated ad hoc signature distinguished from an identity/provisioning profile. No provider verdict, store submission, physical-device protection, publication, production deployment or end-to-end HTTP preservation was established by this stage.
+
+
+Follow-up: the previously deferred enrollment exception-context, Go PEM-envelope and Expo error-classification defects are resolved in [boundary hardening](hardening-verification.md). Original stage counts and review findings above remain historical evidence.

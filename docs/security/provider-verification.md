@@ -51,3 +51,6 @@ receipts remain in the checksummed local provider-stage archive. No accounts,
 secrets, provider projects, entitlements or releases were configured.
 
 Final Python wheel SHA-256: `90915ee14a235d6f86e76ca86a1e4a659258202eef84bc3d6c2cf2ee11089e52`. Locally built and unpublished.
+
+
+Follow-up: the previously deferred enrollment exception-context, Go PEM-envelope and Expo error-classification defects are resolved in [boundary hardening](hardening-verification.md). Original stage counts and review findings above remain historical evidence.

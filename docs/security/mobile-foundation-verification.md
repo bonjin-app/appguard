@@ -61,3 +61,6 @@ One **deferred minor** remains: provider/clock/backend exception wrappers can re
 6. SQLite directory replacement, backup/restore, network filesystems, distributed replication and clock administration: trusted deployment responsibilities. Cost: use a protected local directory/accurate clock and a backend suited to the actual topology; do not infer multi-host consistency.
 7. Malicious trusted callbacks, manually forged policy contexts, secret-bearing audit IDs, hostile custom signers and future bridge exposure: trusted application inputs/future integration boundaries. Cost: only actual server results may populate trust states, and future bridges must expose validated operations rather than generic private-key signing.
 8. Falsified local risk hints and later wrapper/build/CLI features: hints never confer trust; those later implementations are not claimed here. Cost: native primitives alone do not deliver Unity/Expo/Flutter installation, obfuscation or a release-ready platform.
+
+
+Follow-up: the previously deferred enrollment exception-context, Go PEM-envelope and Expo error-classification defects are resolved in [boundary hardening](hardening-verification.md). Original stage counts and review findings above remain historical evidence.
