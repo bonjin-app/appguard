@@ -10,6 +10,17 @@ const VERSION='appguard-vault-v0';
 const buildIdValid=v=>typeof v==='string' && /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(v);
 const exact=(obj,names)=>obj!==null && typeof obj==='object' && !Array.isArray(obj) && Object.keys(obj).length===names.length && names.every(k=>Object.hasOwn(obj,k));
 const safeName=n=>typeof n==='string' && n.length<=1024 && !n.includes('\\') && !n.includes(':') && !/[\x00-\x1f\x7f]/.test(n) && !path.isAbsolute(n) && n.split('/').length<=16 && n.split('/').every(p=>p.length>0 && p.length<=200 && p!=='.' && p!=='..' && !/[. ]$/.test(p) && !/^(con|prn|aux|nul|com[0-9]|lpt[0-9])(\.|$)/i.test(p));
+// The same portability gate runs before successful retention and before restore.
+export function validatePortablePaths(names) {
+  if(!Array.isArray(names) || !names.length || names.length>MAX_FILES) fail('ARCHIVE_REJECTED');
+  const folded=new Set();
+  for(const name of names) {
+    if(!safeName(name)) fail('ARCHIVE_REJECTED');
+    const lower=name.normalize('NFC').toLowerCase();
+    if(folded.has(lower)) fail('ARCHIVE_REJECTED');folded.add(lower);
+  }
+  for(const name of folded) {let parent=path.posix.dirname(name);while(parent!=='.') {if(folded.has(parent)) fail('ARCHIVE_REJECTED');parent=path.posix.dirname(parent);}}
+}
 function decode(value,max) {
   if(typeof value!=='string' || value.length>Math.ceil(max/3)*4) fail('ARCHIVE_REJECTED');
   const bytes=Buffer.from(value,'base64');
@@ -81,6 +92,7 @@ export async function archive({source,vault,keyFile,buildId}) {
     const vaultPath=path.join(vaultParent,path.basename(path.resolve(vault)));
     if(vaultPath===sourceRoot || vaultPath.startsWith(sourceRoot+path.sep)) fail('UNSAFE_PATH');
     const {files,total}=await sourceFiles(source);
+    validatePortablePaths(files.map(entry=>entry.path));
     const directory=await privateDirectory(vaultParent,path.basename(vaultPath));
     const archiveFile=await safePath(directory,buildId+'.agvault');
     await requireNew(archiveFile,'ARCHIVE_EXISTS');
@@ -121,10 +133,7 @@ export async function restore({archiveFile,destination,keyFile}) {
       const data=decode(entry.bodyBase64,MAX_BYTES-total);total+=data.length;
       names.add(entry.path);files.push({name:entry.path,data});
     }
-    // No file/directory conflicts, including portable case-insensitive filesystems.
-    const folded=new Set();
-    for(const {name} of files) {const lower=name.normalize('NFC').toLowerCase();if(folded.has(lower)) fail('ARCHIVE_REJECTED');folded.add(lower);}
-    for(const name of folded) {let parent=path.posix.dirname(name);while(parent!=='.') {if(folded.has(parent)) fail('ARCHIVE_REJECTED');parent=path.posix.dirname(parent);}}
+    validatePortablePaths(files.map(entry=>entry.name));
     const target=path.resolve(destination);
     const parent=await fs.realpath(path.dirname(target));
     const actual=path.join(parent,path.basename(target));

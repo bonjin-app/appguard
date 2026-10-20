@@ -4,7 +4,7 @@ import * as fs from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
 import {randomBytes,createCipheriv} from 'node:crypto';
-import {archive,restore} from '../src/vault.js';
+import {archive,restore,validatePortablePaths} from '../src/vault.js';
 
 async function fixture(t) {
   const root=await fs.mkdtemp(path.join(os.tmpdir(),'appguard-vault-'));
@@ -101,4 +101,9 @@ test('invalid key lengths reject',async t=>{
     await fs.writeFile(f.keyFile,randomBytes(length));
     await assert.rejects(archive(f));
   }
+});
+test('shared archive/restore path validator rejects unrecoverable portable conflicts',()=>{
+  for(const names of [['Map','map'],['a/x','A'],['café','cafe\u0301'],['same','same'],['valid','../outside'],['file','file/child']])
+    assert.throws(()=>validatePortablePaths(names),{code:'ARCHIVE_REJECTED'});
+  assert.doesNotThrow(()=>validatePortablePaths(['a/mapping.txt','b/symbols','plain.symbol']));
 });

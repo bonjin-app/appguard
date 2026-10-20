@@ -35,6 +35,16 @@ public class ClientTests {
         var json=JObject.Parse(wire.Payload); Assert.That(wire.Operation, Is.EqualTo("enrollmentProof"));
         Assert.That((string)json["challenge"]["publicKeySha256"], Is.EqualTo("hash")); Assert.That((string)json["expectedSubject"], Is.EqualTo("s")); Assert.That(result.ProofBase64, Is.EqualTo("cA=="));
     }
+    [Test] public void IsoLookingIdentifiersAndHeaderValuesRemainExactStrings() {
+        const string id="2026-10-20T00:00:00Z";
+        var wire=new Wire {Response="{\"ok\":true,\"result\":{\"origin\":\"https://api.example\",\"method\":\"GET\",\"target\":\"/a?\",\"bodyBase64\":\"\",\"keyId\":\""+id+"\",\"headers\":[[\"AppGuard-App-Id\",\""+id+"\"]]}}"};
+        var result=new Client(wire).Prepare(new PrepareRequest {Alias="a",Origin="https://api.example",Method="GET",Target="/a?",Body=new byte[0],ContentType="application/json",Authorization="Bearer token",AppId=id,KeyId=id,Created=10,Expires=20,Nonce="nonce"});
+        Assert.That(result.KeyId,Is.EqualTo(id));Assert.That(result.Headers[0].Value,Is.EqualTo(id));
+    }
+    [Test] public void DuplicateResponsePropertiesRemainRejected() {
+        var wire=new Wire {Response="{\"ok\":true,\"result\":{\"publicKeyPem\":\"first\",\"publicKeyPem\":\"second\",\"backing\":\"software\"}}"};
+        Assert.That(Assert.Throws<AppGuardException>(()=>new Client(wire).PublicKey("a")).Code,Is.EqualTo("APPGUARD_OPERATION_FAILED"));
+    }
     [TestCase("APPGUARD_INVALID_INPUT")][TestCase("APPGUARD_KEY_UNAVAILABLE")][TestCase("APPGUARD_UNSUPPORTED")][TestCase("APPGUARD_OPERATION_FAILED")]
     public void FixedNativeErrorsSurvive(string code) { var wire=new Wire {Response="{\"ok\":false,\"error\":{\"code\":\""+code+"\"}}"}; Assert.That(Assert.Throws<AppGuardException>(()=>new Client(wire).PublicKey("a")).Code, Is.EqualTo(code)); }
     [TestCase("{\"ok\":false,\"error\":{\"code\":\"Bearer SECRET\",\"message\":\"private\"}}")]

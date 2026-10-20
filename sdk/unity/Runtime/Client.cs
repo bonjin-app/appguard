@@ -34,7 +34,11 @@ public sealed class Client {
         catch { throw new AppGuardException("APPGUARD_OPERATION_FAILED"); }
         try {
             if(response==null || System.Text.Encoding.UTF8.GetByteCount(response)>NativeResponse.MaxBytes) throw new FormatException();
-            var root=JObject.Parse(response, new JsonLoadSettings {DuplicatePropertyNameHandling=DuplicatePropertyNameHandling.Error});
+            JObject root;
+            using(var reader=new Newtonsoft.Json.JsonTextReader(new System.IO.StringReader(response)) {DateParseHandling=Newtonsoft.Json.DateParseHandling.None}) {
+                root=JObject.Load(reader, new JsonLoadSettings {DuplicatePropertyNameHandling=DuplicatePropertyNameHandling.Error});
+                if(reader.Read()) throw new FormatException();
+            }
             if(root["ok"]?.Type!=JTokenType.Boolean) throw new FormatException();
             if(!(bool)root["ok"]) throw new AppGuardException(SafeCode(root["error"]?["code"]?.Type==JTokenType.String ? (string)root["error"]["code"] : null));
             if(!(root["result"] is JObject result)) throw new FormatException();
