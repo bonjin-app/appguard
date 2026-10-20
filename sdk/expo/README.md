@@ -24,9 +24,8 @@ npm run verify:pack
 In an Expo SDK 58 app, install the resulting `appguard-expo-0.0.0-experimental.1.tgz` with `npx expo install /path/to/the/tarball`. Add `"@appguard/expo"` to `expo.plugins`, then generate/rebuild the native app and install pods as usual. Autolinking discovers the Android module and the separate `AppGuardApple` and `AppGuardExpo` pods. The config plugin raises Android's application minimum to at least 26 and iOS's deployment target to at least 16.4, preserving higher values and unrelated properties. Existing bare native projects need those same minimums applied and a native rebuild.
 
 The staged Apple SDK privacy manifest ships in `AppGuardApplePrivacy.bundle`.
-Verify its presence in your final archive. Native SDK sources also include optional
-[local risk scanners](../../protocol/local-risk-v0.md); this module's JavaScript
-API still exposes the three signing/enrollment operations below.
+Verify its presence in your final archive. The typed `scanLocalRisk` API exposes optional local risk hints. See
+[RISK_BRIDGE_VERIFICATION.md](./RISK_BRIDGE_VERIFICATION.md) for its evidence limits.
 
 ## API
 
@@ -52,3 +51,47 @@ See [VERIFICATION.md](./VERIFICATION.md) for observed build evidence and remaini
 ## Official API references
 
 Scaffolded with [`create-expo-module` 58.0.3](https://docs.expo.dev/more/create-expo-module/), then removed generated example/UI/web code. API choices follow the [Expo Modules API](https://docs.expo.dev/modules/module-api/), [module configuration](https://docs.expo.dev/modules/module-config/), [config plugins](https://docs.expo.dev/modules/config-plugin-and-native-module-tutorial/), and [SDK 58 support matrix](https://docs.expo.dev/versions/v58.0.0/).
+
+## Local risk snapshot
+
+```ts
+import { scanLocalRisk, type LocalRiskReport } from '@appguard/expo';
+const report: LocalRiskReport = await scanLocalRisk(); // optional checks unconfigured
+const configured = await scanLocalRisk({
+  expectedAppId: 'com.example.app',
+  androidSignerSha256: ['a'.repeat(64)], // actual lowercase current certificate pins
+  protectedResources: { 'assets/release.json': 'b'.repeat(64) }, // actual deployed bytes
+});
+```
+
+Call the async API explicitly; the existing native AsyncFunction runs the scan off
+its caller thread. React Native consumers need Expo Modules integration and a
+native rebuild containing the updated SDK. Expo Go/web have no implementation;
+missing modules reject with `APPGUARD_NATIVE_UNAVAILABLE`, and old native SDKs
+reject the operation with `APPGUARD_UNSUPPORTED`. No JavaScript fallback probes,
+keys, clock or network calls are used. A JavaScript/OTA update alone cannot add
+the native operation.
+
+Only `expectedAppId`, `androidSignerSha256` and `protectedResources` are accepted.
+An app ID is 1..255 ASCII characters beginning with an alphanumeric character,
+then alphanumeric, dot, underscore or hyphen. At most eight distinct lowercase
+64-hex signer pins and eight resource paths are allowed. Paths are relative ASCII,
+at most 256 characters with slash-separated components of 1..128 characters;
+components start with alphanumeric, underscore or hyphen and continue with those
+characters or dot. Nulls and unknown fields reject before native dispatch. Empty
+arrays/maps are valid. iOS rejects nonempty Android signer pins as unsupported
+after validating all options. Input is snapshotted before native work; scan JSON
+input is limited to 8192 UTF-8 bytes and its response envelope to 4096 bytes.
+Signing/enrollment retain their existing limits.
+
+Reports are deeply frozen, freshly decoded values with schema
+`appguard-local-risk-v0`, platform `android`/`ios`, ordered checks and deduplicated
+ordered risk categories. States are `detected`, `not_observed`, `unavailable` and
+`not_configured`; required checks cannot be unconfigured. Invalid/inconsistent
+native reports reject with `APPGUARD_OPERATION_FAILED`, without raw response text.
+These are local heuristic hints that a compromised app can forge, bypass or omit.
+They do not prove a clean device or authorize a request. Treat categories as
+untrusted server hints alongside independent authentication/signature/attestation
+checks. The API returns no overall clean verdict, identity, pins, paths or raw
+observations. Local scanner behavior is documented in the repository's
+[local-risk protocol](../../protocol/local-risk-v0.md).

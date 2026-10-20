@@ -5,6 +5,7 @@ using NUnit.Framework;
 
 namespace AppGuard.Tests {
 public class ClientTests {
+    [Test] public void LocalRiskAsyncApiExists() { Assert.That(typeof(Client).GetMethod("ScanLocalRiskAsync"), Is.Not.Null); }
     sealed class Wire : INativeTransport {
         public string Operation, Payload;
         public string Response = "{\"ok\":true,\"result\":{\"publicKeyPem\":\"pem\",\"backing\":\"software\"}}";

@@ -19,6 +19,12 @@ public sealed class Client {
     readonly INativeTransport wire;
     public Client() : this(new PlatformTransport()) {}
     internal Client(INativeTransport wire) { this.wire=wire ?? throw new AppGuardException("APPGUARD_NATIVE_UNAVAILABLE"); }
+    /// <summary>Collect bounded untrusted local hints on an owned background thread.</summary>
+    public System.Threading.Tasks.Task<LocalRiskReport> ScanLocalRiskAsync(LocalRiskOptions options=null) {
+        // Immutable options are fully encoded on the caller before scheduling.
+        string payload=(options ?? new LocalRiskOptions()).Encode();
+        return ScanWorker.Platform().Start(()=>LocalRiskDecoder.Decode(wire is PlatformTransport platform ? platform.InvokeLocalRisk(payload) : wire.Invoke("scanLocalRisk",payload)));
+    }
     static JObject Common(string alias, HardwareRequirement requirement) {
         if (string.IsNullOrEmpty(alias) || !Enum.IsDefined(typeof(HardwareRequirement),requirement)) throw new AppGuardException("APPGUARD_INVALID_INPUT");
         return new JObject { ["alias"]=alias, ["hardwareRequirement"]=requirement==HardwareRequirement.Any ? "any" : requirement==HardwareRequirement.Hardware ? "hardware" : "strongbox" };
@@ -45,7 +51,7 @@ public sealed class Client {
             return result;
         } catch(AppGuardException) {throw;} catch {throw new AppGuardException("APPGUARD_OPERATION_FAILED");}
     }
-    static string SafeCode(string code) {
+    internal static string SafeCode(string code) {
         switch(code) {case "APPGUARD_INVALID_INPUT":case "APPGUARD_KEY_UNAVAILABLE":case "APPGUARD_UNSUPPORTED":case "APPGUARD_NATIVE_UNAVAILABLE": return code; default:return "APPGUARD_OPERATION_FAILED";}
     }
     static string Text(JObject result,string key) { if(result[key]?.Type!=JTokenType.String) throw new AppGuardException("APPGUARD_OPERATION_FAILED"); return (string)result[key]; }

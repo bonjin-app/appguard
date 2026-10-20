@@ -23,9 +23,12 @@ private func boundedString(_ pointer: UnsafePointer<CChar>?, _ limit: Int) -> St
 }
 @_cdecl("AppGuardUnityInvoke")
 public func appGuardUnityInvoke(_ operation: UnsafePointer<CChar>?, _ payload: UnsafePointer<CChar>?) -> UnsafeMutablePointer<CChar>? {
-    guard let op=boundedString(operation,64), let input=boundedString(payload,maxBytes) else {return owned(invalid)}
+    guard let op=boundedString(operation,64) else {return owned(invalid)}
+    let limit = op == "scanLocalRisk" ? 8192 : maxBytes
+    let resultLimit = op == "scanLocalRisk" ? 4096 : maxBytes
+    guard let input=boundedString(payload,limit) else {return owned(invalid)}
     let response=NativeBridge().invoke(operation:op,payload:input)
-    return owned(response.utf8.count<=maxBytes ? response : failed)
+    return owned(response.utf8.count<=resultLimit ? response : failed)
 }
 @_cdecl("AppGuardUnityFree")
 public func appGuardUnityFree(_ response: UnsafeMutablePointer<CChar>?) { free(response) }

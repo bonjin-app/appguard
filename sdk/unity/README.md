@@ -1,6 +1,6 @@
 # AppGuard Unity client (experimental)
 
-Typed UPM bindings for Unity 6000, Android API 26+ and iOS 15+. The native SDK owns input validation, installation keys and cryptography. The public managed API offers only `PublicKey`, `Prepare`, and `EnrollmentProof`. No network transport, private-key export, arbitrary signing, automatic enrollment or attestation verdict is provided.
+Typed UPM bindings for Unity 6000, Android API 26+ and iOS 15+. The native SDK owns input validation, installation keys and cryptography. The public managed API offers `PublicKey`, `Prepare`, `EnrollmentProof`, and the asynchronous `ScanLocalRiskAsync`. No network transport, private-key export, arbitrary signing, automatic enrollment or attestation verdict is provided.
 
 ## Local installation
 
@@ -20,7 +20,7 @@ Add the resulting local folder through Unity Package Manager **Add package from 
 
 The iOS export postprocessor resolves the installed UPM package and copies its staged Apple privacy manifest into `Libraries/AppGuardPrivacy.bundle`. It adds this folder reference to the main app Resources phase; host and UnityFramework manifests remain separate. Keep `Native~/Dependencies` in the installed package and restage older packages that lack the manifest. Export and iOS native build fail early if that staged input is missing.
 
-The native bridge executes synchronously. Call from Unity's main thread for Android JNI/activity access. Keep your application's alias stable and use the returned backing label explicitly. `HardwareRequirement.Hardware` never silently downgrades, and Apple rejects `StrongBox`.
+The three key/request operations execute synchronously. Call these from Unity's main thread for Android JNI/activity access. Keep your application's alias stable and use the returned backing label explicitly. `HardwareRequirement.Hardware` never silently downgrades, and Apple rejects `StrongBox`.
 
 ```csharp
 using AppGuard;
@@ -42,6 +42,22 @@ var signed = client.Prepare(new PrepareRequest {
 `PrepareRequest.Body` is required, including `Array.Empty<byte>()`. Exact target strings, explicit empty queries, binary body bytes and ordered header pairs survive the bridge. Input JSON is bounded to 1,500,000 UTF8 bytes and decoded bodies to 1,048,576 bytes. Native SDK validation remains authoritative for origin, methods, timestamps, encodings and challenge bindings.
 
 Failures throw `AppGuardException` containing only a fixed `Code` and message. Unexpected exception text is discarded. Editor and other unsupported platforms return `APPGUARD_UNSUPPORTED`; missing iOS entry points/libraries return `APPGUARD_NATIVE_UNAVAILABLE`. There is no Editor/software-crypto substitute. A native response pointer is copied with a strict UTF8 bound and freed exactly once, including decode failures; managed code never exposes that pointer.
+
+## Local risk hints
+
+```csharp
+var report = await client.ScanLocalRiskAsync(new LocalRiskOptions(
+    expectedAppId: "io.example.app",
+    protectedResources: new Dictionary<string, string> { { "data/config.json", deployedSha256 } }
+));
+// report.Checks and report.RiskSignals contain untrusted hints, not an integrity verdict.
+```
+
+Options are optional (`await client.ScanLocalRiskAsync()` sends `{}`). Their constructor validates and copies caller collections; all options, checks and reports are immutable. Optional `androidSignerSha256` accepts at most eight distinct lowercase SHA256 values; `protectedResources` accepts at most eight bounded relative ASCII resource paths and lowercase SHA256 pins. App IDs use 1–255 ASCII letters/digits/dot/underscore/hyphen with a leading letter or digit. Resource paths use slash-separated 1–128 character components, at most 256 characters overall; each starts with a letter, digit, underscore or hyphen. Absolute, empty, traversal and backslash paths fail before scanning. Empty pin collections are valid. Input is limited to 8,192 UTF8 bytes and the entire response envelope to 4,096 bytes.
+
+Scanning uses a fresh owned background thread. Android JNI attaches and detaches only that worker; file probing stays off the Unity/UI thread. Native versions without the operation fail explicitly. Editor and unsupported platforms return `APPGUARD_UNSUPPORTED`; a missing native module returns `APPGUARD_NATIVE_UNAVAILABLE`. iOS rejects nonempty Android signer pins as unsupported after validating the configuration.
+
+Reports enforce the exact schema, platform, ordered Android seven/iOS five checks, finite states and recomputed ordered signals. Malformed or inconsistent reports fail with `APPGUARD_OPERATION_FAILED`; no native text or raw configuration is returned. No keys, clocks or network operations are used by the native scan. Resource pins must match actual deployed bytes; builds/store processing may transform resources. Local observations can be bypassed or forged and must remain untrusted server risk hints. Neither an empty signals list nor `not_observed` proves an uncompromised device. See [RISK_BRIDGE_VERIFICATION.md](RISK_BRIDGE_VERIFICATION.md) for observed checks and runtime limits.
 
 ## Verification
 

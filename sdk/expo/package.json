@@ -20,7 +20,8 @@
     "BRIDGE_CONTRACT.md",
     "VERIFICATION.md",
     "LICENSE",
-    "PROVENANCE.json"
+    "PROVENANCE.json",
+    "RISK_BRIDGE_VERIFICATION.md"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",

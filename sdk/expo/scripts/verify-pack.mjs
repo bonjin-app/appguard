@@ -33,5 +33,19 @@ try {
     return JSON.stringify({ok:true,result:{publicKeyPem:'public',backing:'keychain'}});
   }})).publicKey({alias:'install',hardwareRequirement:'any'});
   assert.equal(result.publicKeyPem,'public');
+  const report={schema:'appguard-local-risk-v0',platform:'ios',checks:[
+    {code:'debugger_attached',state:'unavailable'},
+    {code:'root_artifact',state:'unavailable'},
+    {code:'hook_artifact',state:'unavailable'},
+    {code:'app_identity_mismatch',state:'not_configured'},
+    {code:'bundle_resource_mismatch',state:'not_configured'},
+  ],riskSignals:['local_checks_unavailable']};
+  const risk=await createClient(()=>({invoke:async(operation,payload)=>{
+    assert.equal(operation,'scanLocalRisk'); assert.equal(payload,'{}');
+    return JSON.stringify({ok:true,result:report});
+  }})).scanLocalRisk();
+  assert.deepEqual(risk,report); assert.ok(Object.isFrozen(risk.checks[0]));
+  assert.match(readFileSync(path.join(pkg,'build/index.d.ts'),'utf8'),/scanLocalRisk/);
+  assert.match(readFileSync(path.join(pkg,'build/client.d.ts'),'utf8'),/LocalRiskReport/);
   console.log(`Packed/relocated client verified: ${pack.files.length} files; ${pack.shasum}`);
 } finally { rmSync(scratch,{recursive:true,force:true}); }

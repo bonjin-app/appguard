@@ -1,6 +1,6 @@
 # AppGuard Flutter (experimental)
 
-Android 26+ and iOS 15+ plugin for native installation public keys, request preparation, and enrollment possession proof. The native SDK owns validation, keys, and cryptography. There is no Dart secret, signing fallback, automatic enrollment, HTTP transport, or provider verdict.
+Android 26+ and iOS 15+ plugin for native installation public keys, request preparation, enrollment possession proof, and local risk observations. The native SDK owns validation, keys, and cryptography. There is no Dart secret, signing fallback, automatic enrollment, HTTP transport, or provider verdict.
 
 ## Local package
 
@@ -16,7 +16,7 @@ flutter:
 
 The Apple SDK privacy manifest ships in `AppGuardFlutterPrivacy.bundle`; verify it
 in your final archive. Staged SDK sources include optional native local risk
-scanners. Dart channel scanner operations remain outside this plugin's API.
+scanners exposed through `scanLocalRisk`.
 
 
 ## API
@@ -44,10 +44,41 @@ Use the returned method, exact ASCII target (including a trailing empty query), 
 
 `HardwareRequirement.hardware` requires native hardware storage; `.strongbox` is Android-only and Apple rejects it. Storage labels report local backing, not attestation. Unsupported requirements never silently downgrade. Handle `AppGuardException.code`: `APPGUARD_INVALID_INPUT`, `APPGUARD_KEY_UNAVAILABLE`, `APPGUARD_UNSUPPORTED`, `APPGUARD_OPERATION_FAILED`, or `APPGUARD_NATIVE_UNAVAILABLE`. Error strings omit native messages, details, tokens and bodies. Missing/unsupported native plugins fail explicitly.
 
+## Local risk observations
+
+```dart
+final report = await guard.scanLocalRisk(options: LocalRiskOptions(
+  expectedAppId: 'co.example.app',
+  protectedResources: {'assets/config.json': 'a' * 64},
+));
+for (final check in report.checks) {
+  print('${check.code}: ${check.state}');
+}
+```
+
+`options` defaults to `{}`. Optional fields are `expectedAppId`,
+`androidSignerSha256` (up to eight distinct lowercase SHA-256 hex pins), and
+`protectedResources` (up to eight relative bundle/asset paths and lowercase SHA-256
+hex pins). Options validate and snapshot collections at construction; explicit
+null fields, invalid IDs/paths/pins, or wrong types throw the fixed
+`APPGUARD_INVALID_INPUT` code. Omit fields to leave their checks unconfigured.
+Nonempty Android signer pins on iOS return `APPGUARD_UNSUPPORTED` after validation.
+
+Reports and their ordered checks/signals are immutable. The decoder enforces
+`appguard-local-risk-v0`, Android's seven checks or iOS's five checks, finite
+observation states, and exactly recomputed signals. Observations are local hints,
+not a clean-device or server verdict. An unavailable/old native plugin fails
+explicitly; Dart provides no scanner fallback. Scanning does not access keys,
+read a clock, or make network requests. Native handlers use Flutter background
+task queues; engines without that facility return `APPGUARD_NATIVE_UNAVAILABLE`.
+Scan input and response envelopes are limited to 8,192 and 4,096 UTF-8 bytes;
+other operations retain their existing limits. Native changes require rebuilding
+the consuming app.
+
 ## Verification
 
-See [VERIFICATION.md](VERIFICATION.md) for observed checks and limitations. Dart tests use Flutter's mock binary messenger; they prove serialization/error behavior, not running platform keys or a Flutter engine on a device. No physical-device, live provider, publication, or store result is asserted.
+See [RISK_BRIDGE_VERIFICATION.md](RISK_BRIDGE_VERIFICATION.md) and [VERIFICATION.md](VERIFICATION.md) for observed checks and limitations. Dart tests use Flutter's mock binary messenger; they prove serialization/error behavior, not running platform keys or a Flutter engine on a device. No physical-device, live provider, publication, or store result is asserted.
 
-The channel is `io.appguard/client`, method `invoke`, with exactly `{operation, payload}` where payload is the native v0 JSON string. Operation names are `publicKey`, `prepare`, `enrollmentProof`.
+The channel is `io.appguard/client`, method `invoke`, with exactly `{operation, payload}` where payload is the native v0 JSON string. Operation names are `publicKey`, `prepare`, `enrollmentProof`, `scanLocalRisk`.
 
 Official references: [Flutter plugin development](https://docs.flutter.dev/packages-and-plugins/developing-packages), [platform channels](https://docs.flutter.dev/platform-integration/platform-channels).

@@ -8,10 +8,12 @@ import subprocess
 parser=argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--unity',required=True,type=Path)
 parser.add_argument('--staged-package',required=True,type=Path)
+parser.add_argument('--evidence-directory',type=Path)
+parser.add_argument('--export-directory',type=Path)
 args=parser.parse_args()
 package=Path(__file__).resolve().parents[1]
 project=package/'.tools/project'
-evidence=package/'.evidence';evidence.mkdir(exist_ok=True)
+evidence=(args.evidence_directory or package/'.evidence').resolve();evidence.mkdir(parents=True,exist_ok=True)
 contents=args.unity.resolve().parents[1]
 rsp=next((project/'Library/Bee/artifacts').glob('*.dag/AppGuard.Unity.Editor.rsp'),None)
 if rsp is None: parser.error('run Tools~/test-managed.py first to generate Unity compiler references')
@@ -23,5 +25,5 @@ generated=evidence/'ios-export-probe.rsp';generated.write_text('\n'.join(lines))
 with (evidence/'local-risk-export.log').open('w') as log:
     subprocess.run([str(contents/'Resources/Scripting/NetCoreRuntime/dotnet'),'exec',str(contents/'Resources/Scripting/DotNetSdkRoslyn/csc.dll'),'@'+str(generated)],cwd=project,stdout=log,stderr=subprocess.STDOUT,check=True)
     env=dict(os.environ,MONO_PATH=os.pathsep.join(str(contents/p) for p in ['Resources/BuildPipeline','Resources/Scripting/Managed','Resources/Scripting/Managed/UnityEngine']))
-    subprocess.run([str(contents/'Resources/Scripting/MonoBleedingEdge/bin/mono'),str(evidence/'ios-export-probe.exe'),str(package/'.tools/local-risk-export'),str(args.staged_package.resolve())],env=env,stdout=log,stderr=subprocess.STDOUT,check=True)
+    subprocess.run([str(contents/'Resources/Scripting/MonoBleedingEdge/bin/mono'),str(evidence/'ios-export-probe.exe'),str((args.export_directory or package/'.tools/local-risk-export').resolve()),str(args.staged_package.resolve())],env=env,stdout=log,stderr=subprocess.STDOUT,check=True)
 print((evidence/'local-risk-export.log').read_text())

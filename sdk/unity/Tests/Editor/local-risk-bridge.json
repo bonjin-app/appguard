@@ -1,0 +1,1189 @@
+{
+  "schema": "appguard-local-risk-bridge-tests-v0",
+  "reports": [
+    {
+      "id": "android-default",
+      "valid": true,
+      "report": {
+        "schema": "appguard-local-risk-v0",
+        "platform": "android",
+        "checks": [
+          {
+            "code": "debugger_attached",
+            "state": "not_observed"
+          },
+          {
+            "code": "debug_build",
+            "state": "not_observed"
+          },
+          {
+            "code": "root_artifact",
+            "state": "not_observed"
+          },
+          {
+            "code": "hook_artifact",
+            "state": "not_observed"
+          },
+          {
+            "code": "app_identity_mismatch",
+            "state": "not_configured"
+          },
+          {
+            "code": "app_signer_mismatch",
+            "state": "not_configured"
+          },
+          {
+            "code": "bundle_resource_mismatch",
+            "state": "not_configured"
+          }
+        ],
+        "riskSignals": []
+      }
+    },
+    {
+      "id": "android-all-unavailable",
+      "valid": true,
+      "report": {
+        "schema": "appguard-local-risk-v0",
+        "platform": "android",
+        "checks": [
+          {
+            "code": "debugger_attached",
+            "state": "unavailable"
+          },
+          {
+            "code": "debug_build",
+            "state": "unavailable"
+          },
+          {
+            "code": "root_artifact",
+            "state": "unavailable"
+          },
+          {
+            "code": "hook_artifact",
+            "state": "unavailable"
+          },
+          {
+            "code": "app_identity_mismatch",
+            "state": "unavailable"
+          },
+          {
+            "code": "app_signer_mismatch",
+            "state": "unavailable"
+          },
+          {
+            "code": "bundle_resource_mismatch",
+            "state": "unavailable"
+          }
+        ],
+        "riskSignals": [
+          "local_checks_unavailable"
+        ]
+      }
+    },
+    {
+      "id": "android-all-detected",
+      "valid": true,
+      "report": {
+        "schema": "appguard-local-risk-v0",
+        "platform": "android",
+        "checks": [
+          {
+            "code": "debugger_attached",
+            "state": "detected"
+          },
+          {
+            "code": "debug_build",
+            "state": "detected"
+          },
+          {
+            "code": "root_artifact",
+            "state": "detected"
+          },
+          {
+            "code": "hook_artifact",
+            "state": "detected"
+          },
+          {
+            "code": "app_identity_mismatch",
+            "state": "detected"
+          },
+          {
+            "code": "app_signer_mismatch",
+            "state": "detected"
+          },
+          {
+            "code": "bundle_resource_mismatch",
+            "state": "detected"
+          }
+        ],
+        "riskSignals": [
+          "debugger",
+          "root",
+          "hook",
+          "tamper"
+        ]
+      }
+    },
+    {
+      "id": "android-mixed",
+      "valid": true,
+      "report": {
+        "schema": "appguard-local-risk-v0",
+        "platform": "android",
+        "checks": [
+          {
+            "code": "debugger_attached",
+            "state": "detected"
+          },
+          {
+            "code": "debug_build",
+            "state": "not_observed"
+          },
+          {
+            "code": "root_artifact",
+            "state": "unavailable"
+          },
+          {
+            "code": "hook_artifact",
+            "state": "not_observed"
+          },
+          {
+            "code": "app_identity_mismatch",
+            "state": "detected"
+          },
+          {
+            "code": "app_signer_mismatch",
+            "state": "not_configured"
+          },
+          {
+            "code": "bundle_resource_mismatch",
+            "state": "not_configured"
+          }
+        ],
+        "riskSignals": [
+          "debugger",
+          "tamper",
+          "local_checks_unavailable"
+        ]
+      }
+    },
+    {
+      "id": "ios-default",
+      "valid": true,
+      "report": {
+        "schema": "appguard-local-risk-v0",
+        "platform": "ios",
+        "checks": [
+          {
+            "code": "debugger_attached",
+            "state": "not_observed"
+          },
+          {
+            "code": "root_artifact",
+            "state": "not_observed"
+          },
+          {
+            "code": "hook_artifact",
+            "state": "not_observed"
+          },
+          {
+            "code": "app_identity_mismatch",
+            "state": "not_configured"
+          },
+          {
+            "code": "bundle_resource_mismatch",
+            "state": "not_configured"
+          }
+        ],
+        "riskSignals": []
+      }
+    },
+    {
+      "id": "ios-all-unavailable",
+      "valid": true,
+      "report": {
+        "schema": "appguard-local-risk-v0",
+        "platform": "ios",
+        "checks": [
+          {
+            "code": "debugger_attached",
+            "state": "unavailable"
+          },
+          {
+            "code": "root_artifact",
+            "state": "unavailable"
+          },
+          {
+            "code": "hook_artifact",
+            "state": "unavailable"
+          },
+          {
+            "code": "app_identity_mismatch",
+            "state": "unavailable"
+          },
+          {
+            "code": "bundle_resource_mismatch",
+            "state": "unavailable"
+          }
+        ],
+        "riskSignals": [
+          "local_checks_unavailable"
+        ]
+      }
+    },
+    {
+      "id": "ios-all-detected",
+      "valid": true,
+      "report": {
+        "schema": "appguard-local-risk-v0",
+        "platform": "ios",
+        "checks": [
+          {
+            "code": "debugger_attached",
+            "state": "detected"
+          },
+          {
+            "code": "root_artifact",
+            "state": "detected"
+          },
+          {
+            "code": "hook_artifact",
+            "state": "detected"
+          },
+          {
+            "code": "app_identity_mismatch",
+            "state": "detected"
+          },
+          {
+            "code": "bundle_resource_mismatch",
+            "state": "detected"
+          }
+        ],
+        "riskSignals": [
+          "debugger",
+          "root",
+          "hook",
+          "tamper"
+        ]
+      }
+    },
+    {
+      "id": "ios-mixed",
+      "valid": true,
+      "report": {
+        "schema": "appguard-local-risk-v0",
+        "platform": "ios",
+        "checks": [
+          {
+            "code": "debugger_attached",
+            "state": "detected"
+          },
+          {
+            "code": "root_artifact",
+            "state": "unavailable"
+          },
+          {
+            "code": "hook_artifact",
+            "state": "not_observed"
+          },
+          {
+            "code": "app_identity_mismatch",
+            "state": "detected"
+          },
+          {
+            "code": "bundle_resource_mismatch",
+            "state": "not_configured"
+          }
+        ],
+        "riskSignals": [
+          "debugger",
+          "tamper",
+          "local_checks_unavailable"
+        ]
+      }
+    },
+    {
+      "id": "unknown-schema",
+      "valid": false,
+      "report": {
+        "schema": "PRIVATE",
+        "platform": "android",
+        "checks": [
+          {
+            "code": "debugger_attached",
+            "state": "not_observed"
+          },
+          {
+            "code": "debug_build",
+            "state": "not_observed"
+          },
+          {
+            "code": "root_artifact",
+            "state": "not_observed"
+          },
+          {
+            "code": "hook_artifact",
+            "state": "not_observed"
+          },
+          {
+            "code": "app_identity_mismatch",
+            "state": "not_configured"
+          },
+          {
+            "code": "app_signer_mismatch",
+            "state": "not_configured"
+          },
+          {
+            "code": "bundle_resource_mismatch",
+            "state": "not_configured"
+          }
+        ],
+        "riskSignals": []
+      }
+    },
+    {
+      "id": "unknown-platform",
+      "valid": false,
+      "report": {
+        "schema": "appguard-local-risk-v0",
+        "platform": "web",
+        "checks": [
+          {
+            "code": "debugger_attached",
+            "state": "not_observed"
+          },
+          {
+            "code": "debug_build",
+            "state": "not_observed"
+          },
+          {
+            "code": "root_artifact",
+            "state": "not_observed"
+          },
+          {
+            "code": "hook_artifact",
+            "state": "not_observed"
+          },
+          {
+            "code": "app_identity_mismatch",
+            "state": "not_configured"
+          },
+          {
+            "code": "app_signer_mismatch",
+            "state": "not_configured"
+          },
+          {
+            "code": "bundle_resource_mismatch",
+            "state": "not_configured"
+          }
+        ],
+        "riskSignals": []
+      }
+    },
+    {
+      "id": "extra-top-field",
+      "valid": false,
+      "report": {
+        "schema": "appguard-local-risk-v0",
+        "platform": "android",
+        "checks": [
+          {
+            "code": "debugger_attached",
+            "state": "not_observed"
+          },
+          {
+            "code": "debug_build",
+            "state": "not_observed"
+          },
+          {
+            "code": "root_artifact",
+            "state": "not_observed"
+          },
+          {
+            "code": "hook_artifact",
+            "state": "not_observed"
+          },
+          {
+            "code": "app_identity_mismatch",
+            "state": "not_configured"
+          },
+          {
+            "code": "app_signer_mismatch",
+            "state": "not_configured"
+          },
+          {
+            "code": "bundle_resource_mismatch",
+            "state": "not_configured"
+          }
+        ],
+        "riskSignals": [],
+        "private": "PRIVATE"
+      }
+    },
+    {
+      "id": "missing-schema",
+      "valid": false,
+      "report": {
+        "platform": "android",
+        "checks": [
+          {
+            "code": "debugger_attached",
+            "state": "not_observed"
+          },
+          {
+            "code": "debug_build",
+            "state": "not_observed"
+          },
+          {
+            "code": "root_artifact",
+            "state": "not_observed"
+          },
+          {
+            "code": "hook_artifact",
+            "state": "not_observed"
+          },
+          {
+            "code": "app_identity_mismatch",
+            "state": "not_configured"
+          },
+          {
+            "code": "app_signer_mismatch",
+            "state": "not_configured"
+          },
+          {
+            "code": "bundle_resource_mismatch",
+            "state": "not_configured"
+          }
+        ],
+        "riskSignals": []
+      }
+    },
+    {
+      "id": "checks-null",
+      "valid": false,
+      "report": {
+        "schema": "appguard-local-risk-v0",
+        "platform": "android",
+        "checks": null,
+        "riskSignals": []
+      }
+    },
+    {
+      "id": "checks-object",
+      "valid": false,
+      "report": {
+        "schema": "appguard-local-risk-v0",
+        "platform": "android",
+        "checks": {},
+        "riskSignals": []
+      }
+    },
+    {
+      "id": "missing-check",
+      "valid": false,
+      "report": {
+        "schema": "appguard-local-risk-v0",
+        "platform": "android",
+        "checks": [
+          {
+            "code": "debugger_attached",
+            "state": "not_observed"
+          },
+          {
+            "code": "debug_build",
+            "state": "not_observed"
+          },
+          {
+            "code": "root_artifact",
+            "state": "not_observed"
+          },
+          {
+            "code": "hook_artifact",
+            "state": "not_observed"
+          },
+          {
+            "code": "app_identity_mismatch",
+            "state": "not_configured"
+          },
+          {
+            "code": "app_signer_mismatch",
+            "state": "not_configured"
+          }
+        ],
+        "riskSignals": []
+      }
+    },
+    {
+      "id": "extra-check",
+      "valid": false,
+      "report": {
+        "schema": "appguard-local-risk-v0",
+        "platform": "android",
+        "checks": [
+          {
+            "code": "debugger_attached",
+            "state": "not_observed"
+          },
+          {
+            "code": "debug_build",
+            "state": "not_observed"
+          },
+          {
+            "code": "root_artifact",
+            "state": "not_observed"
+          },
+          {
+            "code": "hook_artifact",
+            "state": "not_observed"
+          },
+          {
+            "code": "app_identity_mismatch",
+            "state": "not_configured"
+          },
+          {
+            "code": "app_signer_mismatch",
+            "state": "not_configured"
+          },
+          {
+            "code": "bundle_resource_mismatch",
+            "state": "not_configured"
+          },
+          {
+            "code": "debugger_attached",
+            "state": "not_observed"
+          }
+        ],
+        "riskSignals": []
+      }
+    },
+    {
+      "id": "reordered-checks",
+      "valid": false,
+      "report": {
+        "schema": "appguard-local-risk-v0",
+        "platform": "android",
+        "checks": [
+          {
+            "code": "bundle_resource_mismatch",
+            "state": "not_configured"
+          },
+          {
+            "code": "app_signer_mismatch",
+            "state": "not_configured"
+          },
+          {
+            "code": "app_identity_mismatch",
+            "state": "not_configured"
+          },
+          {
+            "code": "hook_artifact",
+            "state": "not_observed"
+          },
+          {
+            "code": "root_artifact",
+            "state": "not_observed"
+          },
+          {
+            "code": "debug_build",
+            "state": "not_observed"
+          },
+          {
+            "code": "debugger_attached",
+            "state": "not_observed"
+          }
+        ],
+        "riskSignals": []
+      }
+    },
+    {
+      "id": "duplicate-check",
+      "valid": false,
+      "report": {
+        "schema": "appguard-local-risk-v0",
+        "platform": "android",
+        "checks": [
+          {
+            "code": "debugger_attached",
+            "state": "not_observed"
+          },
+          {
+            "code": "debugger_attached",
+            "state": "not_observed"
+          },
+          {
+            "code": "root_artifact",
+            "state": "not_observed"
+          },
+          {
+            "code": "hook_artifact",
+            "state": "not_observed"
+          },
+          {
+            "code": "app_identity_mismatch",
+            "state": "not_configured"
+          },
+          {
+            "code": "app_signer_mismatch",
+            "state": "not_configured"
+          },
+          {
+            "code": "bundle_resource_mismatch",
+            "state": "not_configured"
+          }
+        ],
+        "riskSignals": []
+      }
+    },
+    {
+      "id": "unknown-code",
+      "valid": false,
+      "report": {
+        "schema": "appguard-local-risk-v0",
+        "platform": "android",
+        "checks": [
+          {
+            "code": "PRIVATE",
+            "state": "not_observed"
+          },
+          {
+            "code": "debug_build",
+            "state": "not_observed"
+          },
+          {
+            "code": "root_artifact",
+            "state": "not_observed"
+          },
+          {
+            "code": "hook_artifact",
+            "state": "not_observed"
+          },
+          {
+            "code": "app_identity_mismatch",
+            "state": "not_configured"
+          },
+          {
+            "code": "app_signer_mismatch",
+            "state": "not_configured"
+          },
+          {
+            "code": "bundle_resource_mismatch",
+            "state": "not_configured"
+          }
+        ],
+        "riskSignals": []
+      }
+    },
+    {
+      "id": "unknown-state",
+      "valid": false,
+      "report": {
+        "schema": "appguard-local-risk-v0",
+        "platform": "android",
+        "checks": [
+          {
+            "code": "debugger_attached",
+            "state": "clean"
+          },
+          {
+            "code": "debug_build",
+            "state": "not_observed"
+          },
+          {
+            "code": "root_artifact",
+            "state": "not_observed"
+          },
+          {
+            "code": "hook_artifact",
+            "state": "not_observed"
+          },
+          {
+            "code": "app_identity_mismatch",
+            "state": "not_configured"
+          },
+          {
+            "code": "app_signer_mismatch",
+            "state": "not_configured"
+          },
+          {
+            "code": "bundle_resource_mismatch",
+            "state": "not_configured"
+          }
+        ],
+        "riskSignals": []
+      }
+    },
+    {
+      "id": "required-not-configured",
+      "valid": false,
+      "report": {
+        "schema": "appguard-local-risk-v0",
+        "platform": "android",
+        "checks": [
+          {
+            "code": "debugger_attached",
+            "state": "not_configured"
+          },
+          {
+            "code": "debug_build",
+            "state": "not_observed"
+          },
+          {
+            "code": "root_artifact",
+            "state": "not_observed"
+          },
+          {
+            "code": "hook_artifact",
+            "state": "not_observed"
+          },
+          {
+            "code": "app_identity_mismatch",
+            "state": "not_configured"
+          },
+          {
+            "code": "app_signer_mismatch",
+            "state": "not_configured"
+          },
+          {
+            "code": "bundle_resource_mismatch",
+            "state": "not_configured"
+          }
+        ],
+        "riskSignals": []
+      }
+    },
+    {
+      "id": "extra-check-field",
+      "valid": false,
+      "report": {
+        "schema": "appguard-local-risk-v0",
+        "platform": "android",
+        "checks": [
+          {
+            "code": "debugger_attached",
+            "state": "not_observed",
+            "private": "PRIVATE"
+          },
+          {
+            "code": "debug_build",
+            "state": "not_observed"
+          },
+          {
+            "code": "root_artifact",
+            "state": "not_observed"
+          },
+          {
+            "code": "hook_artifact",
+            "state": "not_observed"
+          },
+          {
+            "code": "app_identity_mismatch",
+            "state": "not_configured"
+          },
+          {
+            "code": "app_signer_mismatch",
+            "state": "not_configured"
+          },
+          {
+            "code": "bundle_resource_mismatch",
+            "state": "not_configured"
+          }
+        ],
+        "riskSignals": []
+      }
+    },
+    {
+      "id": "missing-check-state",
+      "valid": false,
+      "report": {
+        "schema": "appguard-local-risk-v0",
+        "platform": "android",
+        "checks": [
+          {
+            "code": "debugger_attached"
+          },
+          {
+            "code": "debug_build",
+            "state": "not_observed"
+          },
+          {
+            "code": "root_artifact",
+            "state": "not_observed"
+          },
+          {
+            "code": "hook_artifact",
+            "state": "not_observed"
+          },
+          {
+            "code": "app_identity_mismatch",
+            "state": "not_configured"
+          },
+          {
+            "code": "app_signer_mismatch",
+            "state": "not_configured"
+          },
+          {
+            "code": "bundle_resource_mismatch",
+            "state": "not_configured"
+          }
+        ],
+        "riskSignals": []
+      }
+    },
+    {
+      "id": "signals-null",
+      "valid": false,
+      "report": {
+        "schema": "appguard-local-risk-v0",
+        "platform": "android",
+        "checks": [
+          {
+            "code": "debugger_attached",
+            "state": "not_observed"
+          },
+          {
+            "code": "debug_build",
+            "state": "not_observed"
+          },
+          {
+            "code": "root_artifact",
+            "state": "not_observed"
+          },
+          {
+            "code": "hook_artifact",
+            "state": "not_observed"
+          },
+          {
+            "code": "app_identity_mismatch",
+            "state": "not_configured"
+          },
+          {
+            "code": "app_signer_mismatch",
+            "state": "not_configured"
+          },
+          {
+            "code": "bundle_resource_mismatch",
+            "state": "not_configured"
+          }
+        ],
+        "riskSignals": null
+      }
+    },
+    {
+      "id": "signals-object",
+      "valid": false,
+      "report": {
+        "schema": "appguard-local-risk-v0",
+        "platform": "android",
+        "checks": [
+          {
+            "code": "debugger_attached",
+            "state": "not_observed"
+          },
+          {
+            "code": "debug_build",
+            "state": "not_observed"
+          },
+          {
+            "code": "root_artifact",
+            "state": "not_observed"
+          },
+          {
+            "code": "hook_artifact",
+            "state": "not_observed"
+          },
+          {
+            "code": "app_identity_mismatch",
+            "state": "not_configured"
+          },
+          {
+            "code": "app_signer_mismatch",
+            "state": "not_configured"
+          },
+          {
+            "code": "bundle_resource_mismatch",
+            "state": "not_configured"
+          }
+        ],
+        "riskSignals": {}
+      }
+    },
+    {
+      "id": "unknown-signal",
+      "valid": false,
+      "report": {
+        "schema": "appguard-local-risk-v0",
+        "platform": "android",
+        "checks": [
+          {
+            "code": "debugger_attached",
+            "state": "not_observed"
+          },
+          {
+            "code": "debug_build",
+            "state": "not_observed"
+          },
+          {
+            "code": "root_artifact",
+            "state": "not_observed"
+          },
+          {
+            "code": "hook_artifact",
+            "state": "not_observed"
+          },
+          {
+            "code": "app_identity_mismatch",
+            "state": "not_configured"
+          },
+          {
+            "code": "app_signer_mismatch",
+            "state": "not_configured"
+          },
+          {
+            "code": "bundle_resource_mismatch",
+            "state": "not_configured"
+          }
+        ],
+        "riskSignals": [
+          "PRIVATE"
+        ]
+      }
+    },
+    {
+      "id": "duplicate-signal",
+      "valid": false,
+      "report": {
+        "schema": "appguard-local-risk-v0",
+        "platform": "android",
+        "checks": [
+          {
+            "code": "debugger_attached",
+            "state": "not_observed"
+          },
+          {
+            "code": "debug_build",
+            "state": "not_observed"
+          },
+          {
+            "code": "root_artifact",
+            "state": "not_observed"
+          },
+          {
+            "code": "hook_artifact",
+            "state": "not_observed"
+          },
+          {
+            "code": "app_identity_mismatch",
+            "state": "not_configured"
+          },
+          {
+            "code": "app_signer_mismatch",
+            "state": "not_configured"
+          },
+          {
+            "code": "bundle_resource_mismatch",
+            "state": "not_configured"
+          }
+        ],
+        "riskSignals": [
+          "root",
+          "root"
+        ]
+      }
+    },
+    {
+      "id": "signal-without-detection",
+      "valid": false,
+      "report": {
+        "schema": "appguard-local-risk-v0",
+        "platform": "android",
+        "checks": [
+          {
+            "code": "debugger_attached",
+            "state": "not_observed"
+          },
+          {
+            "code": "debug_build",
+            "state": "not_observed"
+          },
+          {
+            "code": "root_artifact",
+            "state": "not_observed"
+          },
+          {
+            "code": "hook_artifact",
+            "state": "not_observed"
+          },
+          {
+            "code": "app_identity_mismatch",
+            "state": "not_configured"
+          },
+          {
+            "code": "app_signer_mismatch",
+            "state": "not_configured"
+          },
+          {
+            "code": "bundle_resource_mismatch",
+            "state": "not_configured"
+          }
+        ],
+        "riskSignals": [
+          "root"
+        ]
+      }
+    },
+    {
+      "id": "missing-signal",
+      "valid": false,
+      "report": {
+        "schema": "appguard-local-risk-v0",
+        "platform": "android",
+        "checks": [
+          {
+            "code": "debugger_attached",
+            "state": "detected"
+          },
+          {
+            "code": "debug_build",
+            "state": "not_observed"
+          },
+          {
+            "code": "root_artifact",
+            "state": "not_observed"
+          },
+          {
+            "code": "hook_artifact",
+            "state": "not_observed"
+          },
+          {
+            "code": "app_identity_mismatch",
+            "state": "not_configured"
+          },
+          {
+            "code": "app_signer_mismatch",
+            "state": "not_configured"
+          },
+          {
+            "code": "bundle_resource_mismatch",
+            "state": "not_configured"
+          }
+        ],
+        "riskSignals": []
+      }
+    },
+    {
+      "id": "health-without-unavailable",
+      "valid": false,
+      "report": {
+        "schema": "appguard-local-risk-v0",
+        "platform": "android",
+        "checks": [
+          {
+            "code": "debugger_attached",
+            "state": "not_observed"
+          },
+          {
+            "code": "debug_build",
+            "state": "not_observed"
+          },
+          {
+            "code": "root_artifact",
+            "state": "not_observed"
+          },
+          {
+            "code": "hook_artifact",
+            "state": "not_observed"
+          },
+          {
+            "code": "app_identity_mismatch",
+            "state": "not_configured"
+          },
+          {
+            "code": "app_signer_mismatch",
+            "state": "not_configured"
+          },
+          {
+            "code": "bundle_resource_mismatch",
+            "state": "not_configured"
+          }
+        ],
+        "riskSignals": [
+          "local_checks_unavailable"
+        ]
+      }
+    },
+    {
+      "id": "signal-order",
+      "valid": false,
+      "report": {
+        "schema": "appguard-local-risk-v0",
+        "platform": "ios",
+        "checks": [
+          {
+            "code": "debugger_attached",
+            "state": "detected"
+          },
+          {
+            "code": "root_artifact",
+            "state": "detected"
+          },
+          {
+            "code": "hook_artifact",
+            "state": "not_observed"
+          },
+          {
+            "code": "app_identity_mismatch",
+            "state": "not_configured"
+          },
+          {
+            "code": "bundle_resource_mismatch",
+            "state": "not_configured"
+          }
+        ],
+        "riskSignals": [
+          "root",
+          "debugger"
+        ]
+      }
+    },
+    {
+      "id": "ios-platform-android-checks",
+      "valid": false,
+      "report": {
+        "schema": "appguard-local-risk-v0",
+        "platform": "ios",
+        "checks": [
+          {
+            "code": "debugger_attached",
+            "state": "not_observed"
+          },
+          {
+            "code": "debug_build",
+            "state": "not_observed"
+          },
+          {
+            "code": "root_artifact",
+            "state": "not_observed"
+          },
+          {
+            "code": "hook_artifact",
+            "state": "not_observed"
+          },
+          {
+            "code": "app_identity_mismatch",
+            "state": "not_configured"
+          },
+          {
+            "code": "app_signer_mismatch",
+            "state": "not_configured"
+          },
+          {
+            "code": "bundle_resource_mismatch",
+            "state": "not_configured"
+          }
+        ],
+        "riskSignals": []
+      }
+    }
+  ]
+}

@@ -58,6 +58,160 @@ class EnrollmentChallenge {
       };
 }
 
+/// Validated scan configuration. Omitted fields leave optional checks unconfigured.
+/// Explicit nulls and malformed values throw APPGUARD_INVALID_INPUT.
+final class LocalRiskOptions {
+  static const _omitted = Object();
+  final String? expectedAppId;
+  final List<String>? androidSignerSha256;
+  final Map<String, String>? protectedResources;
+
+  factory LocalRiskOptions(
+      {Object? expectedAppId = _omitted,
+      Object? androidSignerSha256 = _omitted,
+      Object? protectedResources = _omitted}) {
+    const invalid = AppGuardException('APPGUARD_INVALID_INPUT');
+    final idPattern = RegExp(r'^[A-Za-z0-9][A-Za-z0-9._-]*$');
+    final pinPattern = RegExp(r'^[a-f0-9]{64}$');
+    final component = RegExp(r'^[A-Za-z0-9_-][A-Za-z0-9._-]*$');
+    bool exact(RegExp pattern, String value) =>
+        pattern.stringMatch(value) == value;
+    String? id;
+    List<String>? pins;
+    Map<String, String>? resources;
+    if (!identical(expectedAppId, _omitted)) {
+      if (expectedAppId is! String ||
+          expectedAppId.length > 255 ||
+          !exact(idPattern, expectedAppId)) throw invalid;
+      id = expectedAppId;
+    }
+    if (!identical(androidSignerSha256, _omitted)) {
+      if (androidSignerSha256 is! List || androidSignerSha256.length > 8)
+        throw invalid;
+      pins = [];
+      for (final pin in androidSignerSha256) {
+        if (pin is! String || !exact(pinPattern, pin) || pins.contains(pin))
+          throw invalid;
+        pins.add(pin);
+      }
+    }
+    if (!identical(protectedResources, _omitted)) {
+      if (protectedResources is! Map || protectedResources.length > 8)
+        throw invalid;
+      resources = {};
+      for (final entry in protectedResources.entries) {
+        final path = entry.key;
+        final pin = entry.value;
+        if (path is! String ||
+            path.length > 256 ||
+            path
+                .split('/')
+                .any((part) => part.length > 128 || !exact(component, part)) ||
+            pin is! String ||
+            !exact(pinPattern, pin)) throw invalid;
+        resources[path] = pin;
+      }
+    }
+    return LocalRiskOptions._(id, pins, resources);
+  }
+  LocalRiskOptions._(
+      this.expectedAppId, List<String>? pins, Map<String, String>? resources)
+      : androidSignerSha256 = pins == null ? null : List.unmodifiable(pins),
+        protectedResources =
+            resources == null ? null : Map.unmodifiable(resources);
+  Map<String, Object> _json() => {
+        if (expectedAppId != null) 'expectedAppId': expectedAppId!,
+        if (androidSignerSha256 != null)
+          'androidSignerSha256': androidSignerSha256!,
+        if (protectedResources != null)
+          'protectedResources': protectedResources!,
+      };
+}
+
+/// An observation, never a clean-device or server verdict.
+final class LocalRiskCheck {
+  final String code, state;
+  const LocalRiskCheck._(this.code, this.state);
+}
+
+final class LocalRiskReport {
+  final String schema, platform;
+  final List<LocalRiskCheck> checks;
+  final List<String> riskSignals;
+  LocalRiskReport._(this.schema, this.platform, List<LocalRiskCheck> checks,
+      List<String> signals)
+      : checks = List.unmodifiable(checks),
+        riskSignals = List.unmodifiable(signals);
+  static LocalRiskReport _decode(Map<String, dynamic> report) {
+    const failed = AppGuardException('APPGUARD_OPERATION_FAILED');
+    const android = [
+      'debugger_attached',
+      'debug_build',
+      'root_artifact',
+      'hook_artifact',
+      'app_identity_mismatch',
+      'app_signer_mismatch',
+      'bundle_resource_mismatch'
+    ];
+    const ios = [
+      'debugger_attached',
+      'root_artifact',
+      'hook_artifact',
+      'app_identity_mismatch',
+      'bundle_resource_mismatch'
+    ];
+    const states = {
+      'detected',
+      'not_observed',
+      'unavailable',
+      'not_configured'
+    };
+    final platform = report['platform'];
+    final rawChecks = report['checks'];
+    final rawSignals = report['riskSignals'];
+    if (report.length != 4 ||
+        report['schema'] != 'appguard-local-risk-v0' ||
+        (platform != 'android' && platform != 'ios') ||
+        rawChecks is! List ||
+        rawSignals is! List) throw failed;
+    final codes = platform == 'android' ? android : ios;
+    if (rawChecks.length != codes.length) throw failed;
+    final checks = <LocalRiskCheck>[];
+    final signals = <String>[];
+    var unavailable = false;
+    for (var i = 0; i < codes.length; i++) {
+      final check = rawChecks[i];
+      if (check is! Map ||
+          check.length != 2 ||
+          check['code'] != codes[i] ||
+          check['state'] is! String ||
+          !states.contains(check['state']) ||
+          (i < (platform == 'android' ? 4 : 3) &&
+              check['state'] == 'not_configured')) throw failed;
+      final state = check['state'] as String;
+      checks.add(LocalRiskCheck._(codes[i], state));
+      if (state == 'unavailable') unavailable = true;
+      if (state == 'detected') {
+        final signal = codes[i].startsWith('debug')
+            ? 'debugger'
+            : codes[i] == 'root_artifact'
+                ? 'root'
+                : codes[i] == 'hook_artifact'
+                    ? 'hook'
+                    : 'tamper';
+        if (!signals.contains(signal)) signals.add(signal);
+      }
+    }
+    if (unavailable) signals.add('local_checks_unavailable');
+    if (rawSignals.length != signals.length) throw failed;
+    for (var i = 0; i < signals.length; i++) {
+      if (rawSignals[i] != signals[i]) throw failed;
+    }
+    return LocalRiskReport._(
+        'appguard-local-risk-v0', platform as String, checks, signals);
+  }
+}
+
 class AppGuard {
   static const _channel = MethodChannel('io.appguard/client');
   static const _failed = 'APPGUARD_OPERATION_FAILED';
@@ -76,13 +230,15 @@ class AppGuard {
   Future<T> _invoke<T>(String operation, Map<String, Object> payload,
       T Function(Map<String, dynamic>) decode) async {
     try {
+      final scan = operation == 'scanLocalRisk';
       final json = jsonEncode(payload);
-      if (utf8.encode(json).length > 1500000) {
+      if (utf8.encode(json).length > (scan ? 8192 : 1500000)) {
         throw const AppGuardException(_invalid);
       }
       final response = await _channel.invokeMethod<Object?>(
           'invoke', {'operation': operation, 'payload': json});
-      if (response is! String || utf8.encode(response).length > 1500000) {
+      if (response is! String ||
+          utf8.encode(response).length > (scan ? 4096 : 1500000)) {
         throw const AppGuardException(_failed);
       }
       final envelope = jsonDecode(response);
@@ -107,6 +263,10 @@ class AppGuard {
       throw const AppGuardException(_failed);
     }
   }
+
+  /// Runs native local observations off the platform UI thread. No fallback.
+  Future<LocalRiskReport> scanLocalRisk({LocalRiskOptions? options}) =>
+      _invoke('scanLocalRisk', options?._json() ?? {}, LocalRiskReport._decode);
 
   Future<PublicKey> publicKey(
           {required String alias,

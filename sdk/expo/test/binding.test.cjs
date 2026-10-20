@@ -16,5 +16,9 @@ test('public package binds Expo AppGuard native module and fails explicitly when
   }};
   assert.deepEqual(await api.publicKey({alias:'i',hardwareRequirement:'any'}),{publicKeyPem:'public',backing:'keychain'});
   assert.equal(typeof api.prepare,'function');assert.equal(typeof api.enrollmentProof,'function');
+  const report=require('../../../conformance/v0/local-risk-bridge.json').reports[0].report;
+  module={invoke:async(op,payload)=>{assert.equal(op,'scanLocalRisk');assert.equal(payload,'{}');return JSON.stringify({ok:true,result:report});}};
+  assert.deepEqual(await api.scanLocalRisk(),report);
+  module=null;await assert.rejects(()=>api.scanLocalRisk(),e=>e.code==='APPGUARD_NATIVE_UNAVAILABLE');
  } finally {Module._load=original;}
 });

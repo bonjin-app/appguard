@@ -6,9 +6,10 @@ from pathlib import Path
 import subprocess
 parser=argparse.ArgumentParser(description=__doc__)
 parser.add_argument('--unity',required=True,type=Path)
+parser.add_argument('--evidence-directory',type=Path)
 args=parser.parse_args()
 package=Path(__file__).resolve().parents[1]
-project=package/'.tools'/'project';evidence=package/'.evidence'
+project=package/'.tools'/'project';evidence=(args.evidence_directory or package/'.evidence').resolve()
 for path in [project/'Assets',project/'Packages',project/'ProjectSettings',evidence]:path.mkdir(parents=True,exist_ok=True)
 (project/'Packages'/'manifest.json').write_text(json.dumps({'dependencies':{'io.appguard.unity':'file:'+str(package),'com.unity.test-framework':'1.6.0'},'testables':['io.appguard.unity']}))
 (project/'ProjectSettings'/'ProjectVersion.txt').write_text('m_EditorVersion: 6000.3.24f1\n')
