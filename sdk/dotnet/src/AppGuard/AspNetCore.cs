@@ -17,6 +17,9 @@ public sealed class AppGuardOptions
     }
 }
 public interface IAppGuardVerificationFeature{VerificationResult Result{get;}}
+/// <summary>Trusted host capture of original duplicate-preserving header names/values before server normalization.
+/// Never populate this feature from IHttpRequestFeature.Headers or client-supplied metadata.</summary>
+public interface IAppGuardRawHeadersFeature{IReadOnlyList<HeaderPair> Headers{get;}}
 sealed class AppGuardVerificationFeature(VerificationResult result):IAppGuardVerificationFeature{public VerificationResult Result{get;}=result;}
 /// <summary>Install before body parsing/decompression/rewriting and after existing authentication that preserves raw input.</summary>
 public sealed class AppGuardMiddleware
@@ -31,15 +34,13 @@ public sealed class AppGuardMiddleware
             var raw=context.Features.Get<IHttpRequestFeature>();
             if(raw is null||string.IsNullOrEmpty(raw.RawTarget)||!_options.AllowInsecureTransport&&(!string.Equals(raw.Scheme,"https",StringComparison.OrdinalIgnoreCase)||context.Features.Get<ITlsConnectionFeature>() is null))throw new AppGuardException("INVALID_REQUEST");
             context.RequestAborted.ThrowIfCancellationRequested();
+            var originalHeaders=context.Features.Get<IAppGuardRawHeadersFeature>();
+            if(originalHeaders?.Headers is null)throw new AppGuardException("INVALID_REQUEST");
             var headers=new List<HeaderPair>();int size=0;
-            foreach(var h in raw.Headers)
+            foreach(var h in originalHeaders.Headers)
             {
-                if(h.Value.Count==0)throw new AppGuardException("INVALID_REQUEST");
-                foreach(var value in h.Value)
-                {
-                    if(value is null||headers.Count==64||h.Key.Length>16384||value.Length>16384||(size+=h.Key.Length+value.Length)>16384)throw new AppGuardException("INVALID_REQUEST");
-                    headers.Add(new(h.Key,value));
-                }
+                if(h.Name is null||h.Value is null||headers.Count==64||h.Name.Length>16384||h.Value.Length>16384||(size+=h.Name.Length+h.Value.Length)>16384)throw new AppGuardException("INVALID_REQUEST");
+                headers.Add(new(h.Name,h.Value));
             }
             var envelope=Wire.Parse(headers);
             original=raw.Body;

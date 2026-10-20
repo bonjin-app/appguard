@@ -14,6 +14,8 @@ Task 1 of `docs/superpowers/plans/2026-10-20-appguard-extended-servers.md`, comp
 
 ## Verification outcomes
 
+Parent whole-stage review follow-up: a real Kestrel raw-TCP probe accepted normalized whitespace, noncanonical Content-Length and CL+TE ambiguity. Seven new behavioral regressions reproduced those acceptances/missing-evidence paths (17/24 passed,7 failed). Middleware now requires trusted `IAppGuardRawHeadersFeature` retaining original names/values, and the test-only connection capture supplies literal header evidence before Kestrel parsing. Targeted middleware suite24/24 passed after the fix, including actual TCP malformed-header rejection with zero nonce claims. No production collector, TLS/H2 or keep-alive capture is claimed. Final full-suite/pack and fresh native probe readback are parent integration evidence.
+
 1. Test-first API scaffold: **163 cases, 119 failed / 44 passed**. Positive request/wire/policy cases and missing implementation behavior failed as expected (`.evidence/red.log`).
 2. Implemented core/middleware/policy/audit: **163 / 163 passed** (`green-1.log`).
 3. Additional transport regression: `SchemeAndForwardedHeadersCannotFakeTlsTransport` failed because a rewritten HTTPS scheme reached downstream without a TLS feature; **1 failed / 165 passed** (`tls-red.log`).
@@ -25,7 +27,7 @@ Task 1 of `docs/superpowers/plans/2026-10-20-appguard-extended-servers.md`, comp
 
 The 168 cases include **all 40 request, 43 HTTP envelope and 42 policy corpus cases**, plus 43 security/middleware cases. Extra coverage includes independent native .NET P-256 signatures, exact 64-byte raw versus DER format, wrong curves/private keys/trailing PEM/key expiry, invalid timestamp/null inputs, digest/signature validation before replay, equivalent ECDSA signatures sharing one nonce, a 100-way atomic claim race, capacity/expiry/cancellation/store errors, defensive copies, default missing authentication, policy/audit validation and callback redaction.
 
-Four actual Kestrel HTTP/1.1 tests send raw TCP requests over owned ephemeral loopback listeners. They cover encoded target case/order and configured-origin behavior despite hostile Host/forwarding values; an explicit empty query; singleton duplicates; altered target/framing; chunked framing with exact downstream body; and replay rejection. Direct middleware tests cover missing raw feature/target, scheme spoofing, trusted clock after authentication, identity preservation, dependency failure/status redaction, overflow/incomplete body/cancellation, and downstream exception/body-restoration behavior. These are local virtual server tests, not deployment or physical-device proof.
+The original four actual Kestrel HTTP/1.1 tests send raw TCP requests over owned ephemeral loopback listeners. They cover encoded target case/order and configured-origin behavior despite hostile Host/forwarding values; an explicit empty query; singleton duplicates; altered target/framing; chunked framing with exact downstream body; and replay rejection. Direct middleware tests cover missing raw feature/target, scheme spoofing, trusted clock after authentication, identity preservation, dependency failure/status redaction, overflow/incomplete body/cancellation, and downstream exception/body-restoration behavior. These are local virtual server tests, not deployment or physical-device proof.
 
 ## Artifact
 
@@ -56,7 +58,7 @@ The test-only probe accepts one object or an array (1..100 fixtures, file at mos
 
 - No distributed store is included or simulated as production-ready. `InMemoryReplayStore` is explicit, bounded, atomic, volatile and **process-local**. A real deployment must supply and test its shared `IReplayStore`; no Redis/backend durability, eviction, replication or restart claim was tested.
 - Default secure transport uses trusted `ITlsConnectionFeature` plus HTTPS scheme, since forwarding middleware can rewrite scheme. Hosts without that trusted feature reject unless the operator explicitly enables the documented insecure/TLS-termination boundary. Actual TLS handshake, HTTP/2/3, IIS/HTTP.sys, reverse proxies, decompression and production deployment were not integration-tested.
-- Headers reflect the server feature collection with each value enumerated. No API can recover evidence previously normalized/discarded by a proxy/server or body-consuming middleware. Installation order and trusted feature capture remain host obligations; unavailable target/body evidence fails closed when observable.
+- Original duplicate/lexeme-preserving headers are mandatory through `IAppGuardRawHeadersFeature`; normalized server header collections are rejected as a substitute. Capturing and binding evidence to the same request before normalization remains the host's responsibility. Missing capture fails closed before authentication/nonce use. No production collector is supplied.
 - Authentication, key enrollment/revocation distribution, platform attestation, application rate limiting, resource authorization, audit availability/retention/privacy and production provider state remain caller-owned. Signature success cannot grant any of those properties.
 - Parent's fresh whole-stage review and independently generated fresh Android/Apple signature runs remain separate evidence tiers.
 
@@ -70,3 +72,17 @@ Only that exact certificate/private-key identity was removed using `security del
 - SHA-1 `662AAA3687F657D60FFB3E3E7F76074CB318A66C`
 
 Fresh post-verification readback found no localhost certificate and zero matching SSL server identities. No pre-existing identity was removed. All later SDK commands and the checked-in verification script set `DOTNET_GENERATE_ASPNET_CERTIFICATE=false`; no global SDK installation or shell/profile changes were made. Detailed cleanup evidence is in `.evidence/certificate-cleanup.txt`.
+
+
+## Parent final integration after the header-evidence fix
+
+The actual full extended-server runner passed: locked restore, **175/175 tests,
+zero failures/skips**, Release solution build with0 warnings/errors and package
+creation. All40 request,43 HTTP and42 policy vectors remain included. A fresh
+local-only NuGet consumer with a new empty package cache checks the mandatory
+`IAppGuardRawHeadersFeature` API and verifies1 newly generated Android plus8
+newly generated Apple fixtures, with replay/body/target/token rejection. The
+consumer references the `.nupkg`, not the source project. The artifact hash below
+supersedes the historical168-test snapshot above; no publication is claimed.
+
+Final post-fix nupkg SHA-256: `d116ee3e83efedcd99f1d7060889e06f46f0e6ef4a077d0e9729bb9fb2160a81`. Packed README includes the mandatory original-header evidence feature; package inventory contains no tools/tests/private material.

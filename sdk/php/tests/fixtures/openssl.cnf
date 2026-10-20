@@ -1,0 +1,4 @@
+# Test-only OpenSSL configuration, so generated keys do not consult user settings.
+[req]
+distinguished_name = req_distinguished_name
+[req_distinguished_name]

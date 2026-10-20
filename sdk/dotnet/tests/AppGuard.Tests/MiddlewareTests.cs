@@ -5,6 +5,7 @@ using System.Text;
 using AppGuard;
 using AppGuard.AspNetCore;
 using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Connections;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.Features;
@@ -13,19 +14,28 @@ using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Xunit;
+using System.Buffers;
 
 namespace AppGuard.Tests;
 
 public class MiddlewareTests
 {
     static AppGuardOptions Options(SecurityTests.Signed s,IReplayStore? replay=null,bool insecure=true,Func<HttpContext,CancellationToken,ValueTask<string?>>? auth=null,Func<HttpContext,string,SignatureParameters,CancellationToken,ValueTask<KeyRecord?>>? key=null,Func<long>? clock=null)=>new("app","https://api.example.test",replay??new InMemoryReplayStore(),auth??((_,_)=>ValueTask.FromResult<string?>("subject")),key??((_,_,_,_)=>ValueTask.FromResult<KeyRecord?>(s.Key)),clock??(()=>100),insecure);
-    internal static DefaultHttpContext Context(SecurityTests.Signed s,bool target=true)
+    sealed record CapturedHeaders(IReadOnlyList<HeaderPair> Headers):IAppGuardRawHeadersFeature;
+    internal static DefaultHttpContext Context(SecurityTests.Signed s,bool target=true,bool headerEvidence=true)
     {
         var c=new DefaultHttpContext();c.Request.Method="POST";c.Request.Scheme="http";c.Features.Get<IHttpRequestFeature>()!.RawTarget=target?s.Request.Target:null!;
         foreach(var p in s.WireHeaders)c.Request.Headers.Append(p.Name,p.Value);
+        if(headerEvidence)c.Features.Set<IAppGuardRawHeadersFeature>(new CapturedHeaders(s.WireHeaders));
         c.Request.Body=new MemoryStream(s.Request.Body.ToArray());c.Response.Body=new MemoryStream();return c;
     }
     static async Task<string> Response(DefaultHttpContext c){c.Response.Body.Position=0;return await new StreamReader(c.Response.Body).ReadToEndAsync();}
+    [Fact] public async Task MissingOriginalHeaderEvidenceRejectsBeforeIdentityOrNonce()
+    {
+        using var s=new SecurityTests.Signed();var c=Context(s,headerEvidence:false);var store=new SecurityTests.CountingStore();bool called=false,authenticated=false;
+        await new AppGuardMiddleware(_=>{called=true;return Task.CompletedTask;},Options(s,store,auth:(_,_)=>{authenticated=true;return ValueTask.FromResult<string?>("subject");})).InvokeAsync(c);
+        Assert.False(called);Assert.False(authenticated);Assert.Equal(400,c.Response.StatusCode);Assert.Equal(0,store.Count);
+    }
     [Fact] public async Task SchemeAndForwardedHeadersCannotFakeTlsTransport()
     {
         using var s=new SecurityTests.Signed();var c=Context(s);c.Request.Scheme="https";c.Request.Headers.Append("Forwarded","proto=https");var store=new SecurityTests.CountingStore();bool called=false;
@@ -66,7 +76,7 @@ public class MiddlewareTests
     {
         using var s=new SecurityTests.Signed();var store=new SecurityTests.CountingStore();
         var c=Context(s);c.Request.Body=new MemoryStream(new byte[1048577]);await new AppGuardMiddleware(_=>throw new Exception(),Options(s,store)).InvokeAsync(c);Assert.Equal(413,c.Response.StatusCode);
-        c=Context(s);c.Request.Headers.ContentLength=100;await new AppGuardMiddleware(_=>throw new Exception(),Options(s,store)).InvokeAsync(c);Assert.Equal(400,c.Response.StatusCode);
+        c=Context(s);c.Request.Headers.ContentLength=100;c.Features.Set<IAppGuardRawHeadersFeature>(new CapturedHeaders(s.WireHeaders.Concat([new HeaderPair("Content-Length","100")]).ToArray()));await new AppGuardMiddleware(_=>throw new Exception(),Options(s,store)).InvokeAsync(c);Assert.Equal(400,c.Response.StatusCode);
         c=Context(s);c.Request.Body=new BrokenBody();await new AppGuardMiddleware(_=>throw new Exception(),Options(s,store)).InvokeAsync(c);Assert.Equal(400,c.Response.StatusCode);
         c=Context(s);c.RequestAborted=new CancellationToken(true);await new AppGuardMiddleware(_=>throw new Exception(),Options(s,store)).InvokeAsync(c);Assert.NotEqual(200,c.Response.StatusCode);Assert.Equal(0,store.Count);
     }
@@ -99,19 +109,49 @@ public class MiddlewareTests
         using var s=new SecurityTests.Signed();await using var server=await Start(s);var raw=await Send(Port(server),s,"/encoded%2Fpath?a=1&b=2",[]);Assert.Contains("INVALID_SIGNATURE",raw);
         raw=await Send(Port(server),s,s.Request.Target,[new("Content-Length","2")]);Assert.Contains("400 Bad Request",raw);
     }
-    static async Task<WebApplication> Start(SecurityTests.Signed s)
+    [Theory] [InlineData("signed-ows")] [InlineData("signature-ows")] [InlineData("unrelated-ows")] [InlineData("length-zero")] [InlineData("length-and-chunked")]
+    public async Task ActualKestrelRejectsOriginalHeaderLexemesBeforeNormalization(string kind)
     {
-        var b=WebApplication.CreateBuilder();b.Logging.ClearProviders();b.WebHost.ConfigureKestrel(k=>k.Listen(IPAddress.Loopback,0));var app=b.Build();
+        using var s=new SecurityTests.Signed();var store=new SecurityTests.CountingStore();await using var server=await Start(s,store);
+        HeaderPair[] extra=kind switch{"unrelated-ows"=>[new("X-Unrelated","invalid ")],"length-and-chunked"=>[new("Content-Length","999")],_=>[]};
+        HeaderPair[] Transform(HeaderPair[] pairs)=>pairs.Select(h=>((kind=="signed-ows"&&h.Name.Equals("Content-Type",StringComparison.OrdinalIgnoreCase))||(kind=="signature-ows"&&h.Name.Equals("Signature",StringComparison.OrdinalIgnoreCase)))?new HeaderPair(h.Name,h.Value+" "):h).ToArray();
+        var response=await Send(Port(server),s,s.Request.Target,extra,chunked:kind=="length-and-chunked",transform:Transform,contentLength:kind=="length-zero"?"02":null);
+        Assert.Contains("400 Bad Request",response);Assert.DoesNotContain("downstream:",response);Assert.Equal(0,store.Count);
+    }
+    [Fact] public async Task ActualKestrelWithoutPreParserCaptureFailsClosed()
+    {
+        using var s=new SecurityTests.Signed();var store=new SecurityTests.CountingStore();await using var server=await Start(s,store,capture:false);
+        var response=await Send(Port(server),s,s.Request.Target,[]);Assert.Contains("400 Bad Request",response);Assert.DoesNotContain("downstream:",response);Assert.Equal(0,store.Count);
+    }
+    // Test-only one-request HTTP/1 capture. Keep-alive, TLS and H2 require a real
+    // host ingress implementation; this fixture never reconstructs parsed fields.
+    static async Task CaptureHeaders(ConnectionContext connection)
+    {
+        while(true)
+        {
+            var read=await connection.Transport.Input.ReadAsync(connection.ConnectionClosed);var buffer=read.Buffer;var bytes=buffer.ToArray();var text=Encoding.Latin1.GetString(bytes);var end=text.IndexOf("\r\n\r\n",StringComparison.Ordinal);
+            if(end>=0)
+            {
+                if(end>32768)throw new IOException("test header bound");var pairs=new List<HeaderPair>();var lines=text[..end].Split("\r\n");
+                foreach(var line in lines.Skip(1)){var colon=line.IndexOf(':');if(colon<=0)throw new IOException("test header syntax");var value=line[(colon+1)..];if(value.StartsWith(" ",StringComparison.Ordinal))value=value[1..];pairs.Add(new(line[..colon],value));}
+                connection.Features.Set<IAppGuardRawHeadersFeature>(new CapturedHeaders(pairs.ToArray()));connection.Transport.Input.AdvanceTo(buffer.Start,buffer.Start);return;
+            }
+            connection.Transport.Input.AdvanceTo(buffer.Start,buffer.End);if(read.IsCompleted||buffer.Length>32768)throw new IOException("test incomplete headers");
+        }
+    }
+    static async Task<WebApplication> Start(SecurityTests.Signed s,IReplayStore? replay=null,bool capture=true)
+    {
+        var b=WebApplication.CreateBuilder();b.Logging.ClearProviders();b.WebHost.ConfigureKestrel(k=>k.Listen(IPAddress.Loopback,0,l=>{if(capture)l.Use(next=>async connection=>{await CaptureHeaders(connection);await next(connection);});}));var app=b.Build();
         app.Use(async(c,next)=>{c.User=new ClaimsPrincipal(new ClaimsIdentity([new Claim("sub","subject")],"existing"));await next();});
-        app.UseAppGuard(Options(s,auth:(c,_)=>ValueTask.FromResult(c.User.FindFirst("sub")?.Value)));
+        app.UseAppGuard(Options(s,replay,auth:(c,_)=>ValueTask.FromResult(c.User.FindFirst("sub")?.Value)));
         app.Run(async c=>{using var m=new MemoryStream();await c.Request.Body.CopyToAsync(m);await c.Response.WriteAsync("downstream:"+c.User.FindFirst("sub")!.Value+":"+Convert.ToBase64String(m.ToArray()));});await app.StartAsync();return app;
     }
     static int Port(WebApplication app)=>new Uri(app.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()!.Addresses.Single()).Port;
-    static async Task<string> Send(int port,SecurityTests.Signed s,string target,HeaderPair[] extra,bool chunked=false)
+    static async Task<string> Send(int port,SecurityTests.Signed s,string target,HeaderPair[] extra,bool chunked=false,Func<HeaderPair[],HeaderPair[]>? transform=null,string? contentLength=null)
     {
         using var tcp=new TcpClient();await tcp.ConnectAsync(IPAddress.Loopback,port);var stream=tcp.GetStream();
-        var headers=new StringBuilder("POST "+target+" HTTP/1.1\r\n");foreach(var h in s.WireHeaders.Concat(extra))headers.Append(h.Name+": "+h.Value+"\r\n");
-        if(!extra.Any(h=>h.Name.Equals("Host",StringComparison.OrdinalIgnoreCase)))headers.Append("Host: api.example.test\r\n");headers.Append(chunked?"Transfer-Encoding: chunked\r\nConnection: close\r\n\r\n":"Content-Length: "+s.Request.Body.Length+"\r\nConnection: close\r\n\r\n");
+        var headers=new StringBuilder("POST "+target+" HTTP/1.1\r\n");foreach(var h in transform is null?s.WireHeaders.Concat(extra):transform(s.WireHeaders.Concat(extra).ToArray()))headers.Append(h.Name+": "+h.Value+"\r\n");
+        if(!extra.Any(h=>h.Name.Equals("Host",StringComparison.OrdinalIgnoreCase)))headers.Append("Host: api.example.test\r\n");headers.Append(chunked?"Transfer-Encoding: chunked\r\nConnection: close\r\n\r\n":"Content-Length: "+(contentLength??s.Request.Body.Length.ToString(System.Globalization.CultureInfo.InvariantCulture))+"\r\nConnection: close\r\n\r\n");
         await stream.WriteAsync(Encoding.ASCII.GetBytes(headers.ToString()));if(chunked)await stream.WriteAsync(Encoding.ASCII.GetBytes(s.Request.Body.Length.ToString("x",System.Globalization.CultureInfo.InvariantCulture)+"\r\n"));await stream.WriteAsync(s.Request.Body);if(chunked)await stream.WriteAsync("\r\n0\r\n\r\n"u8.ToArray());using var reader=new StreamReader(stream);return await reader.ReadToEndAsync().WaitAsync(TimeSpan.FromSeconds(10));
     }
 }

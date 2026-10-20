@@ -1,0 +1,34 @@
+{
+  "name": "appguard/server",
+  "description": "Experimental strict AppGuard v0 PHP verifier and trusted-evidence native request adapter",
+  "type": "library",
+  "license": "Apache-2.0",
+  "require": {
+    "ext-hash": "*",
+    "ext-json": "*",
+    "ext-openssl": "*",
+    "php": ">=8.2",
+    "php-64bit": ">=8.2"
+  },
+  "autoload": {
+    "classmap": [
+      "src/"
+    ]
+  },
+  "scripts": {
+    "test": "@php -n tests/run-all.php"
+  },
+  "config": {
+    "allow-plugins": false,
+    "sort-packages": true
+  },
+  "archive": {
+    "exclude": [
+      "/.tools/",
+      "/.evidence/",
+      "/vendor/",
+      "/tests/",
+      "/tools/"
+    ]
+  }
+}
