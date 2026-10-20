@@ -4,6 +4,8 @@ import base64
 from pathlib import Path
 
 import pytest
+from cryptography.hazmat.primitives import hashes, serialization
+from cryptography.hazmat.primitives.asymmetric import ec, utils
 
 from appguard_reference.types import KeyRecord, RequestInput, SignatureParameters
 
@@ -47,3 +49,20 @@ def signature():
 @pytest.fixture
 def key_record(public_key):
     return KeyRecord("test-app", "test-key", "test-user", public_key, "ecdsa-p256-sha256", False)
+
+
+@pytest.fixture
+def sign_case():
+    """Test-only signer for boundary cases; fixed OpenSSL fixtures remain separate."""
+    from appguard_reference.canonical import build_signature_base
+
+    private = ec.generate_private_key(ec.SECP256R1())
+    pem = private.public_key().public_bytes(serialization.Encoding.PEM, serialization.PublicFormat.SubjectPublicKeyInfo)
+
+    def sign(request, parameters):
+        base = build_signature_base(request, parameters, origin=ORIGIN)
+        r, s = utils.decode_dss_signature(private.sign(base, ec.ECDSA(hashes.SHA256())))
+        return KeyRecord("test-app", parameters.key_id, "test-user", pem, parameters.algorithm, False), (
+            r.to_bytes(32, "big") + s.to_bytes(32, "big"))
+
+    return sign
