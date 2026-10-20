@@ -1,0 +1,15 @@
+plugins {
+  id 'com.android.library'
+  id 'expo-module-gradle-plugin'
+}
+group = 'io.appguard.expo'
+version = '0.0.0-experimental.1'
+android {
+  namespace 'expo.modules.appguard'
+  defaultConfig { minSdkVersion 26 }
+  sourceSets.main.java.srcDir '../vendor/android/src/main/java'
+  compileOptions {
+    sourceCompatibility JavaVersion.VERSION_17
+    targetCompatibility JavaVersion.VERSION_17
+  }
+}

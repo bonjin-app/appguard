@@ -1,0 +1,9 @@
+node_modules/
+build/
+vendor/
+PROVENANCE.json
+.tools/
+.evidence/
+.gradle/
+*.tgz
+local.properties

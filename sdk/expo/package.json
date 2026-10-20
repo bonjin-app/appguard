@@ -1,0 +1,50 @@
+{
+  "name": "@appguard/expo",
+  "version": "0.0.0-experimental.1",
+  "description": "Experimental AppGuard native client bridge (Expo SDK 58)",
+  "main": "build/index.js",
+  "types": "build/index.d.ts",
+  "license": "Apache-2.0",
+  "author": "AppGuard contributors",
+  "homepage": "https://github.com/bonjin-app/appguard",
+  "files": [
+    "build",
+    "src",
+    "android",
+    "apple",
+    "ios",
+    "vendor",
+    "expo-module.config.json",
+    "app.plugin.cjs",
+    "README.md",
+    "BRIDGE_CONTRACT.md",
+    "VERIFICATION.md",
+    "LICENSE",
+    "PROVENANCE.json"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "test": "npm run build && node --test test/*.test.cjs",
+    "stage:native": "node scripts/stage-native.mjs",
+    "prepack": "npm run stage:native && npm run build",
+    "verify:pack": "node scripts/verify-pack.mjs"
+  },
+  "peerDependencies": {
+    "expo": "^58.0.0",
+    "react": "19.3.0",
+    "react-native": "0.88.x"
+  },
+  "devDependencies": {
+    "expo": "58.0.16",
+    "expo-modules-core": "58.0.23",
+    "@expo/config-plugins": "58.0.9",
+    "react": "19.3.0",
+    "react-native": "0.88.0",
+    "typescript": "6.0.3",
+    "@types/react": "19.3.0"
+  },
+  "engines": {
+    "node": ">=22.13.0"
+  }
+}

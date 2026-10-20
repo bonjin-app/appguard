@@ -1,0 +1,20 @@
+{
+  "platforms": [
+    "android",
+    "apple"
+  ],
+  "apple": {
+    "modules": [
+      "AppGuardModule"
+    ],
+    "podspecPath": [
+      "apple/AppGuardApple.podspec",
+      "ios/AppGuardExpo.podspec"
+    ]
+  },
+  "android": {
+    "modules": [
+      "expo.modules.appguard.AppGuardModule"
+    ]
+  }
+}
