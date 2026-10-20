@@ -41,4 +41,26 @@ public class LocalRiskScannerInstrumentedTest {
         assertTrue(report.checks().get("root_artifact") != not_configured);
         assertTrue(report.checks().get("hook_artifact") != not_configured);
     }
+    @Test public void jsonBridgeUsesActualIdentitySignerAndAssetsWithoutKeyOptions() throws Exception {
+        Context context = InstrumentationRegistry.getInstrumentation().getContext();
+        String signer = InstrumentationRegistry.getArguments().getString("expectedSignerSha256");
+        assertNotNull(signer);
+        org.json.JSONObject input = new org.json.JSONObject().put("expectedAppId",context.getPackageName())
+            .put("androidSignerSha256",new org.json.JSONArray().put(signer))
+            .put("protectedResources",new org.json.JSONObject().put("local-risk-fixture.bin",
+                "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"));
+        String response = new NativeBridge(context).invoke("scanLocalRisk",input.toString());
+        assertTrue(response.getBytes(java.nio.charset.StandardCharsets.UTF_8).length<=4096);
+        org.json.JSONObject envelope = new org.json.JSONObject(response);
+        assertTrue(envelope.getBoolean("ok"));
+        org.json.JSONObject report=envelope.getJSONObject("result");
+        assertEquals("android",report.getString("platform"));
+        assertEquals("appguard-local-risk-v0",report.getString("schema"));
+        org.json.JSONArray checks=report.getJSONArray("checks");assertEquals(7,checks.length());
+        for(int i=4;i<7;i++)assertEquals("not_observed",checks.getJSONObject(i).getString("state"));
+        assertFalse(response.contains(context.getPackageName()));assertFalse(response.contains(signer));
+        assertFalse(response.contains("local-risk-fixture.bin"));
+        android.os.Bundle receipt=new android.os.Bundle();receipt.putString("appguardRiskBridgeReport",response);
+        InstrumentationRegistry.getInstrumentation().sendStatus(2,receipt);
+    }
 }

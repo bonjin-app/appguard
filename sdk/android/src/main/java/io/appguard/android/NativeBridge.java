@@ -8,6 +8,9 @@ import java.util.Base64;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Set;
+import java.util.List;
+import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.function.LongSupplier;
 import org.json.JSONArray;
 import org.json.JSONObject;
@@ -22,15 +25,17 @@ public final class NativeBridge {
     private static final Set<String> ENROLLMENT = fields("alias", "hardwareRequirement", "challenge", "expectedAppId",
             "expectedOrigin", "expectedSubject", "expectedKeyId");
     private static final Set<String> CHALLENGE = fields("appId", "origin", "subject", "keyId", "publicKeySha256", "nonce", "expires");
+    private static final Set<String> RISK = fields("expectedAppId", "androidSignerSha256", "protectedResources");
     private final KeyProvider keys;
     private final LongSupplier clock;
+    private final RiskProvider risk;
 
     /** Uses only this application's installation keys and the native wall clock. */
     public NativeBridge(Context context) {
         this((alias, requirement) -> {
             AndroidInstallationKey key = AndroidInstallationKey.getOrCreate(context, alias, requirement);
             return new KeyHandle(key, key.backing().name());
-        }, () -> Instant.now().getEpochSecond());
+        }, () -> Instant.now().getEpochSecond(), config -> new LocalRiskScanner(context).scan(config));
     }
 
     // Package-private seams substitute only key storage and wall time in host tests.
@@ -40,11 +45,14 @@ public final class NativeBridge {
         final String backing;
         KeyHandle(RequestSigner.PublicSigningKey key, String backing) { this.key = key; this.backing = backing; }
     }
-    NativeBridge(KeyProvider keys, LongSupplier clock) { this.keys = keys; this.clock = clock; }
+    interface RiskProvider { LocalRiskScanner.Report scan(LocalRiskScanner.Config config) throws Exception; }
+    NativeBridge(KeyProvider keys, LongSupplier clock) { this(keys, clock, config -> { throw new IllegalStateException(); }); }
+    NativeBridge(KeyProvider keys, LongSupplier clock, RiskProvider risk) { this.keys = keys; this.clock = clock; this.risk = risk; }
 
     /** Always returns the fixed JSON envelope. Native exception messages never cross this boundary. */
     public String invoke(String operation, String payload) {
         try {
+            if ("scanLocalRisk".equals(operation)) return scanLocalRisk(payload);
             Set<String> fields;
             if ("publicKey".equals(operation)) fields = COMMON;
             else if ("prepare".equals(operation)) fields = PREPARE;
@@ -108,6 +116,37 @@ public final class NativeBridge {
         }
     }
 
+    private String scanLocalRisk(String payload) throws Exception {
+        if (payload == null || payload.length() > 8192 || payload.getBytes(StandardCharsets.UTF_8).length > 8192)
+            throw new IllegalArgumentException();
+        Map<String,Object> object = StrictJSON.parse(payload);
+        if (!RISK.containsAll(object.keySet())) throw new IllegalArgumentException();
+        String appId = object.containsKey("expectedAppId") ? string(object,"expectedAppId") : null;
+        Set<String> pins = new HashSet<>();
+        if (object.containsKey("androidSignerSha256")) {
+            Object values = object.get("androidSignerSha256");
+            if (!(values instanceof List)) throw new IllegalArgumentException();
+            for (Object value : (List<?>) values) {
+                if (!(value instanceof String) || !pins.add((String) value)) throw new IllegalArgumentException();
+            }
+        }
+        Map<String,String> resources = new LinkedHashMap<>();
+        if (object.containsKey("protectedResources")) {
+            Object value = object.get("protectedResources");
+            if (!(value instanceof Map)) throw new IllegalArgumentException();
+            for (Map.Entry<?,?> entry : ((Map<?,?>) value).entrySet()) {
+                if (!(entry.getKey() instanceof String) || !(entry.getValue() instanceof String)) throw new IllegalArgumentException();
+                resources.put((String) entry.getKey(),(String) entry.getValue());
+            }
+        }
+        LocalRiskScanner.Config config = new LocalRiskScanner.Config(appId,pins,resources);
+        // Typed configuration validation completes before the first OS observation.
+        LocalRiskScanner.Report report = risk.scan(config);
+        String response = new JSONObject().put("ok",true).put("result",new JSONObject(report.toJson())).toString();
+        if (response.getBytes(StandardCharsets.UTF_8).length > 4096) throw new IllegalStateException();
+        return response;
+    }
+
     private final class LazyKey implements RequestSigner.PublicSigningKey {
         private final String alias;
         private final AndroidInstallationKey.Requirement requirement;
@@ -137,7 +176,7 @@ public final class NativeBridge {
     }
     private static String failure(String code) { return "{\"ok\":false,\"error\":{\"code\":\"" + code + "\"}}"; }
 
-    /** This schema has only objects, strings and unsigned integers. Reject all other JSON values,
+    /** This schema has objects, strings, bounded string arrays and unsigned integers. Reject all other JSON values,
      * duplicate decoded keys, invalid UTF-16, non-JSON whitespace and numeric coercions. Depth is bounded. */
     private static final class StrictJSON {
         private final String text;
@@ -157,9 +196,20 @@ public final class NativeBridge {
                 char ch = text.charAt(at); Object value;
                 if (ch == '"') value = quoted();
                 else if (ch == '{') value = object(depth + 1);
+                else if (ch == '[') value = stringArray();
                 else value = number();
                 result.put(name, value); whitespace();
                 if (take('}')) return result; expect(',');
+            }
+        }
+        private List<String> stringArray() {
+            expect('['); whitespace(); List<String> values = new ArrayList<>();
+            if (take(']')) return values;
+            while (true) {
+                if (values.size() == 8) invalid();
+                values.add(quoted()); whitespace();
+                if (take(']')) return values;
+                expect(','); whitespace();
             }
         }
         private Long number() {

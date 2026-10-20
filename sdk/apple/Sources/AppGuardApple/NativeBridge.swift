@@ -4,6 +4,7 @@ import Foundation
 public struct NativeBridge {
     private let keyProvider: (String, Bool) throws -> (any RequestSigningKey, InstallationKeyBacking)
     private let clock: () -> Int64
+    private let localRiskScanner: (LocalRiskConfiguration) -> LocalRiskReport
 
     /// Uses installation keys and the native wall clock. There is no bridge-supplied clock/key input.
     public init() {
@@ -13,14 +14,17 @@ public struct NativeBridge {
         }, clock: { Int64(Date().timeIntervalSince1970.rounded(.down)) })
     }
     // Internal seams keep host tests away from persistent user Keychain state.
-    init(keyProvider: @escaping (String, Bool) throws -> (any RequestSigningKey, InstallationKeyBacking), clock: @escaping () -> Int64) {
-        self.keyProvider = keyProvider; self.clock = clock
+    init(keyProvider: @escaping (String, Bool) throws -> (any RequestSigningKey, InstallationKeyBacking), clock: @escaping () -> Int64,
+         localRiskScanner: @escaping (LocalRiskConfiguration) -> LocalRiskReport = { LocalRiskScanner().scan(configuration: $0) }) {
+        self.keyProvider = keyProvider; self.clock = clock; self.localRiskScanner = localRiskScanner
     }
 
     /// Always returns the fixed response envelope; no underlying exception text is returned.
     public func invoke(operation: String, payload: String) -> String {
         var key: BridgeLazyKey?
         do {
+            // Scans validate their separate bounded schema before any key or clock path is reached.
+            if operation == "scanLocalRisk" { return try scanLocalRisk(payload) }
             let fields: Set<String>
             switch operation {
             case "publicKey": fields = ["alias", "hardwareRequirement"]
@@ -80,12 +84,41 @@ public struct NativeBridge {
             // The typed request preparer deliberately redacts signing errors; retain only the load-failure category.
             if key?.unavailable == true { return failure("APPGUARD_KEY_UNAVAILABLE") }
             switch error {
-            case AppGuardError.invalidRequest, AppGuardError.invalidTime, EnrollmentProofError.bindingMismatch, EnrollmentProofError.publicKeyMismatch:
+            case AppGuardError.invalidRequest, AppGuardError.invalidTime, EnrollmentProofError.bindingMismatch, EnrollmentProofError.publicKeyMismatch,
+                 LocalRiskError.invalidConfiguration:
                 return failure("APPGUARD_INVALID_INPUT")
             case AppGuardError.unsupportedProfile: return failure("APPGUARD_UNSUPPORTED")
             default: return failure("APPGUARD_OPERATION_FAILED")
             }
         }
+    }
+    private func scanLocalRisk(_ payload: String) throws -> String {
+        let object = try BridgeJSON.parse(payload, maxBytes: 8192, allowsStringArrays: true)
+        guard Set(object.keys).isSubset(of: ["expectedAppId", "androidSignerSha256", "protectedResources"]) else { throw AppGuardError.invalidRequest }
+        let expectedAppID = try object["expectedAppId"].map { _ in try string(object, "expectedAppId") }
+        var signers: [String] = []
+        if let value = object["androidSignerSha256"] {
+            guard case .strings(let values) = value, values.count <= 8, Set(values).count == values.count,
+                  values.allSatisfy({ value in
+                      value.utf8.count == 64 && value.utf8.allSatisfy { (48...57).contains($0) || (97...102).contains($0) }
+                  }) else { throw AppGuardError.invalidRequest }
+            signers = values
+        }
+        var resources: [String: String] = [:]
+        if let value = object["protectedResources"] {
+            guard case .object(let pins) = value else { throw AppGuardError.invalidRequest }
+            for (path, value) in pins {
+                guard case .string(let pin) = value else { throw AppGuardError.invalidRequest }
+                resources[path] = pin
+            }
+        }
+        let configuration = try LocalRiskConfiguration(expectedAppID: expectedAppID, protectedResources: resources)
+        // A configured platform check must never silently become an unconfigured iOS check.
+        guard signers.isEmpty else { return failure("APPGUARD_UNSUPPORTED") }
+        let encoder = JSONEncoder(); encoder.outputFormatting = [.sortedKeys, .withoutEscapingSlashes]
+        let data = try encoder.encode(BridgeRiskResponse(result: localRiskScanner(configuration)))
+        guard data.count <= 4096 else { return failure("APPGUARD_OPERATION_FAILED") }
+        return String(decoding: data, as: UTF8.self)
     }
     private func requireFields(_ object: [String: BridgeJSON.Value], _ fields: Set<String>) throws {
         guard Set(object.keys) == fields else { throw AppGuardError.invalidRequest }
@@ -97,6 +130,11 @@ public struct NativeBridge {
         guard case .integer(let value)? = object[name] else { throw AppGuardError.invalidRequest }; return value
     }
     private func failure(_ code: String) -> String { "{\"ok\":false,\"error\":{\"code\":\"" + code + "\"}}" }
+}
+
+private struct BridgeRiskResponse: Encodable {
+    let ok = true
+    let result: LocalRiskReport
 }
 
 private final class BridgeLazyKey: RequestSigningKey {
@@ -113,15 +151,17 @@ private final class BridgeLazyKey: RequestSigningKey {
     func publicKeyPEM() throws -> String { try load().0.publicKeyPEM() }
 }
 
-/// This schema contains only objects, strings and unsigned integers. Foundation object decoding
-/// would erase duplicate keys and numeric spelling, so validate the bounded grammar before coercion.
+/// Foundation object decoding would erase duplicate keys and numeric spelling, so validate the
+/// bounded grammar before coercion. Only scans permit bounded, flat arrays of strings.
 private struct BridgeJSON {
-    enum Value { case string(String), integer(Int64), object([String: Value]) }
+    enum Value { case string(String), integer(Int64), object([String: Value]), strings([String]) }
     private let bytes: [UInt8]
+    private let allowsStringArrays: Bool
     private var at = 0
-    static func parse(_ text: String) throws -> [String: Value] {
-        guard text.utf8.count <= 1_500_000 else { throw AppGuardError.invalidRequest }
-        var parser = BridgeJSON(bytes: Array(text.utf8)); let result = try parser.object(depth: 0); parser.whitespace()
+    static func parse(_ text: String, maxBytes: Int = 1_500_000, allowsStringArrays: Bool = false) throws -> [String: Value] {
+        guard text.utf8.count <= maxBytes else { throw AppGuardError.invalidRequest }
+        var parser = BridgeJSON(bytes: Array(text.utf8), allowsStringArrays: allowsStringArrays)
+        let result = try parser.object(depth: 0); parser.whitespace()
         guard parser.at == parser.bytes.count else { throw AppGuardError.invalidRequest }; return result
     }
     private mutating func object(depth: Int) throws -> [String: Value] {
@@ -135,10 +175,20 @@ private struct BridgeJSON {
             switch bytes[at] {
             case 34: value = .string(try quoted())
             case 123: value = .object(try object(depth: depth + 1))
+            case 91 where allowsStringArrays: value = .strings(try stringArray())
             default: value = .integer(try number())
             }
             result[name] = value; whitespace()
             if take(125) { return result }; try expect(44)
+        }
+    }
+    private mutating func stringArray() throws -> [String] {
+        try expect(91); whitespace(); var result: [String] = []
+        if take(93) { return result }
+        while true {
+            guard result.count < 8 else { throw AppGuardError.invalidRequest }
+            whitespace(); result.append(try quoted()); whitespace()
+            if take(93) { return result }; try expect(44)
         }
     }
     private mutating func number() throws -> Int64 {
