@@ -24,6 +24,12 @@ const wire=parseSignatures([...req.headers,['Signature-Input','appguard='+serial
 const key={app_id:'app',key_id:'key',subject:'user',algorithm:p.algorithm,revoked:false,public_key_pem:publicKey.export({type:'spki',format:'pem'})};
 assert.equal((await verifyRequest(req,wire.parameters,wire.signature,{origin:'https://api.example.test',app_id:'app',subject:'user',key,now:p.created,replay:new InMemoryReplayStore()})).code,'VERIFIED');
 assert.equal(typeof expressMiddleware({app_id:'app',origin:'https://api.example.test',replay:new InMemoryReplayStore(),identityResolver:()=>({subject:'user',key})}),'function');
+const {Policy,PolicyContext,evaluatePolicy,auditEvent,JsonAuditSink}=await import('@appguard/server');
+const decision=evaluatePolicy(new Policy(),new PolicyContext(),{now:100});
+assert.equal(decision.code,'AUTHENTICATION_REQUIRED');
+const metadata={event_id:'e',app_id:'a',now:100}; const auditLines=[];
+await new JsonAuditSink(line=>auditLines.push(line)).emit(decision,metadata);
+assert.deepEqual(JSON.parse(auditLines[0]),auditEvent(decision,metadata));
 console.log('Isolated packed ESM import, native signature, parser, replay and middleware factory passed');`;
 writeFileSync(resolve(install, 'smoke.mjs'), script);
 const output = execFileSync(process.execPath, ['smoke.mjs'], { cwd: install, encoding:'utf8' });

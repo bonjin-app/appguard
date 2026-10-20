@@ -51,3 +51,52 @@ export function expressMiddleware(options: AdapterOptions): GuardMiddleware;
 export const nestMiddleware: typeof expressMiddleware;
 /** Synchronously install before all other Fastify hooks and route definitions. */
 export function installFastify(server: { server: Server; addHook: (...args: any[]) => unknown }, options: AdapterOptions): void;
+
+export type PolicyProfile = 'basic' | 'balanced' | 'strict';
+export type AuthenticationState = 'authenticated' | 'missing' | 'invalid';
+export type RequestVerificationState = 'verified' | 'missing' | 'rejected' | 'unavailable';
+export type AttestationState = 'verified' | 'missing' | 'unsupported' | 'rejected' | 'unavailable';
+export type PolicyAction = 'allow' | 'observe' | 'step_up' | 'deny';
+export type PolicyDecisionCode = 'AUTHENTICATION_REQUIRED' | 'AUTHENTICATION_INVALID' | 'REQUEST_REJECTED' | 'VERIFICATION_UNAVAILABLE' | 'SIGNATURE_REQUIRED' | 'ATTESTATION_REJECTED' | 'RATE_LIMITED' | 'ATTESTATION_MISSING' | 'ATTESTATION_UNSUPPORTED' | 'ATTESTATION_UNAVAILABLE' | 'ATTESTATION_EXPIRED' | 'RISK_DETECTED' | 'ALLOWED';
+export class PolicyError extends Error {
+  readonly code: 'INVALID_POLICY' | 'INVALID_POLICY_CONTEXT' | 'INVALID_POLICY_DECISION';
+  constructor(code?: 'INVALID_POLICY' | 'INVALID_POLICY_CONTEXT' | 'INVALID_POLICY_DECISION');
+}
+export interface PolicyOptions { profile?: PolicyProfile; require_signature?: boolean; suspicious_signals?: readonly string[]; }
+export class Policy {
+  private readonly policyBrand: never;
+  readonly profile: PolicyProfile;
+  readonly require_signature: boolean;
+  readonly suspicious_signals: readonly string[];
+  constructor(options?: PolicyOptions);
+}
+export interface PolicyContextOptions { authentication?: AuthenticationState; verification?: RequestVerificationState; attestation?: AttestationState; attestation_expires?: number | null; risk_signals?: readonly string[]; rate_limited?: boolean; }
+export class PolicyContext {
+  private readonly contextBrand: never;
+  readonly authentication: AuthenticationState;
+  readonly verification: RequestVerificationState;
+  readonly attestation: AttestationState;
+  readonly attestation_expires: number | null;
+  readonly risk_signals: readonly string[];
+  readonly rate_limited: boolean;
+  constructor(options?: PolicyContextOptions);
+}
+export class PolicyDecision {
+  private readonly decisionBrand: never;
+  readonly action: PolicyAction;
+  readonly code: PolicyDecisionCode;
+  readonly profile: PolicyProfile;
+  constructor(action: PolicyAction, code: PolicyDecisionCode, profile: PolicyProfile);
+}
+/** observe permits processing; step_up requires a separate trusted flow before processing. */
+export function evaluatePolicy(policy: PolicyProfile | Policy, context: PolicyContext, options: { now: number }): PolicyDecision;
+export interface AuditMetadata { event_id: string; app_id: string; now: number; context?: PolicyContext | null; }
+export interface AuditEvent { readonly schema_version: 'appguard-audit-v0'; readonly event_id: string; readonly app_id: string; readonly at: number; readonly action: PolicyAction; readonly code: PolicyDecisionCode; readonly profile: PolicyProfile; readonly risk_count?: number; readonly attestation_state?: AttestationState; }
+export class AuditError extends Error { readonly code: 'INVALID_AUDIT_EVENT'; constructor(); }
+export class AuditUnavailable extends Error { readonly code: 'AUDIT_UNAVAILABLE'; constructor(); }
+export function auditEvent(decision: PolicyDecision, metadata: AuditMetadata): Readonly<AuditEvent>;
+export class JsonAuditSink {
+  constructor(callback: (json: string) => unknown | Promise<unknown>);
+  /** Await delivery; sync and async callback failures reject with AUDIT_UNAVAILABLE. */
+  emit(decision: PolicyDecision, metadata: AuditMetadata): Promise<void>;
+}

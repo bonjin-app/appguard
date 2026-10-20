@@ -257,3 +257,54 @@ and `artifacts/`. Unit/core evidence, actual local framework HTTP/HTTPS evidence
 local Redis concurrency evidence do not establish production deployment, upstream
 proxy preservation, durable Redis consistency, authentication correctness,
 platform/device attestation or a security certification.
+
+## Explicit policy and audit (experimental v0)
+
+The pure policy API matches the 42 shared `conformance/v0/policy.json` cases. It
+is independent of HTTP adapter installation. The application must supply trusted
+server authentication, request-verification and platform-attestation verdicts.
+Never construct `authenticated` or `verified` from a client-reported status.
+`risk_signals` are bounded untrusted hints; `rate_limited` consumes an existing
+application limiter result. This module installs no limiter or provider verifier.
+
+```js
+import { Policy, PolicyContext, evaluatePolicy, JsonAuditSink } from '@appguard/server';
+const policy = new Policy({ profile: 'balanced' });
+// These verdicts must come from your existing trusted server checks.
+const context = new PolicyContext({
+  authentication: 'authenticated', verification: 'verified',
+  attestation: 'verified', attestation_expires: 101, risk_signals: []
+});
+const decision = evaluatePolicy(policy, context, { now: 100 });
+const sink = new JsonAuditSink(json => applicationAuditWriter(json));
+await sink.emit(decision, { event_id: 'opaque-event-1', app_id: 'my-app', now: 100, context });
+if (decision.action === 'allow' || decision.action === 'observe') {
+  // Continue only after the application's authorization checks also succeed.
+} else {
+  // deny blocks; step_up blocks until a separate trusted flow succeeds.
+}
+```
+
+All context verdicts default to missing; missing authentication always denies.
+Signatures default to required. Only explicit
+`new Policy({profile:'basic', require_signature:false})` disables that requirement.
+Fresh attestation requires `now < attestation_expires`; equality is expired.
+Unavailable/missing/unsupported/expired attestation and configured risk hints
+produce `observe` in Basic, `step_up` in Balanced, and `deny` in Strict.
+Authentication failures, rejected/unavailable request verification, rejected
+attestation and rate limiting deny in all profiles with the specified precedence.
+
+Policy/context/decision objects and copied signal arrays are immutable. Signal
+lists contain at most 32 unique `[a-z][a-z0-9_]{0,63}` codes. Clocks are integers
+from 0 through 999999999999999. Unknown fields and malformed input reject with
+fixed `PolicyError` codes. Custom classes and structural lookalikes are rejected.
+
+`auditEvent(decision, metadata)` returns a frozen allowlisted event. Its optional
+context contributes only `risk_count` and `attestation_state`; raw hints, tokens,
+bodies, subjects, keys, nonces and IPs are excluded. IDs must be opaque application
+and event IDs (1–128 ASCII letters/digits or `._:-`), never credentials or user IDs.
+The caller owns audit availability, storage, retention and privacy policy.
+`JsonAuditSink` accepts a synchronous or asynchronous callback. **Always await
+`emit`**, which returns `Promise<void>`; callback throws and rejections become
+fixed `AUDIT_UNAVAILABLE` errors without an original cause. Metadata errors use
+`INVALID_AUDIT_EVENT`. No arbitrary event objects are accepted by the sink.

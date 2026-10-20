@@ -106,3 +106,51 @@ java -cp "target/test-classes:target/classes:$(cat target/test-classpath.txt)" \
 ```
 
 The probe prints `CLAIMED` or `REPLAY_DETECTED`, accepts disposable loopback Redis only, and leaves the security key to its short relative expiry. Logs and local RED/GREEN build evidence are ignored under `.evidence/`; build artifacts are ignored under `target/`.
+
+## Explicit policy and audit (experimental v0)
+
+The pure Java 17 policy API matches all 42 shared `conformance/v0/policy.json`
+cases. It does not install or change the Servlet filter. The application must
+supply trusted server authentication, request-verification and attestation
+verdicts; never infer them from client-reported status. Risk codes are bounded
+untrusted hints. `rateLimited` consumes your existing limiter's verdict, and this
+module installs neither request counters nor a provider verifier.
+
+```java
+Policy policy = new Policy("balanced");
+// Populate these verdicts only after your trusted server checks.
+PolicyContext context = new PolicyContext("authenticated", "verified", "verified",
+    101L, List.of(), false);
+PolicyDecision decision = PolicyEngine.evaluate(policy, context, 100);
+JsonAuditSink sink = new JsonAuditSink(json -> applicationAuditWriter(json));
+sink.emit(decision, "opaque-event-1", "my-app", 100, context);
+boolean mayContinue = decision.action().equals("allow") || decision.action().equals("observe");
+// Application authorization must also succeed. step_up blocks until a separate
+// trusted verification flow succeeds; deny blocks execution.
+```
+
+`new PolicyContext()` defaults every verdict to missing, and missing authentication
+always denies. Signatures default to required. Only explicit
+`new Policy("basic", false, List.of("debugger", "root", "hook", "tamper"))` opts out.
+Fresh attestation requires `now < attestationExpires`; equality is expired.
+Missing/unsupported/unavailable/expired attestation and configured suspicious
+hints produce `observe` in Basic, `step_up` in Balanced, and `deny` in Strict.
+Authentication failures, rejected/unavailable request verification, rejected
+attestation and rate limiting deny in every profile with protocol precedence.
+
+`Policy`, `PolicyContext`, and `PolicyDecision` are validated immutable records;
+signal lists are copied and unmodifiable. `toString()` omits raw risk codes.
+Signals contain at most 32 unique `[a-z][a-z0-9_]{0,63}` codes. Timestamps are Java
+`long` values from 0 through 999999999999999; Java's typed API excludes boolean
+and fractional timestamps. Invalid values use fixed `PolicyException.code()`.
+
+`AuditEvent.create(decision, eventId, appId, now[, context]).toMap()` returns an
+immutable allowlist. Optional context adds only `risk_count` and
+`attestation_state`, with no raw risk codes, subject, token, nonce, key, IP or body.
+IDs must be opaque application/event identifiers (1–128 ASCII letters/digits or
+`._:-`), never credentials or user IDs. `JsonAuditSink` serializes compact JSON
+using Jackson and invokes the explicit synchronous `Callback`, which may throw
+checked exceptions. Callback failures become `AuditUnavailableException` with
+fixed `AUDIT_UNAVAILABLE`, no original cause or suppressed exception; interruption
+restores the thread flag. Invalid metadata uses `AuditException` with
+`INVALID_AUDIT_EVENT`. The caller owns storage, availability, privacy and retention.

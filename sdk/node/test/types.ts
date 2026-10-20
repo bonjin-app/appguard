@@ -19,3 +19,19 @@ const result: Promise<VerificationResult> = verifyRequest(request, parsed.parame
 
 installFastify(Fastify(), combined);
 new RedisReplayStore(createClient());
+
+import { Policy, PolicyContext, PolicyDecision, evaluatePolicy, auditEvent, JsonAuditSink, PolicyError, AuditError, AuditUnavailable } from '@appguard/server';
+const policy = new Policy({profile:'balanced', suspicious_signals:['root']});
+const policyContext = new PolicyContext({authentication:'authenticated', verification:'verified', attestation:'verified', attestation_expires:101});
+const policyDecision: PolicyDecision = evaluatePolicy(policy, policyContext, {now:100});
+const event = auditEvent(policyDecision, {event_id:'e', app_id:'a', now:100, context:policyContext});
+const delivery: Promise<void> = new JsonAuditSink(async json => { JSON.parse(json); }).emit(policyDecision, {event_id:'e', app_id:'a', now:100});
+void [event,delivery,new PolicyError(),new AuditError(),new AuditUnavailable()];
+// @ts-expect-error validated contexts cannot be replaced by structural client objects
+const untrustedContext: PolicyContext = {authentication:'authenticated',verification:'verified',attestation:'verified',attestation_expires:101,risk_signals:[],rate_limited:false};
+// @ts-expect-error immutable state
+policyContext.authentication = 'missing';
+// @ts-expect-error unknown profile
+new Policy({profile:'unknown'});
+// @ts-expect-error exact fixed audit fields
+void auditEvent(policyDecision, {event_id:'e', app_id:'a', now:100, token:'SECRET'});
