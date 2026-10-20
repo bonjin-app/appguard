@@ -2,11 +2,11 @@
 
 Framework-independent, self-hostable app security. Apache-2.0 licensed.
 
-**Status: experimental server SDKs implemented locally.** There are no published SDKs or production security claims. Spring Boot, Python and Node.js share one draft verification protocol, portable attack fixtures and Redis replay namespace. See the [approved design](docs/superpowers/specs/2026-10-20-appguard-foundation-design.md), [server SDK plan](docs/superpowers/plans/2026-10-20-appguard-server-sdks.md) and [verification scope](docs/security/server-sdk-verification.md).
+**Status: experimental native client and server foundations implemented locally.** There are no published SDKs or production security claims. Android/iOS native signing interoperates with Spring Boot, Python and Node.js using one draft protocol. Python additionally provides explicit local enrollment, policy and redacted audit modules. See the [approved design](docs/superpowers/specs/2026-10-20-appguard-foundation-design.md), [mobile plan](docs/superpowers/plans/2026-10-20-appguard-mobile-foundation.md) and the [server](docs/security/server-sdk-verification.md) / [mobile](docs/security/mobile-foundation-verification.md) evidence boundaries.
 
 ## Architecture
 
-- Client SDKs: platform evidence, installation keys, request binding and risk signals.
+- Client SDKs: native installation keys and request binding; Apple evidence acquisition wrapper, with server provider verification still separate.
 - Server SDKs: request verification, integration with existing authentication and authorization.
 - Security Engine: common policy, reason codes and audit events; optional threat analytics.
 - Build/CLI: future platform-specific protection, setup and diagnostics.
@@ -21,11 +21,14 @@ The core will run without an AI model, paid AI API, or mandatory AppGuard cloud 
 | [Spring Boot 3.5 / Java 17](sdk/spring-boot/README.md) | Experimental starter, MVC filter and Redis adapter |
 | [Python 3.11+](sdk/python/README.md) | Experimental ASGI verifier; FastAPI, Django ASGI, Flask through WsgiToAsgi |
 | [Node.js 22+](sdk/node/README.md) | Experimental native verifier; Express, Fastify, NestJS and Redis adapter |
-| Android, iOS, Unity, Expo/React Native, Flutter | Planned, not implemented |
+| [Android Java/Kotlin](sdk/android/README.md) | Native signer, Keystore and enrollment proofs; AAR/JVM tests/API35 emulator checks |
+| [Apple Swift/iOS](sdk/apple/README.md) | Native signer, Security key adapter, enrollment proofs and App Attest acquisition wrapper; host tests/unsigned Simulator build |
+| Unity, Expo/React Native, Flutter | Bridge contract defined; packages not implemented yet |
 | .NET, Go, PHP | Planned, not implemented |
 | Shared Redis replay claims | Implemented; deployment durability/eviction guarantees are operator-owned |
-| Key enrollment, Apple/Google attestation | Planned, not implemented |
-| Build obfuscation, policy profiles, console, AI | Planned, not implemented |
+| [Python enrollment / policy / audit](docs/security/enrollment-policy.md) | Local SQLite challenge/proof/revocation, deterministic presets and allowlisted audit output |
+| Apple/Google server attestation verification | Not implemented; requires a trusted provider backend, account configuration and device validation |
+| Build obfuscation, CLI, console, AI | Planned, not implemented |
 
 ## Local reference development
 
@@ -50,6 +53,14 @@ APPGUARD_TEST_REDIS_URL=redis://127.0.0.1:DISPOSABLE_PORT/0 \
 `APPGUARD_UV_CMD` and `APPGUARD_MAVEN_CMD` optionally select executable paths. The command uses frozen Python/npm lockfiles, runs all four suites including live Redis, builds the wheel/JAR and tests an isolated npm package install, then rotates the first nonce claim through Python/Node/Java and races independent SDK processes. It never flushes Redis and deletes only probe-owned keys. Never supply an existing shared Redis database. Individual SDK commands and tested versions are documented in their READMEs.
 
 Adapters require unmodified raw target/header/body evidence and explicit identity/replay dependencies. Python needs a trusted exact-target extension when the query string is empty. Spring's servlet adapter rejects form/multipart content and nonblocking input access. Express/Nest must be installed first at application root; Fastify requires native HTTP request capture. TLS/proxy boundaries must preserve trusted evidence. These restrictions are described in each SDK's integration guide; the package alone does not configure a deployment.
+
+## Native client and enrollment development
+
+The [Android](sdk/android/README.md) and [Apple](sdk/apple/README.md) packages prepare exact request bytes and fixed wire headers using per-installation P-256 signing capabilities. They expose public SPKI material, not a private-key export API. No HTTP transport adapter is bundled: application transports must preserve the signed target/body/headers and prevent unintended redirects. Local hardware-status metadata is not remotely verified attestation.
+
+The [enrollment protocol](protocol/enrollment-v0.md) binds app, authenticated subject, enrolled key ID, public-key fingerprint, origin and one-use expiry. [Python integration](docs/security/enrollment-policy.md) requires existing authentication and an explicit provider verifier for Balanced/Strict. Proof-only Basic enrollment remains explicitly unattested. The [policy contract](protocol/policy-v0.md) has42 portable cases; current Java/Node SDKs retain independent signature verification and do not yet execute these additional Python presets.
+
+Native tests distinguish JVM/macOS crypto, platform builds and an isolated Android software-keystore emulator. Actual Apple persistent Keychain/Secure Enclave, physical devices and successful provider evidence remain unverified. No Apple/Google project, entitlement, account, release or user key is configured by these tests.
 
 ## Common verification behavior
 

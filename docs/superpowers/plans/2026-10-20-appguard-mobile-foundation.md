@@ -38,32 +38,32 @@
 
 ## Task1: Android signer and keys
 
-- [ ] RED: fixed-vector signature-base/digest/wire tests and negative target/header/time/body inputs before implementation.
-- [ ] Implement Java request preparation, strict DER-to-raw conversion and injectable native signer boundary; generated signatures verify with independent JCA/OpenSSL/server logic.
-- [ ] Android Keystore get-or-create installation key with explicit alias, fail-closed existing-key checks, public SPKI export and hardware-status reporting; no private export.
-- [ ] Provider acquisition API only if official dependencies/build are available; otherwise document exact capability boundary rather than a successful mock.
-- [ ] JVM tests plus actual Android library build; instrumented tests on a new isolated test emulator if feasible, without touching existing AVDs.
+- [x] RED: fixed-vector signature-base/digest/wire tests and negative target/header/time/body inputs before implementation.
+- [x] Implement Java request preparation, strict DER-to-raw conversion and injectable native signer boundary; generated signatures verify with independent JCA/OpenSSL/server logic.
+- [x] Android Keystore get-or-create installation key with explicit alias, fail-closed existing-key checks, public SPKI export and hardware-status reporting; no private export.
+- [x] Provider acquisition API only if official dependencies/build are available; otherwise document exact capability boundary rather than a successful mock.
+- [x] JVM tests plus actual Android library build; instrumented tests on a new isolated test emulator if feasible, without touching existing AVDs.
 
 ## Task2: Apple signer and keys
 
-- [ ] RED: fixed vectors and request/DER/buffer limits before implementation.
-- [ ] Implement Swift value-type preparation and P-256 signers; public SPKI export and strict DER/raw behavior.
-- [ ] Security/Keychain installation-key API with explicit Secure Enclave requirement and explicit unsupported behavior; preserve pre-existing keys.
-- [ ] DeviceCheck App Attest acquisition wrapper with support/error states and caller-supplied challenge hash, no server-verification claim.
-- [ ] Run host Swift tests and build iOS Simulator package targets. Test-only export probe emits only public fixture material, never private keys.
+- [x] RED: fixed vectors and request/DER/buffer limits before implementation.
+- [x] Implement Swift value-type preparation and P-256 signers; public SPKI export and strict DER/raw behavior.
+- [x] Security/Keychain installation-key API with explicit Secure Enclave requirement and explicit unsupported behavior; preserve pre-existing keys.
+- [x] DeviceCheck App Attest acquisition wrapper with support/error states and caller-supplied challenge hash, no server-verification claim.
+- [x] Run host Swift tests and build iOS Simulator package targets. Test-only export probe emits only public fixture material, never private keys.
 
 ## Task3: Enrollment, policy and client bridge contracts
 
-- [ ] Define domain-separated server challenge, proof-of-possession and provider trust states, plus common native bridge method/result schema.
-- [ ] RED then implement an explicit local SQLite enrollment store and challenge service with atomic one-use/expiry, app+subject+key binding, public-key proof, revocation and no automatic attestation trust.
-- [ ] RED then implement Basic/Balanced/Strict deterministic policy and redacted audit events; missing/unknown/provider failure never implies verified attestation. No AI dependency.
+- [x] Define domain-separated server challenge, proof-of-possession and provider trust states, plus common native bridge method/result schema.
+- [x] RED then implement an explicit local SQLite enrollment store and challenge service with atomic one-use/expiry, app+subject+key binding, public-key proof, revocation and no automatic attestation trust.
+- [x] RED then implement Basic/Balanced/Strict deterministic policy and redacted audit events; missing/unknown/provider failure never implies verified attestation. No AI dependency.
 
 ## Task4: Integration and review
 
-- [ ] Native signer output verifies through existing server implementation; independent generated-key signatures, mutations and replay checks.
-- [ ] Repeat affected suites and package builds. Record versions and host/build/simulator/provider evidence separately.
-- [ ] One fresh whole-change security review; important fixes require observed RED/GREEN regressions.
-- [ ] Commit evidence and preserve feature branch; continue remaining approved roadmap without claiming device/provider/release proof that was not obtained.
+- [x] Native signer output verifies through existing server implementation; independent generated-key signatures, mutations and replay checks.
+- [x] Repeat affected suites and package builds. Record versions and host/build/simulator/provider evidence separately.
+- [x] One fresh whole-change security review; important fixes require observed RED/GREEN regressions.
+- [x] Commit evidence and preserve feature branch; continue remaining approved roadmap without claiming device/provider/release proof that was not obtained.
 
 ## Later roadmap
 
