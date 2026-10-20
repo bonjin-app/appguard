@@ -31,20 +31,20 @@
 **Files:** `sdk/node/src/policy.js`, `audit.js`, exports/declarations; policy/audit tests and README.
 **Interfaces:** Explicit immutable policy/context/decision values, evaluatePolicy, auditEvent and audit sink; document supported sync/async callback contract.
 
-- [ ] Add failing tests consuming all42 portable cases plus default auth, type bounds, mutation, precedence, audit allowlist/redaction; observe RED.
-- [ ] Implement behavior without dependencies or automatic middleware changes; extend exact public TypeScript types.
-- [ ] Run full npm tests/type/install checks; commit only on parent authorization to avoid shared-index races.
+- [x] Add failing tests consuming all42 portable cases plus default auth, type bounds, mutation, precedence, audit allowlist/redaction; observe RED.
+- [x] Implement behavior without dependencies or automatic middleware changes; extend exact public TypeScript types.
+- [x] Run full npm tests/type/install checks; commit only on parent authorization to avoid shared-index races.
 
 ### Task 2: Java policy/audit
 
 **Files:** `sdk/spring-boot/src/main/java/io/appguard/{Policy,PolicyContext,PolicyDecision,PolicyEngine,AuditEvent,JsonAuditSink,...}.java`; JUnit tests and README.
 **Interfaces:** Immutable records/classes with explicit constructors/default factories, evaluate and allowlisted audit JSON through existing Jackson dependency.
 
-- [ ] Add failing42-case tests plus equivalent negative boundaries/immutable state/sink failures; observe RED.
-- [ ] Implement validated pure behavior; no implicit Spring filter enablement or authentication replacement.
-- [ ] Run full Maven test/package; distinguish unavailable live Redis from successful tests; do not skip failures in report.
+- [x] Add failing42-case tests plus equivalent negative boundaries/immutable state/sink failures; observe RED.
+- [x] Implement validated pure behavior; no implicit Spring filter enablement or authentication replacement.
+- [x] Run full Maven test/package; distinguish unavailable live Redis from successful tests; do not skip failures in report.
 
 ### Task 3: Cross-language verification
 
-- [ ] Re-run Python/Node/Java corpus and integrated server suites with an owned disposable Redis.
-- [ ] Fresh whole-port security review, targeted fixes, update policy support matrix/evidence and archive owned scratch.
+- [x] Re-run Python/Node/Java corpus and integrated server suites with an owned disposable Redis.
+- [x] Fresh whole-port security review, targeted fixes, update policy support matrix/evidence and archive owned scratch.
