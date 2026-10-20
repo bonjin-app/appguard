@@ -1,0 +1,12 @@
+.tools/
+.evidence/
+.dart_tool/
+build/
+.pub-cache/
+android/src/main/java/io/appguard/android/
+ios/Classes/Native/
+native-licenses/
+native-provenance.json
+android/.gradle/
+pubspec.lock
+.flutter-plugins-dependencies

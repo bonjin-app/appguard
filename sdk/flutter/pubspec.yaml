@@ -1,0 +1,21 @@
+name: appguard_flutter
+description: Experimental native AppGuard request and enrollment proof bridge.
+version: 0.0.0-experimental.0
+publish_to: none
+environment:
+  sdk: '>=3.6.0 <4.0.0'
+  flutter: '>=3.27.0'
+dependencies:
+  flutter:
+    sdk: flutter
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+flutter:
+  plugin:
+    platforms:
+      android:
+        package: io.appguard.flutter
+        pluginClass: AppGuardPlugin
+      ios:
+        pluginClass: AppGuardPlugin

@@ -1,0 +1,16 @@
+group = 'io.appguard.flutter'
+version = '0.0.0-experimental'
+buildscript {
+    repositories { google(); mavenCentral() }
+    dependencies { classpath 'com.android.tools.build:gradle:8.10.1' }
+}
+apply plugin: 'com.android.library'
+android {
+    namespace 'io.appguard.flutter'
+    compileSdk 36
+    defaultConfig { minSdk 26 }
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}

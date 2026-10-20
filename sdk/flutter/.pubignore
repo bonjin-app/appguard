@@ -1,0 +1,7 @@
+.tools/
+.evidence/
+.dart_tool/
+build/
+android/.gradle/
+.pub-cache/
+tool/
