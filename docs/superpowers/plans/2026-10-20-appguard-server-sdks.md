@@ -86,8 +86,8 @@ The core contracts remain the reference's RequestInput, SignatureParameters, Key
 - [x] Exercise same-scope Redis claims across independent SDK instances/processes against a disposable localhost service; never touch an existing Redis database.
 - [x] Run standalone package/JAR builds and alternate-working-directory tests where relevant; add one reproducible root test command and record exact versions/results.
 - [x] Update support matrix, installation/authentication integration examples, limitations and security guidance to match verified behavior.
-- [ ] Obtain one fresh whole-change security review. Fix significant findings with failing regression tests first and rerun all affected suites.
-- [ ] Commit tested results. Preserve the server-SDK branch for review; only the foundation merge has been explicitly requested so far.
+- [x] Obtain one fresh whole-change security review. Fix significant findings with failing regression tests first and rerun all affected suites.
+- [x] Commit tested results. Preserve the server-SDK branch for review; only the foundation merge has been explicitly requested so far.
 
 ## Scope Decisions
 
