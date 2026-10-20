@@ -8,7 +8,7 @@
       "AppGuardModule"
     ],
     "podspecPath": [
-      "apple/AppGuardApple.podspec",
+      "AppGuardApple.podspec",
       "ios/AppGuardExpo.podspec"
     ]
   },

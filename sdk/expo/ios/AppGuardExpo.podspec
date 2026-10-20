@@ -5,7 +5,7 @@ Pod::Spec.new do |s|
   s.version = package['version'].split('-').first
   s.summary = package['description']
   s.description = package['description']
-  s.license = { :type => 'Apache-2.0', :file => '../LICENSE' }
+  s.license = { :type => 'Apache-2.0', :file => 'LICENSE' }
   s.author = package['author']
   s.homepage = package['homepage']
   s.platforms = { :ios => '16.4' }

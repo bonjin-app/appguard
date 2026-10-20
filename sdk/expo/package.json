@@ -11,7 +11,7 @@
     "build",
     "src",
     "android",
-    "apple",
+    "AppGuardApple.podspec",
     "ios",
     "vendor",
     "expo-module.config.json",
@@ -46,5 +46,6 @@
   },
   "engines": {
     "node": ">=22.13.0"
-  }
+  },
+  "private": true
 }

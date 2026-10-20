@@ -11,10 +11,12 @@ const scratch = mkdtempSync(path.join(root,'.tools/relocated-'));
 try {
   execFileSync('tar',['-xzf',path.join(root,pack.filename),'-C',scratch]);
   const pkg = path.join(scratch,'package');
-  assert.equal(JSON.parse(readFileSync(path.join(pkg,'package.json'))).license,'Apache-2.0');
+  const metadata=JSON.parse(readFileSync(path.join(pkg,'package.json')));
+  assert.equal(metadata.license,'Apache-2.0');
+  assert.equal(metadata.private,true);
   assert.match(readFileSync(path.join(pkg,'LICENSE'),'utf8'),/Apache License/);
   const names = pack.files.map(file=>file.path);
-  for (const name of ['build/index.js','build/client.js','build/index.d.ts','app.plugin.cjs','apple/AppGuardApple.podspec','ios/AppGuardExpo.podspec','expo-module.config.json','PROVENANCE.json','vendor/android/LICENSE','vendor/apple/LICENSE']) assert.ok(names.includes(name),name);
+  for (const name of ['build/index.js','build/client.js','build/index.d.ts','app.plugin.cjs','AppGuardApple.podspec','ios/AppGuardExpo.podspec','expo-module.config.json','PROVENANCE.json','vendor/android/LICENSE','vendor/apple/LICENSE']) assert.ok(names.includes(name),name);
   assert.ok(!names.some(n=>/^(node_modules|\.tools|\.evidence|example|test)\//.test(n) || /^(ios|android)\/(build|\.gradle)\//.test(n)));
   assert.ok(!names.some(n=>/\.web\./.test(n)));
   for (const [name,hash] of Object.entries(JSON.parse(readFileSync(path.join(pkg,'PROVENANCE.json'))).files)) {

@@ -6,6 +6,8 @@ Native-only Expo module for the [client bridge v0 contract](./BRIDGE_CONTRACT.md
 
 Pinned local verification: Expo **58.0.16**, React Native **0.88.0**, React **19.3.0**, Expo Modules Core **58.0.23**, Node **22.23.2**. Android requires API **26+** and Java **17**; iOS requires **16.4+** because Expo SDK 58 raises the underlying Apple SDK's iOS 15 minimum. Other Expo SDKs and platforms are unverified. This package requires a development/native build with `expo` installed. Expo Go and web have no implementation: missing native modules reject with `APPGUARD_NATIVE_UNAVAILABLE`.
 
+The npm package is private to guard accidental registry publication during this experimental local-package stage.
+
 ## Build and install the local package
 
 From this repository's `sdk/expo` directory:
