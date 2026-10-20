@@ -36,7 +36,8 @@ public final class InstallationKey: RequestSigningKey {
         let created: SecKey
         do { created = try store.create(tag: tag, secureEnclaveRequired: secureEnclaveRequired) }
         catch InstallationKeyError.storeFailure(errSecDuplicateItem) {
-            // Another process won creation. Never delete/overwrite its key.
+            // Re-read a reported duplicate instead of deleting/overwriting it.
+            // This is not cross-process arbitration for a shared tag.
             return try checked(store.lookup(tag: tag), secureEnclaveRequired: secureEnclaveRequired)
         }
         let result = try checked([created], secureEnclaveRequired: secureEnclaveRequired)
@@ -77,28 +78,46 @@ public final class InstallationKey: RequestSigningKey {
     }
 }
 
-private struct SecurityKeyStore: InstallationKeyStore {
+struct SecurityKeyStore: InstallationKeyStore {
+    private let copyMatching: (CFDictionary, UnsafeMutablePointer<CFTypeRef?>?) -> OSStatus
+    init(copyMatching: @escaping (CFDictionary, UnsafeMutablePointer<CFTypeRef?>?) -> OSStatus = SecItemCopyMatching) {
+        self.copyMatching = copyMatching
+    }
     func lookup(tag: Data) throws -> [SecKey] {
         // Do not filter by curve/class: a conflicting item must be detected, never treated as a free alias.
         let authentication = LAContext()
         authentication.interactionNotAllowed = true
         var query: [String: Any] = [kSecClass as String: kSecClassKey, kSecAttrApplicationTag as String: tag,
+            kSecAttrSynchronizable as String: kSecAttrSynchronizableAny,
             kSecMatchLimit as String: kSecMatchLimitAll, kSecReturnRef as String: true,
+            kSecReturnAttributes as String: true,
             kSecUseAuthenticationContext as String: authentication]
         #if os(macOS)
         query[kSecUseDataProtectionKeychain as String] = true
         #endif
         var result: CFTypeRef?
-        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        let status = copyMatching(query as CFDictionary, &result)
         if status == errSecItemNotFound { return [] }
         guard status == errSecSuccess else { throw InstallationKeyError.storeFailure(status) }
-        guard let keys = result as? [SecKey] else { throw InstallationKeyError.invalidExistingKey }
-        return keys
+        guard let records = result as? [[String: Any]] else { throw InstallationKeyError.invalidExistingKey }
+        return try records.map { record in
+            // Synced or missing-metadata entries are not an empty tag and must
+            // never trigger creation of another installation identity.
+            guard let synchronized = record[kSecAttrSynchronizable as String] as? Bool, !synchronized,
+                  let reference = record[kSecValueRef as String],
+                  CFGetTypeID(reference as CFTypeRef) == SecKeyGetTypeID() else {
+                throw InstallationKeyError.invalidExistingKey
+            }
+            return reference as! SecKey
+        }
     }
     func create(tag: Data, secureEnclaveRequired: Bool) throws -> SecKey {
         guard !secureEnclaveRequired || SecureEnclave.isAvailable else { throw InstallationKeyError.secureEnclaveUnavailable }
-        var privateAttributes: [String: Any] = [kSecAttrIsPermanent as String: true, kSecAttrApplicationTag as String: tag,
-            kSecAttrIsExtractable as String: false]
+        var privateAttributes: [String: Any] = [kSecAttrIsPermanent as String: true, kSecAttrApplicationTag as String: tag]
+        #if os(macOS)
+        // Request this macOS attribute without claiming software enforcement.
+        privateAttributes[kSecAttrIsExtractable as String] = false
+        #endif
         if secureEnclaveRequired {
             var accessError: Unmanaged<CFError>?
             guard let control = SecAccessControlCreateWithFlags(nil, kSecAttrAccessibleWhenUnlockedThisDeviceOnly, .privateKeyUsage, &accessError) else {

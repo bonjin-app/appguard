@@ -68,6 +68,58 @@ final class InstallationKeyTests: XCTestCase {
         XCTAssertEqual(store.lookups, 0)
         XCTAssertEqual(store.creates, 0)
     }
+
+    func testSynchronizedAliasIsVisibleAndRejectedBeforeAnyCreation() throws {
+        let key = try ephemeralSecKey()
+        let system = SecurityKeyStore(copyMatching: { query, result in
+            let query = query as NSDictionary
+            // Mirror Security's documented filtering: omitting this attribute
+            // hides synchronized items rather than proving the tag is vacant.
+            guard query[kSecAttrSynchronizable] as? String == kSecAttrSynchronizableAny as String else {
+                return errSecItemNotFound
+            }
+            if query[kSecReturnAttributes] as? Bool == true {
+                result?.pointee = [[kSecValueRef as String: key, kSecAttrSynchronizable as String: true]] as CFArray
+            } else {
+                result?.pointee = [key] as CFArray
+            }
+            return errSecSuccess
+        })
+        let store = CreationSentinelStore(delegate: system)
+        XCTAssertThrowsError(try InstallationKey.loadOrCreate(applicationTag: "test.sync-tag", secureEnclaveRequired: false, store: store)) { error in
+            XCTAssertEqual(error as? InstallationKeyError, .invalidExistingKey)
+        }
+        XCTAssertEqual(store.creates, 0)
+    }
+
+    func testSystemLookupPreservesNonsynchronizedKeyReference() throws {
+        let key = try ephemeralSecKey()
+        let store = SecurityKeyStore(copyMatching: { query, result in
+            let query = query as NSDictionary
+            if query[kSecReturnAttributes] as? Bool == true {
+                result?.pointee = [[kSecValueRef as String: key, kSecAttrSynchronizable as String: false]] as CFArray
+            } else {
+                result?.pointee = [key] as CFArray
+            }
+            return errSecSuccess
+        })
+        let found = try store.lookup(tag: Data("test.tag".utf8))
+        XCTAssertEqual(found.count, 1)
+        let actual = try XCTUnwrap(SecKeyCopyExternalRepresentation(SecKeyCopyPublicKey(found[0])!, nil))
+        let expected = try XCTUnwrap(SecKeyCopyExternalRepresentation(SecKeyCopyPublicKey(key)!, nil))
+        XCTAssertEqual(actual as Data, expected as Data)
+    }
+}
+
+final class CreationSentinelStore: InstallationKeyStore {
+    let delegate: any InstallationKeyStore
+    var creates = 0
+    init(delegate: any InstallationKeyStore) { self.delegate = delegate }
+    func lookup(tag: Data) throws -> [SecKey] { try delegate.lookup(tag: tag) }
+    func create(tag: Data, secureEnclaveRequired: Bool) throws -> SecKey {
+        creates += 1
+        throw InstallationKeyError.storeFailure(errSecInternalComponent)
+    }
 }
 
 func ephemeralSecKey(type: CFString = kSecAttrKeyTypeECSECPrimeRandom, bits: Int = 256) throws -> SecKey {
