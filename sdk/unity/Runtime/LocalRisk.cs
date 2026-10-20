@@ -67,7 +67,7 @@ internal static class LocalRiskDecoder {
     static string Text(JToken obj,string key) {if(obj?[key]?.Type!=JTokenType.String)throw new FormatException();return (string)obj[key];}
     internal static LocalRiskReport Decode(string response) {
         try {
-            if(response==null || Encoding.UTF8.GetByteCount(response)>MaxBytes)throw new FormatException();
+            StrictRiskJson.Validate(response);
             JObject root;
             using(var reader=new JsonTextReader(new StringReader(response)) {DateParseHandling=DateParseHandling.None,MaxDepth=16}) {
                 root=JObject.Load(reader,new JsonLoadSettings {DuplicatePropertyNameHandling=DuplicatePropertyNameHandling.Error});if(reader.Read())throw new FormatException();
