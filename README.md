@@ -31,7 +31,7 @@ The core will run without an AI model, paid AI API, or mandatory AppGuard cloud 
 | [Node.js 22+](sdk/node/README.md) | Experimental native verifier; Express, Fastify, NestJS and Redis adapter |
 | [Android Java/Kotlin](sdk/android/README.md) | Native signer, Keystore and enrollment proofs; AAR/JVM tests/API35 emulator checks |
 | [Apple Swift/iOS](sdk/apple/README.md) | Native signer, Security key adapter, enrollment proofs and App Attest acquisition wrapper; host tests/unsigned Simulator build |
-| [Unity UPM](sdk/unity/README.md) | Typed JNI/C ABI package and async local risk API; [138 EditMode tests](sdk/unity/STRICT_JSON_VERIFICATION.md), actual host managed/native scan and buffer checks; mobile player/IL2CPP runtime pending |
+| [Unity UPM](sdk/unity/README.md) | Typed JNI/C ABI package and async local risk API; [138 EditMode tests](sdk/unity/STRICT_JSON_VERIFICATION.md), [Android Release and iOS Simulator IL2CPP runtime checks](sdk/unity/PLAYER_RUNTIME_VERIFICATION.md), unsigned iOS device Release build; physical-device runtime pending |
 | [Expo / React Native](sdk/expo/README.md) | Expo58 async native module;61 tests,44-file relocation, packed Android and unsigned arm64 Simulator CocoaPods compile; engine/device runtime pending |
 | [Flutter](sdk/flutter/README.md) | Async platform-channel local risk API;64 tests, background queue/native adapter checks and Simulator library compile; engine/device runtime pending |
 | [ASP.NET Core](sdk/dotnet/README.md) | Experimental strict verifier/middleware; mandatory original-header feature;175 tests and isolated NuGet consumer |

@@ -44,6 +44,11 @@ python3 sdk/unity/Tools~/test-ios-export.py \
   --export-directory sdk/unity/.tools/risk-bridge-export
 ```
 
-## Limits
+## Original-stage limits
+
+The later [player/IL2CPP stage](PLAYER_RUNTIME_VERIFICATION.md) adds Android
+Release and iOS Simulator runtime checks plus an unsigned iOS device Release build.
+The limits below describe this original stage; physical-device efficacy remains open.
+
 
 No full XCFramework rebuild, Unity player/IL2CPP build, Android emulator/JVM scanner execution, iOS Simulator launch, physical-device root/hook efficacy, signed archive privacy validation, store submission or provider verification is claimed. Android thread attachment is compiled and its ownership/lifetime seam is tested on the host; an actual Android JVM/player run remains necessary to establish device execution. Host scan reports intentionally contain unsupported/unavailable checks and are not mobile measurements. All local risk results remain untrusted heuristic hints.

@@ -69,3 +69,14 @@ python3 Tools~/test-ios-export.py --unity /Applications/Unity/Hub/Editor/6000.3.
 ```
 
 These create only this package's ignored `.tools` and `.evidence` folders. The managed runner uses a separate scratch project and compiles the Android JNI, iOS P/Invoke and iOS export postprocessor branches. The native ownership harness substitutes the facade to avoid persistent key operations. See [VERIFICATION.md](VERIFICATION.md) for observed evidence and missing runtime coverage. No signing, store publication, physical-device behavior or provider decision is established by these checks.
+
+## Player verification
+
+`Tools~/test-player.py` builds a disposable IL2CPP consumer with High managed
+stripping and Android R8. `Tools~/run-player.py` validates all named scan cases,
+matching build GUID, backend, exact runtime tier and completion log on an explicit
+virtual device. Neither tool publishes or selects a personal device automatically.
+See [PLAYER_RUNTIME_VERIFICATION.md](PLAYER_RUNTIME_VERIFICATION.md) for actual
+Android Release, iOS Simulator Development-engine runtime and unsigned iOS device
+Release build evidence. Signing/enrollment and physical-device runtime remain
+separate from these local-risk checks.
