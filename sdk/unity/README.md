@@ -18,6 +18,8 @@ JAVA_HOME=/path/to/jdk17 ANDROID_HOME=/path/to/android-sdk \
 
 Add the resulting local folder through Unity Package Manager **Add package from disk**, selecting `package.json`. Unity resolves the declared Newtonsoft JSON and Android JNI module dependencies. Configure Android minimum API 26 and iOS target 15 or later in Player Settings. The Android AAR carries consumer R8 rules preserving the JNI facade. The iOS XCFramework carries static Swift libraries for arm64 devices and arm64/x86_64 Simulators. The export postprocessor enables Swift runtime embedding and adds a small Swift source to UnityFramework. Do not add the raw native Swift sources to Xcode alongside this XCFramework.
 
+The iOS export postprocessor resolves the installed UPM package and copies its staged Apple privacy manifest into `Libraries/AppGuardPrivacy.bundle`. It adds this folder reference to the main app Resources phase; host and UnityFramework manifests remain separate. Keep `Native~/Dependencies` in the installed package and restage older packages that lack the manifest. Export and iOS native build fail early if that staged input is missing.
+
 The native bridge executes synchronously. Call from Unity's main thread for Android JNI/activity access. Keep your application's alias stable and use the returned backing label explicitly. `HardwareRequirement.Hardware` never silently downgrades, and Apple rejects `StrongBox`.
 
 ```csharp
@@ -46,6 +48,8 @@ Failures throw `AppGuardException` containing only a fixed `Code` and message. U
 ```sh
 python3 Tools~/test-managed.py --unity /Applications/Unity/Hub/Editor/6000.3.24f1/Unity.app/Contents/MacOS/Unity
 sh Tools~/test-native.sh
+# After staging a package, exercise the actual Unity PBX export API:
+python3 Tools~/test-ios-export.py --unity /Applications/Unity/Hub/Editor/6000.3.24f1/Unity.app/Contents/MacOS/Unity --staged-package /absolute/task-scratch/appguard-unity
 ```
 
 These create only this package's ignored `.tools` and `.evidence` folders. The managed runner uses a separate scratch project and compiles the Android JNI, iOS P/Invoke and iOS export postprocessor branches. The native ownership harness substitutes the facade to avoid persistent key operations. See [VERIFICATION.md](VERIFICATION.md) for observed evidence and missing runtime coverage. No signing, store publication, physical-device behavior or provider decision is established by these checks.

@@ -19,6 +19,7 @@ try {
   for (const name of ['build/index.js','build/client.js','build/index.d.ts','app.plugin.cjs','AppGuardApple.podspec','ios/AppGuardExpo.podspec','expo-module.config.json','PROVENANCE.json','vendor/android/LICENSE','vendor/apple/LICENSE']) assert.ok(names.includes(name),name);
   assert.ok(!names.some(n=>/^(node_modules|\.tools|\.evidence|example|test)\//.test(n) || /^(ios|android)\/(build|\.gradle)\//.test(n)));
   assert.ok(!names.some(n=>/\.web\./.test(n)));
+  assert.ok(names.includes('vendor/apple/Sources/AppGuardApple/Resources/PrivacyInfo.xcprivacy'));
   for (const [name,hash] of Object.entries(JSON.parse(readFileSync(path.join(pkg,'PROVENANCE.json'))).files)) {
     assert.ok(!name.includes('..'));
     assert.equal(createHash('sha256').update(readFileSync(path.join(pkg,name))).digest('hex'),hash);

@@ -17,6 +17,8 @@ if destination == package or (package in destination.parents and package/'.tools
 root=args.source_root.resolve()
 for source in ('sdk/android/src/main','sdk/apple/Sources/AppGuardApple'):
     if not (root/source).is_dir(): parser.error('source root lacks native SDK sources')
+if not (root/'sdk/apple/Sources/AppGuardApple/Resources/PrivacyInfo.xcprivacy').is_file():
+    parser.error('source root lacks the Apple privacy manifest')
 shutil.copytree(package,destination,ignore=shutil.ignore_patterns('.tools','.evidence','Plugins','__pycache__'))
 deps=destination/'Native~'/'Dependencies'
 shutil.copytree(root/'sdk/apple/Sources',deps/'apple'/'Sources')

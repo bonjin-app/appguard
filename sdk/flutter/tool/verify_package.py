@@ -20,5 +20,6 @@ with tempfile.TemporaryDirectory(dir=package / '.evidence', prefix='package-chec
         assert hashlib.sha256((root / source['path']).read_bytes()).hexdigest() == source['sha256']
     assert (root / 'android/src/main/java/io/appguard/android/NativeBridge.java').is_file()
     assert (root / 'ios/Classes/Native/NativeBridge.swift').is_file()
+    assert (root / 'ios/Classes/Native/Resources/PrivacyInfo.xcprivacy').is_file()
     assert not (root / 'tool').exists() and not (root / '.tools').exists()
     print(f'Package relocation: {len(manifest["sources"])} source/license SHA-256 hashes verified')

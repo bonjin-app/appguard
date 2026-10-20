@@ -15,4 +15,5 @@ Pod::Spec.new do |s|
   s.frameworks = 'Security', 'CryptoKit', 'DeviceCheck'
   s.pod_target_xcconfig = { 'DEFINES_MODULE' => 'YES' }
   s.source_files = 'vendor/apple/Sources/AppGuardApple/*.swift'
+  s.resource_bundles = { 'AppGuardApplePrivacy' => ['vendor/apple/Sources/AppGuardApple/Resources/PrivacyInfo.xcprivacy'] }
 end

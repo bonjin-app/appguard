@@ -12,6 +12,8 @@ args=parser.parse_args()
 package=Path(__file__).resolve().parents[1]
 deps=package/'Native~'/'Dependencies'
 if not deps.is_dir(): parser.error('run Tools~/stage.py from the source checkout first')
+if args.platform in ('ios','all') and not (deps/'apple/Sources/AppGuardApple/Resources/PrivacyInfo.xcprivacy').is_file():
+    parser.error('staged Apple privacy manifest is missing; run Tools~/stage.py again')
 work=package/'.tools'/'native-build';work.mkdir(parents=True,exist_ok=True)
 plugins=package/'Plugins';plugins.mkdir(exist_ok=True)
 def run(*cmd,**kwargs): subprocess.run([str(x) for x in cmd],check=True,**kwargs)

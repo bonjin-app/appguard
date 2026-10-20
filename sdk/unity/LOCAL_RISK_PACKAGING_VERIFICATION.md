@@ -1,0 +1,25 @@
+# Unity local-risk privacy packaging verification — 2026-10-20
+
+Scope: `sdk/unity/**` only. Unity **6000.3.24f1**, installed Xcode SDK/toolchain. Existing project, plugin builds and evidence were preserved. New outputs are package-local `.tools/local-risk-*` and `.evidence/local-risk-*`; no device, signing, account, publication or global cleanup operations ran.
+
+## Result
+
+The staged Apple manifest at `Native~/Dependencies/apple/Sources/AppGuardApple/Resources/PrivacyInfo.xcprivacy` is copied into an exported `Libraries/AppGuardPrivacy.bundle`, with a bundle `Info.plist`. The iOS callback resolves the installed UPM package through `PackageInfo.FindForAssembly(...).resolvedPath`; it does not depend on a repository-relative path or the working directory. The main app gets a PBX folder reference in its Resources build phase. The manifest is never written over the app's or UnityFramework's own manifest.
+
+Both `stage.py` and the iOS branch of `build-native.py` reject missing manifest input before creating output. The export callback rejects missing manifest/Unity targets before copying its bundle or writing the PBX project. Repeated callbacks replace the owned manifest and maintain one bundle build entry.
+
+## Checks executed
+
+- `python3 sdk/unity/Tools~/stage.py --destination sdk/unity/.tools/local-risk-packaging`: passed. Fresh staged `SOURCE-MANIFEST.json` contains the manifest. All staged Apple Swift/resource bytes were compared with current native SDK sources and matched.
+- `python3 sdk/unity/Tools~/test-managed.py --unity /Applications/Unity/Hub/Editor/6000.3.24f1/Unity.app/Contents/MacOS/Unity`: **20/20 EditMode tests passed**; Android JNI and iOS P/Invoke branches and the iOS postprocessor compiled using Unity's own compiler/reference assemblies. `.evidence/local-risk-managed.log`, `managed.xml`, generated response files and platform DLLs retain the results. These were the existing behavioral tests; no duplicate managed suite was added.
+- `python3 sdk/unity/Tools~/test-ios-export.py --unity /Applications/Unity/Hub/Editor/6000.3.24f1/Unity.app/Contents/MacOS/Unity --staged-package sdk/unity/.tools/local-risk-packaging`: **passed**. It compiles the production postprocessor with `UNITY_IOS` and executes it against the real installed `UnityEditor.iOS.Extensions.Xcode.dll`, not mocked PBX methods. The fixture has app/UnityFramework targets and separate host/framework manifest sentinels. Assertions cover the PBX folder type, bundle membership in app Resources only, exact staged manifest bytes, valid bundle plist, unchanged host/framework manifests, repeat callback without duplicate bundle entries, and missing-input rejection without PBX mutation. The generated fixture remains at `.tools/local-risk-export/Unity-iPhone.xcodeproj/project.pbxproj`; output is `.evidence/local-risk-export.log`.
+- Actual PBX execution caught and corrected two issues that compilation alone would not catch: implicit build-phase inference rejected the folder reference, and repeated `AddFileToBuildSection` calls duplicated resources. The implementation now uses an explicit Resources phase and removes its existing build entry before adding it.
+- Negative script fixtures: missing source manifest makes staging fail without creating its destination; missing staged manifest makes iOS native build fail without creating `.tools`/plugins. Output remains in `.evidence/local-risk-missing-inputs.log`.
+- Direct non-SwiftPM compilation passed: `xcrun swiftc -parse-as-library -emit-library -static -module-name AppGuardUnityNative -sdk "$(xcrun --sdk iphoneos --show-sdk-path)" -target arm64-apple-ios15.0 sdk/unity/.tools/local-risk-packaging/Native~/Dependencies/apple/Sources/AppGuardApple/*.swift sdk/unity/.tools/local-risk-packaging/Native~/iOS/AppGuardUnity.swift -o sdk/unity/.tools/local-risk-ios-direct.a`. Exit status **0**, no diagnostics (`.evidence/local-risk-swift-direct.log`); `lipo -info` confirms **arm64**. This proves these sources compile without generated `Bundle.module` support. Full XCFramework slices were not rebuilt for this packaging change.
+- `git diff --check -- sdk/unity`: passed. UULab Unity static scratch-project audit found a valid project; its existing empty-project credential-ignore warning and absence of OTA configuration are unrelated to privacy packaging.
+
+`.evidence/local-risk-packaging-source-sha256.json` records hashes of production packaging code, test tools, and staged native Swift/resource inputs used by these checks. Raw outputs and native archive remain local and ignored.
+
+## Limits
+
+The PBX fixture exercises actual export mutation/copy behavior but is not a Unity-generated player export or an Xcode application build. `PackageInfo.FindForAssembly` was compiled against the real Unity API; its lookup was not exercised in a player export. There is no IL2CPP player, signed archive, store privacy aggregation, physical-device scan, scanner accuracy, or provider/runtime verdict evidence. Native scanner/manifest content and broader native tests are owned by the Apple SDK workstream. The Unity managed bridge API remains unchanged.

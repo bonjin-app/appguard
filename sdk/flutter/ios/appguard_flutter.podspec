@@ -8,6 +8,7 @@ Pod::Spec.new do |s|
   s.author = 'UULab'
   s.source = { :path => '.' }
   s.source_files = 'Classes/**/*.swift'
+  s.resource_bundles = { 'AppGuardFlutterPrivacy' => ['Classes/Native/Resources/PrivacyInfo.xcprivacy'] }
   s.dependency 'Flutter'
   s.platform = :ios, '15.0'
   s.swift_version = '5.9'
