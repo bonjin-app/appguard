@@ -1,6 +1,6 @@
 # AppGuard policy and audit v0
 
-Experimental deterministic server policy, independent of AI and provider networks. Portable cases are in `conformance/v0/policy.json`; the first implementation is Python. The existing Java/Node signature SDKs do not yet execute these policy vectors.
+Experimental deterministic server policy, independent of AI and provider networks. Portable cases are in `conformance/v0/policy.json`; Python, Node.js and Java implementations all execute the same42 cases. These are explicit server APIs; installing a signature SDK alone does not automatically enable policy middleware.
 
 `PolicyContext` takes trusted server authentication/request-verification/attestation results plus bounded **untrusted** client risk hints. All defaults are missing. Neither a valid signature nor a client-reported status implies authenticated identity or verified platform attestation. Every context built from application state must preserve that distinction.
 
@@ -19,3 +19,5 @@ Precedence: missing/invalid authentication; rejected/unavailable request verific
 Suspicious hints default to `debugger`, `root`, `hook`, `tamper`. Hints are at most32 unique codes matching `[a-z][a-z0-9_]{0,63}`; unknown valid codes cannot upgrade trust. Timestamps use request-v0's integer domain. Invalid configurations or input types reject with fixed policy errors.
 
 Audit schema: version `appguard-audit-v0`, opaque `event_id`, configured `app_id`, integer `at`, fixed decision `action`, fixed `code`, profile; optional context contributes only `risk_count` and `attestation_state`. No arbitrary object merge, user identifier, token, nonce, key, fingerprint, IP, body, raw risk payload or provider evidence is recorded. IDs must not themselves contain credentials/user identifiers. The caller manages sink availability, retention and privacy policy. `JsonAuditSink` passes compact JSON to an explicit callback and redacts callback failures as `AUDIT_UNAVAILABLE`.
+
+Node's sink always returns an awaited Promise and supports synchronous or asynchronous delivery callbacks. Java and Python use explicitly synchronous callbacks; the Java sink preserves interruption and normalizes callback `Exception`s without their cause/suppressed exception. None of these APIs promise isolation against hostile application-process code or normalize fatal JVM errors. Valid fixed decision construction is supported and does not itself prove policy evaluation occurred.

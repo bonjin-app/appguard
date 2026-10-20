@@ -28,7 +28,7 @@ The core will run without an AI model, paid AI API, or mandatory AppGuard cloud 
 | [Flutter](sdk/flutter/README.md) | Typed platform-channel plugin;17 tests, Java adapter checks, relocated CocoaPods/Simulator app build; device/runtime pending |
 | .NET, Go, PHP | Planned, not implemented |
 | Shared Redis replay claims | Implemented; deployment durability/eviction guarantees are operator-owned |
-| [Python enrollment / policy / audit](docs/security/enrollment-policy.md) | Local SQLite challenge/proof/revocation, deterministic presets and allowlisted audit output |
+| [Enrollment / policy / audit](docs/security/enrollment-policy.md) | Python SQLite challenge/proof/revocation; Python/Node/Java deterministic42-case presets and allowlisted audit output |
 | Apple/Google server attestation verification | Not implemented; requires a trusted provider backend, account configuration and device validation |
 | [Build / CLI](tools/cli/README.md) | Android R8 setup/build; Flutter obfuscation/Expo minification commands; encrypted mapping archive/restore.19 tests and actual isolated Android release build |
 | Optional console / AI | Planned, not implemented; core works without either |
@@ -61,7 +61,7 @@ Adapters require unmodified raw target/header/body evidence and explicit identit
 
 The [Android](sdk/android/README.md) and [Apple](sdk/apple/README.md) packages prepare exact request bytes and fixed wire headers using per-installation P-256 signing capabilities. They expose public SPKI material, not a private-key export API. No HTTP transport adapter is bundled: application transports must preserve the signed target/body/headers and prevent unintended redirects. Local hardware-status metadata is not remotely verified attestation.
 
-The [enrollment protocol](protocol/enrollment-v0.md) binds app, authenticated subject, enrolled key ID, public-key fingerprint, origin and one-use expiry. [Python integration](docs/security/enrollment-policy.md) requires existing authentication and an explicit provider verifier for Balanced/Strict. Proof-only Basic enrollment remains explicitly unattested. The [policy contract](protocol/policy-v0.md) has42 portable cases; current Java/Node SDKs retain independent signature verification and do not yet execute these additional Python presets.
+The [enrollment protocol](protocol/enrollment-v0.md) binds app, authenticated subject, enrolled key ID, public-key fingerprint, origin and one-use expiry. [Python integration](docs/security/enrollment-policy.md) requires existing authentication and an explicit provider verifier for Balanced/Strict. Proof-only Basic enrollment remains explicitly unattested. Python, Node and Java execute the [policy contract's42 portable cases](protocol/policy-v0.md). These explicit APIs consume trusted application verdicts; no profile installs authentication, provider verification or rate counters automatically.
 
 Native tests distinguish JVM/macOS crypto, platform builds and an isolated Android software-keystore emulator. Actual Apple persistent Keychain/Secure Enclave, physical devices and successful provider evidence remain unverified. No Apple/Google project, entitlement, account, release or user key is configured by these tests.
 
