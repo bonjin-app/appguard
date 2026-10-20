@@ -96,6 +96,34 @@ unpadded base64url of that hash. Results return byte copies. These hashes can bi
 provider acquisition; they do not acquire evidence or establish a provider verdict. A bridge
 should expose this validated operation, not an unrestricted arbitrary-message signing endpoint.
 
+## Native JSON bridge
+
+`new NativeBridge(context).invoke(operation, payloadJSON)` returns one JSON string under the
+[client-bridge-v0 contract](../../protocol/client-bridge-v0.md). Operations are exactly `publicKey`,
+`prepare`, and `enrollmentProof`. The framework binding must carry this string without rebuilding
+signed targets, binary bodies, or ordered headers. There is no HTTP transport or unrestricted sign,
+private-key import/export, provider acquisition, or authorization verdict operation.
+
+All payloads require `alias` and `hardwareRequirement`: `any`, `hardware`, or `strongbox` map to
+`ANY_KEYSTORE`, `HARDWARE_REQUIRED`, and `STRONGBOX_REQUIRED`. The installation-key adapter owns
+storage checks and fails closed; returned `backing` is its explicit native enum label. The bridge
+uses native wall-clock time to reject expired requests and creation more than 30 seconds ahead.
+Callers supply explicit integer timestamps and canonical nonces, rather than a JavaScript clock.
+
+The boundary accepts at most 1500000 UTF-8 bytes and 1048576 decoded body bytes. It rejects unknown
+fields, duplicate decoded JSON keys (including escaped aliases), coercible/wrong types, non-integer
+number spelling, malformed strings, and noncanonical padded standard base64. A lazy key handle lets
+the typed SDK reject request syntax, final header limits, and enrollment bindings before persistent
+key access where possible. Responses contain either `ok: true` with the documented result, or
+`ok: false` with only a fixed error code; native exception messages never cross the bridge.
+
+Observed bridge verification: 9 host tests plus the existing 18 host tests pass; release AAR and
+lint pass, with the existing AGP/AndroidX version-update warnings. Real ephemeral JCA request and
+enrollment signatures are independently verified. Exact body/JSON boundaries, binary bodies, empty
+queries, invalid input before key lookup, hardware mapping, native-clock rejection, and redacted
+key/signing failures are covered. Disabling duplicate-key rejection makes its regression fail.
+These host bridge tests do not exercise actual Android Keystore or framework/device runtime.
+
 ## Build and verification
 
 Requires Java 17, Android SDK platform 36, and build-tools 35.0.0 already installed/licensed.

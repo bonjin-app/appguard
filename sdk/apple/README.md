@@ -60,6 +60,34 @@ The helper checks every identity/origin binding, canonical 32-byte server nonce,
 
 `AppAttestEvidence` contains only the opaque object and its app/environment/key/hash/operation context. Apple manages the nonexportable App Attest key separately from the installation request-signing key; it cannot export the request key's SPKI. Provider failures, unsupported service, unavailable service, invalid keys, server unavailability and malformed responses fail explicitly. The wrapper performs no automatic retry, key-ID discard or rotation. Configuration labels are not entitlement validation. The server must authenticate/decode the provider object and verify Apple identity, environment, challenge, key binding and replay/counter policy; this package makes no server-attestation-verification claim.
 
+## Native JSON bridge
+
+`NativeBridge().invoke(operation:payload:)` returns the fixed JSON envelope in
+[client-bridge-v0](../../protocol/client-bridge-v0.md). Supported operations are `publicKey`,
+`prepare`, and `enrollmentProof`. Bindings carry the exact target, canonical base64 body, and ordered
+header pairs from the result; this API does not send HTTP requests, expose unrestricted signing or
+private-key import/export, acquire provider evidence, or return an authorization verdict.
+
+Every payload requires `alias` and `hardwareRequirement`. `any` uses the installation-key default;
+`hardware` requires Secure Enclave without fallback; `strongbox` returns `APPGUARD_UNSUPPORTED`.
+`publicKey` reports `keychain` or `secureEnclave` without claiming remote attestation. Request and
+enrollment timestamps are validated against native wall-clock time. Internal ephemeral-key/clock
+seams are inaccessible through the public JSON API.
+
+The parser bounds input to 1500000 UTF-8 bytes, rejects duplicate decoded keys, unknown fields,
+wrong types, non-integer numeric spellings, invalid string encodings, and noncanonical standard
+padded base64. Decoded bodies are limited to 1048576 bytes. Keys load lazily, after the existing
+typed SDK validates request syntax, final header limits, and enrollment identity/time bindings.
+Only the fixed error code crosses the failure boundary; underlying native errors are redacted.
+
+Eight bridge tests independently verify real ephemeral CryptoKit request/enrollment signatures and
+hashes, binary/empty-query preservation, exact size boundaries, native-clock rejection, hardware
+mapping, malformed input before key lookup, and redacted load/signing failures. A negative control
+removing duplicate-key detection fails its regression. Full host verification is 34 XCTest methods;
+the unsigned generic iOS Simulator build passes arm64 and x86_64. No bridge test writes persistent
+Keychain items or boots a Simulator. Persistent storage, physical Secure Enclave, framework runtime,
+provider and store evidence remain separate requirements.
+
 ## Verification and public-only probes
 
 From the repository root on macOS with Xcode selected:
@@ -80,7 +108,7 @@ Observed with Xcode 27.1 (27A9275), Swift 6.4 and macOS 27.0.1:
 
 | Evidence tier | Result |
 | --- | --- |
-| Host SwiftPM | 24 XCTest methods pass, covering all 40 corpus canonical-base scenarios and six fixed successful CryptoKit signature checks, new signatures, limits, raw buffer ownership, DER/raw edge cases, enrollment bindings and App Attest error boundaries. |
+| Host SwiftPM | 34 XCTest methods pass, covering all 40 corpus canonical-base scenarios and six fixed successful CryptoKit signature checks, new signatures, limits, raw buffer ownership, DER/raw edge cases, enrollment bindings and App Attest error boundaries. |
 | Native key operations | Real nonpersistent Security `SecKey` creation/signing and CryptoKit public-SPKI verification execute on the host; persistent I/O is replaced by an in-memory store in tests. |
 | iOS Simulator build | Unsigned generic iOS Simulator build passes for arm64 and x86_64, iOS 15.0 deployment target. No Simulator is booted or exercised. |
 | Persistence / device / provider | Actual persistent Keychain creation/reload, Secure Enclave hardware, device runtime, entitlements, Apple provider acquisition and server verification are untested here. No accounts/profiles/user keys are changed. |
