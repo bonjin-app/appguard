@@ -1,0 +1,11 @@
+{
+  "name": "@appguard/cli",
+  "version": "0.0.0-experimental.0",
+  "private": true,
+  "type": "module",
+  "license": "Apache-2.0",
+  "engines": { "node": ">=22" },
+  "bin": { "appguard": "bin/appguard.js" },
+  "files": ["bin", "src", "LICENSE", "README.md"],
+  "scripts": { "test": "node --test test/*.test.js" }
+}

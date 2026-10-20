@@ -1,0 +1,1 @@
+{"name": "AppGuard.Unity", "rootNamespace": "AppGuard", "references": [], "autoReferenced": true, "overrideReferences": true, "precompiledReferences": ["Newtonsoft.Json.dll"]}

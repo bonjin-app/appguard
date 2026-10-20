@@ -1,0 +1,11 @@
+{
+  "name": "io.appguard.unity",
+  "version": "0.0.0-experimental",
+  "displayName": "AppGuard Client",
+  "description": "Experimental typed native AppGuard request and enrollment bridge.",
+  "unity": "6000.0",
+  "dependencies": {
+    "com.unity.nuget.newtonsoft-json": "3.2.1",
+    "com.unity.modules.androidjni": "1.0.0"
+  }
+}
