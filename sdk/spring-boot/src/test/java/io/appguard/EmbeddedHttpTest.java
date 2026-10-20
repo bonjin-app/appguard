@@ -9,11 +9,13 @@ import java.nio.charset.StandardCharsets;
 import java.time.*;
 import java.util.*;
 import java.util.concurrent.Callable;
+import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.*;
 import org.springframework.boot.*;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.builder.SpringApplicationBuilder;
 import org.springframework.boot.web.servlet.context.ServletWebServerApplicationContext;
+import org.springframework.boot.web.servlet.ServletRegistrationBean;
 import org.springframework.context.annotation.*;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
@@ -38,7 +40,11 @@ class EmbeddedHttpTest {
     @AfterAll void stop(){if(context!=null)context.close();}
     @SpringBootConfiguration @EnableAutoConfiguration @Import({Endpoints.class,Security.class}) static class App {
         @Bean Clock clock(){return Clock.fixed(Instant.ofEpochSecond(SignedRequests.NOW),ZoneOffset.UTC);}
-        @Bean ReplayStore replay(){return new LocalReplayStore();}
+        @Bean CountingReplayStore replay(){return new CountingReplayStore();}
+        @Bean ServletRegistrationBean<LateBodyServlet> lateBodyServlet(){
+            ServletRegistrationBean<LateBodyServlet> registration=new ServletRegistrationBean<>(new LateBodyServlet(),"/async-late","/async-explicit");
+            registration.setAsyncSupported(true);return registration;
+        }
         @Bean IdentityResolver identities(){return IdentityResolver.fromPrincipal((subject,key)->SignedRequests.key());}
     }
     @Configuration(proxyBeanMethods=false) static class Security {
@@ -57,6 +63,35 @@ class EmbeddedHttpTest {
         }
         @PostMapping("/async") Callable<byte[]> async(@RequestBody byte[] body){return ()->body;}
     }
+    static final class CountingReplayStore implements ReplayStore {
+        final AtomicInteger attempts=new AtomicInteger();
+        final LocalReplayStore delegate=new LocalReplayStore();
+        @Override public Boolean claim(ReplayScope scope,long expires,long now){attempts.incrementAndGet();return delegate.claim(scope,expires,now);}
+    }
+    static final class LateBodyServlet extends HttpServlet {
+        @Override protected void doPost(HttpServletRequest request,HttpServletResponse response)throws IOException {
+            if(request.getDispatcherType()==DispatcherType.ASYNC){
+                response.setHeader("X-Redispatch-Body",Base64.getEncoder().encodeToString(request.getInputStream().readAllBytes()));
+                response.setHeader("X-Redispatch-Verification",((VerificationResult)request.getAttribute(AppGuardFilter.VERIFICATION_ATTRIBUTE)).code());
+                response.getOutputStream().write((byte[])request.getAttribute("test.async.workerBody"));return;
+            }
+            // Neither the servlet nor MVC reads content before asynchronous processing starts.
+            boolean explicit=request.getRequestURI().equals("/async-explicit");
+            HttpServletRequest selectedRequest=explicit?new HttpServletRequestWrapper(request){}:request;
+            HttpServletResponse selectedResponse=explicit?new HttpServletResponseWrapper(response){}:response;
+            AsyncContext async=explicit?request.startAsync(selectedRequest,selectedResponse):request.startAsync();
+            response.setHeader("X-Async-Request-Preserved",Boolean.toString(async.getRequest()==selectedRequest));
+            response.setHeader("X-Async-Response-Preserved",Boolean.toString(async.getResponse()==selectedResponse));
+            response.setHeader("X-Async-Context-Preserved",Boolean.toString(request.getAsyncContext().getRequest()==async.getRequest() && request.getAsyncContext().getResponse()==async.getResponse()));
+            async.start(()->{
+                try {
+                    // The worker must read from the request actually retained by the container.
+                    byte[] body=async.getRequest().getInputStream().readAllBytes();
+                    async.getRequest().setAttribute("test.async.workerBody",body);async.dispatch();
+                } catch(IOException e){((HttpServletResponse)async.getResponse()).setStatus(500);async.complete();}
+            });
+        }
+    }
     HttpResponse<byte[]> post(String target,byte[] body,String type,List<Header> headers)throws Exception {
         var request=HttpRequest.newBuilder(URI.create("http://127.0.0.1:"+port+target)).timeout(Duration.ofSeconds(5)).POST(HttpRequest.BodyPublishers.ofByteArray(body));
         for(Header h:headers)request.header(h.name(),h.value());return client.send(request.build(),HttpResponse.BodyHandlers.ofByteArray());
@@ -74,6 +109,24 @@ class EmbeddedHttpTest {
     }
     @Test void realAsyncRedispatchDoesNotReclaimNonce() throws Exception {
         byte[] body="{\"async\":true}".getBytes();HttpResponse<byte[]> response=post("/async",body,"application/json",SignedRequests.signed("POST","/async",body,"application/json"));assertThat(response.statusCode()).isEqualTo(200);assertThat(response.body()).isEqualTo(body);
+    }
+    @Test void noArgumentAsyncContextPreservesBodyForWorkerBeforeRedispatch()throws Exception {
+        assertLateAsyncBody("/async-late");
+    }
+    @Test void explicitAsyncContextPreservesCallerRequestAndResponseWrappers()throws Exception {
+        assertLateAsyncBody("/async-explicit");
+    }
+    void assertLateAsyncBody(String target)throws Exception {
+        byte[] body="{\"late\":\"세상\", \"bytes\":[0,1,2]}".getBytes(StandardCharsets.UTF_8);
+        CountingReplayStore replay=context.getBean(CountingReplayStore.class);int before=replay.attempts.get();
+        HttpResponse<byte[]> response=post(target,body,"application/json",SignedRequests.signed("POST",target,body,"application/json"));
+        assertThat(response.statusCode()).isEqualTo(200);assertThat(response.body()).isEqualTo(body);
+        assertThat(response.headers().firstValue("X-Async-Request-Preserved")).contains("true");
+        assertThat(response.headers().firstValue("X-Async-Response-Preserved")).contains("true");
+        assertThat(response.headers().firstValue("X-Async-Context-Preserved")).contains("true");
+        assertThat(response.headers().firstValue("X-Redispatch-Body")).contains(Base64.getEncoder().encodeToString(body));
+        assertThat(response.headers().firstValue("X-Redispatch-Verification")).contains("VERIFIED");
+        assertThat(replay.attempts).hasValue(before+1);
     }
     @Test void containerChunkedCaptureAndExplicitEmptyQueryPreserveSignature() throws Exception {
         byte[] body="{}".getBytes();String response=raw("/echo?",SignedRequests.signed("POST","/echo?",body,"application/json"),"Transfer-Encoding: chunked\r\n","2\r\n{}\r\n0\r\n\r\n");

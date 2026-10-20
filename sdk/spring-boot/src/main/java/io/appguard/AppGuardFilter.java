@@ -27,7 +27,7 @@ public final class AppGuardFilter implements Filter {
         if(request.getDispatcherType()!=DispatcherType.REQUEST){
             Object prior=request.getAttribute(stateAttribute);
             if(!(prior instanceof State state)){failure(response,400,"INVALID_REQUEST");return;}
-            request.setAttribute(VERIFICATION_ATTRIBUTE,state.result());chain.doFilter(new BufferedRequest(request,state.body()),response);return;
+            request.setAttribute(VERIFICATION_ATTRIBUTE,state.result());chain.doFilter(new BufferedRequest(request,response,state.body()),response);return;
         }
         HttpServletRequest raw=original(request);
         if(!allowInsecureTransport && !raw.isSecure()){failure(response,400,"INVALID_REQUEST");return;}
@@ -60,7 +60,7 @@ public final class AppGuardFilter implements Filter {
         }catch(VerificationException e){failure(response,status(e.code()),e.code());return;}
         catch(RuntimeException e){failure(response,503,"IDENTITY_UNAVAILABLE");return;}
         request.setAttribute(stateAttribute,new State(body,result));request.setAttribute(VERIFICATION_ATTRIBUTE,result);
-        chain.doFilter(new BufferedRequest(request,body),response);
+        chain.doFilter(new BufferedRequest(request,response,body),response);
     }
     private static HttpServletRequest original(HttpServletRequest request){
         while(request instanceof HttpServletRequestWrapper wrapper && wrapper.getRequest() instanceof HttpServletRequest next) request=next;
