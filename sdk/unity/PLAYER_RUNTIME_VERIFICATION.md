@@ -34,7 +34,7 @@ pending; this is a bounded observation, not a mobile latency guarantee.
 
 - Existing actual Unity EditMode suite: **138/138**, zero failures/skips. Actual
   Android/iOS runtime branches and iOS postprocessor compile again.
-- Host receipt/launcher/log-gate regressions: **15/15**. RED/GREEN covers empty
+- Host receipt/launcher/log-gate regressions: **19/19**. RED/GREEN covers empty
   matching GUIDs, boolean frame counts, missing/duplicate/failed cases, incorrect
   platform/backend/development tier, fatal logs, and malformed launcher resolution.
 - Relocated native SDK sources rebuilt into the AAR and device/Simulator XCFramework.
@@ -95,7 +95,31 @@ failures, review and clean-main readback are archived under
 
 ## Review and integration
 
-One fresh whole-change security review is pending before local main integration.
-The author retains the bounded custom receipt/component gates with focused tests;
-Simulator development, iOS 15 compatibility and physical runtime limits remain
-explicit. Another platform/engine/version requires its own evidence.
+One fresh whole-change review found **0 Critical, 0 Important, 2 Minor**.
+The first Minor concerned the iOS `artifact_sha256` field, which named only the
+UnityFramework binary. The runner now emits `framework_sha256` with an exact
+`framework_relative_path`; Android keeps the whole-APK field. A full iOS app-bundle
+digest is not claimed. Raw historical receipts remain unchanged; the corrected
+scope and freshly recomputed identities are in `post-review-readback.json`.
+
+The second Minor concerned pending-frame progress as an observation. The host now
+rejects absent, negative, null, boolean or greater-than-total measurements. Zero
+remains valid: a fast scan can finish within a frame. This metric is explicitly
+**not a responsiveness success gate**; the post-scan heartbeat proves later frame
+progress, and current raw runs separately show progress during scanning. A future
+synchronous implementation could still satisfy the smoke result cases; the existing
+worker/thread ownership tests and code review provide separate dispatch evidence.
+Enforcing a latency/UI SLA requires a workload with deterministic timing and is
+outside this bounded interoperation stage.
+
+These host-only repairs ran RED (19 tests: 1 failure, 2 errors) then GREEN (19/19).
+The final host gates, exact GUID/PASS logs and corrected hashes were replayed over
+both preserved actual runtime receipts and artifacts. No SDK/fixture/binary source
+changed, no mobile rebuild was needed, and no new VM execution or second review is
+claimed after the host repairs. Simulator Development, iOS 15 compatibility,
+memory-leak absence and physical runtime limits remain explicit; another platform,
+engine or version requires its own evidence.
+
+The final integration receipt binds changed-file hashes to the clean local main
+fast-forward. Only owned virtual devices/scratch were removed after evidence
+preservation; all 300 preexisting global AVD metadata hashes remained identical.

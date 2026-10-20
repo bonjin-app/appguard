@@ -36,6 +36,6 @@ Expected: no invented physical-device evidence; concrete blockers and exact comp
 
 ### Task 3: Security review, evidence and local main
 Files: sdk/unity/PLAYER_RUNTIME_VERIFICATION.md, README/roadmap references; plan and stage ledger.
-- [ ] Fresh whole-change read-only security reviewer; regrade by effect, one Critical/Important fix pass with regressions/full affected checks, record Minor/rulings; no re-review.
-- [ ] Hash sources/artifacts/receipts, preserve archived evidence, stop/remove only owned virtual device resources.
-- [ ] Fresh clean main check, local fast-forward merge and exact source hash readback.
+- [x] Fresh whole-change read-only security reviewer; regrade by effect, one Critical/Important fix pass with regressions/full affected checks, record Minor/rulings; no re-review.
+- [x] Hash sources/artifacts/receipts, preserve archived evidence, stop/remove only owned virtual device resources.
+- [x] Fresh clean main check, local fast-forward merge and exact source hash readback.

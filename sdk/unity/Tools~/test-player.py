@@ -27,7 +27,19 @@ def verify_receipt(value, summary, target):
         raise ValueError('missing, duplicate or failed smoke case')
     if any(type(value.get(k)) is not int or value[k]<=0 for k in ('frames','mainThread')):
         raise ValueError('missing frame/thread evidence')
+    pending=value.get('framesWhileScansPending')
+    if type(pending) is not int or pending<0 or pending>value['frames']:
+        raise ValueError('invalid pending-scan frame measurement')
     return value
+
+def artifact_identity(artifact, target):
+    if target=='android':
+        return {'artifact_sha256':hashlib.sha256(artifact.read_bytes()).hexdigest()}
+    for relative in ('Frameworks/UnityFramework.framework/UnityFramework','UnityFramework.framework/UnityFramework'):
+        binary=artifact/relative
+        if binary.is_file():
+            return {'framework_sha256':hashlib.sha256(binary.read_bytes()).hexdigest(),'framework_relative_path':relative}
+    raise ValueError('UnityFramework binary missing')
 
 def resolve_activity(text):
     candidates=[line.strip() for line in text.splitlines() if line.strip().startswith(APP_ID+'/')]

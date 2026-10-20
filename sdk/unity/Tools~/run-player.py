@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """Install/run a smoke artifact only on an explicitly selected virtual device; never infer success from launch."""
 import argparse
-import hashlib
 import importlib.util
 import json
 from pathlib import Path
@@ -42,8 +41,8 @@ def main():
     def run(command):
         r=capture(command,False);log.append({'command':list(map(str,command)),'stdout':r.stdout,'stderr':r.stderr,'returncode':r.returncode});r.check_returncode();return r
     try:
+        identity=player.artifact_identity(artifact,args.target)
         if args.target=='android':
-            artifact_hash=hashlib.sha256(artifact.read_bytes()).hexdigest()
             run(prefix+['install','--no-streaming',artifact])
             resolved=run(prefix+['shell','cmd','package','resolve-activity','--brief','-a','android.intent.action.MAIN','-c','android.intent.category.LAUNCHER','-p',player.APP_ID])
             activity=player.resolve_activity(resolved.stdout)
@@ -51,7 +50,6 @@ def main():
             if 'Status: ok' not in launched.stdout:raise ValueError('activity launch not confirmed')
             def read():return capture(prefix+['shell','cat','/sdcard/Android/data/'+player.APP_ID+'/files/appguard-player-result.json'],False)
         else:
-            artifact_hash=hashlib.sha256((artifact/'UnityFramework.framework/UnityFramework').read_bytes()).hexdigest() if (artifact/'UnityFramework.framework/UnityFramework').exists() else hashlib.sha256((artifact/'Frameworks/UnityFramework.framework/UnityFramework').read_bytes()).hexdigest()
             run(prefix+['install',args.ios_udid,artifact]);launched=run(prefix+['launch','--stdout='+str(out/'stdout.txt'),'--stderr='+str(out/'stderr.txt'),args.ios_udid,player.APP_ID])
             data=Path(run(prefix+['get_app_container',args.ios_udid,player.APP_ID,'data']).stdout.strip())
             def read():
@@ -82,7 +80,7 @@ def main():
             logs=''.join((out/name).read_text(errors='replace') for name in ('stdout.txt','stderr.txt') if (out/name).is_file())
         player.verify_runtime_log(logs)
         if 'APPGUARD_PLAYER_RESULT PASS '+summary['guid'] not in logs:raise ValueError('matching runtime completion log absent')
-        (out/'verified.json').write_text(json.dumps({'target':args.target,'artifact':str(artifact),'artifact_sha256':artifact_hash,'build_guid':summary['guid'],'cases':len(player.CASES),'passed':True,'runtime_development':value['development'],'device':args.android_serial or args.ios_udid,'note':'Virtual player runtime; no physical-device or attestation proof.'},indent=2)+'\n')
+        (out/'verified.json').write_text(json.dumps({'target':args.target,'artifact':str(artifact),**identity,'build_guid':summary['guid'],'cases':len(player.CASES),'passed':True,'runtime_development':value['development'],'device':args.android_serial or args.ios_udid,'note':'Virtual player runtime; no physical-device or attestation proof.'},indent=2)+'\n')
         print('PASS:',args.target,len(player.CASES),'runtime cases; build GUID',summary['guid'])
     finally:
         (out/'commands.json').write_text(json.dumps(log,indent=2)+'\n')
