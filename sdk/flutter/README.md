@@ -6,7 +6,14 @@ Android 26+ and iOS 15+ plugin for native installation public keys, request prep
 
 From this repository, run `python3 sdk/flutter/tool/pack.py`. It stages the sibling Android and Apple SDK source files with licenses and SHA-256 provenance, then creates `sdk/flutter/.evidence/appguard_flutter.tar.gz`. Extract that archive into an independent directory and use a Flutter path dependency to it. The archive has no repository-relative native dependencies and excludes tooling, test outputs, caches and SDK runtimes. Local development directly against this checkout first requires `python3 sdk/flutter/tool/stage_native.py`.
 
-The CocoaPods pod compiles the staged Apple SDK into the plugin module; it does not require a remote AppGuard pod or Swift package. Android compiles the staged Java sources. Set the consumer Android minimum SDK to 26 and iOS deployment target to 15.0. Keep the included native licenses and provenance with redistributed sources.
+The CocoaPods pod compiles the staged Apple SDK into the plugin module; it does not require a remote AppGuard pod or Swift package. Android compiles the staged Java sources. Set the consumer Android minimum SDK to 26 and iOS deployment target to 15.0. Keep the included native licenses and provenance with redistributed sources. This plugin currently supplies CocoaPods integration only. On Flutter versions that default to Swift Package Manager, select CocoaPods per consumer project without changing global Flutter settings:
+
+```yaml
+flutter:
+  config:
+    enable-swift-package-manager: false
+```
+
 
 ## API
 
