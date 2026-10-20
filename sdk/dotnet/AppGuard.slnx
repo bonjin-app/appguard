@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/AppGuard/AppGuard.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/AppGuard.Tests/AppGuard.Tests.csproj" />
+    <Project Path="tools/InteropProbe/InteropProbe.csproj" />
+  </Folder>
+</Solution>
