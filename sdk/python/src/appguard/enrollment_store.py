@@ -1,6 +1,7 @@
 """Dedicated private SQLite enrollment database; no global service or user DB."""
 
 from contextlib import contextmanager
+from functools import wraps
 import os
 from pathlib import Path
 import sqlite3
@@ -10,9 +11,24 @@ from .enrollment_types import Challenge, Credential, EnrollmentError, _identifie
 from .types import KeyRecord
 
 
+def _redacted(operation):
+    @wraps(operation)
+    def call(*args, **kwargs):
+        try:
+            return operation(*args, **kwargs)
+        except EnrollmentError as error:
+            code = error.code
+        # contextlib may reattach the exception thrown into a generator's yield.
+        # Sanitize after the complete transaction boundary has unwound instead.
+        raise EnrollmentError(code) from None
+    return call
+
+
 class SqliteEnrollmentStore:
+    @_redacted
     def __init__(self, path):
         self.path = str(Path(os.path.abspath(os.fspath(path))))
+        unavailable = False
         try:
             flags = os.O_RDWR | getattr(os, "O_NOFOLLOW", 0) | getattr(os, "O_NONBLOCK", 0)
             try:
@@ -37,28 +53,40 @@ class SqliteEnrollmentStore:
                 elif names != expected or db.execute("SELECT version FROM appguard_meta").fetchall() != [(1,)]:
                     raise EnrollmentError("STORE_UNAVAILABLE")
         except (OSError, ValueError, TypeError):
+            unavailable = True
+        if unavailable:
             raise EnrollmentError("STORE_UNAVAILABLE") from None
 
     @contextmanager
     def _db(self):
-        db = None
+        db, failure = None, None
         try:
             db = sqlite3.connect(self.path, timeout=5, isolation_level=None)
             db.execute("BEGIN IMMEDIATE")
             yield db
             db.execute("COMMIT")
-        except EnrollmentError:
-            if db is not None and db.in_transaction:
-                db.rollback()
-            raise
+        except EnrollmentError as error:
+            failure = error.code
         except (sqlite3.Error, OSError, TypeError, ValueError):
-            if db is not None and db.in_transaction:
-                db.rollback()
-            raise EnrollmentError("STORE_UNAVAILABLE") from None
+            failure = "STORE_UNAVAILABLE"
         finally:
             if db is not None:
-                db.close()
+                try:
+                    if db.in_transaction:
+                        db.rollback()
+                except (sqlite3.Error, OSError, TypeError, ValueError):
+                    failure = "STORE_UNAVAILABLE"
+                finally:
+                    try:
+                        db.close()
+                    except (sqlite3.Error, OSError, TypeError, ValueError):
+                        failure = "STORE_UNAVAILABLE"
+        # Outside all handlers: structured reporters must not retain SQLite or
+        # callback errors through __context__, even with traceback suppression.
+        if failure is not None:
+            raise EnrollmentError(failure) from None
 
+    @_redacted
     def add_challenge(self, challenge, *, now, max_pending):
         with self._db() as db:
             db.execute("DELETE FROM appguard_challenges WHERE expires <= ?", (now,))
@@ -70,12 +98,14 @@ class SqliteEnrollmentStore:
                 challenge.nonce, challenge.app_id, challenge.subject, challenge.key_id, challenge.origin,
                 challenge.public_key_sha256, challenge.expires, challenge.public_key_pem))
 
+    @_redacted
     def pending(self, nonce):
         _nonce(nonce)
         with self._db() as db:
             row = db.execute("SELECT app,subject,kid,origin,fingerprint,nonce,expires,pem FROM appguard_challenges WHERE nonce=?", (nonce,)).fetchone()
             return Challenge(*row) if row else None
 
+    @_redacted
     def finish(self, challenge, credential, *, now):
         with self._db() as db:
             row = db.execute("SELECT app,subject,kid,origin,fingerprint,nonce,expires,pem FROM appguard_challenges WHERE nonce=?", (challenge.nonce,)).fetchone()
@@ -88,6 +118,7 @@ class SqliteEnrollmentStore:
                        key.public_key_pem, int(key.revoked), credential.attestation, credential.provider, credential.attestation_expires))
             db.execute("DELETE FROM appguard_challenges WHERE nonce=?", (challenge.nonce,))
 
+    @_redacted
     def lookup(self, app_id, subject, key_id):
         for value in (app_id, subject, key_id):
             _identifier(value)
@@ -100,6 +131,7 @@ class SqliteEnrollmentStore:
                 raise EnrollmentError("STORE_UNAVAILABLE")
             return Credential(KeyRecord(app_id, key_id, subject, pem, "ecdsa-p256-sha256", bool(revoked)), attestation, provider, expires)
 
+    @_redacted
     def revoke(self, app_id, subject, key_id):
         for value in (app_id, subject, key_id):
             _identifier(value)

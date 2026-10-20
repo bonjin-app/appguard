@@ -265,3 +265,134 @@ def test_symlink_or_world_readable_enrollment_database_is_rejected(tmp_path):
     os.chmod(original, 0o644)
     with pytest.raises(EnrollmentError, match="^STORE_UNAVAILABLE$"):
         SqliteEnrollmentStore(original)
+
+
+def assert_redacted(error, code):
+    assert error.code == code and str(error) == code
+    assert error.__cause__ is None
+    assert error.__context__ is None
+
+
+@pytest.mark.parametrize("phase", ["issue", "complete", "after_provider"])
+def test_clock_errors_have_no_retained_exception_or_enrollment_side_effect(setup, phase):
+    store, _, challenge, sign, clock = setup
+    def unavailable():
+        raise RuntimeError("PRIVATE_SYNTHETIC_CLOCK")
+    service = EnrollmentService(store, profile="basic", clock=lambda: clock[0])
+    if phase == "after_provider":
+        def provider(c, evidence):
+            service.clock = unavailable
+            return verdict(c, clock[0])
+        service.attestation_verifier = provider
+    else:
+        service.clock = unavailable
+    with pytest.raises(EnrollmentError) as result:
+        if phase == "issue":
+            service.issue(app_id="test-app", subject="test-user", key_id="another-key", origin=challenge.origin,
+                          public_key_pem=challenge.public_key_pem)
+        else:
+            complete(service, challenge, sign(enrollment_message(challenge)),
+                     **({"evidence": b"PRIVATE_SYNTHETIC_EVIDENCE"} if phase == "after_provider" else {}))
+    assert_redacted(result.value, "CLOCK_UNAVAILABLE")
+    assert store.pending(challenge.nonce) == challenge
+    assert store.lookup("test-app", "test-user", "test-key") is None
+
+
+def test_nested_provider_error_does_not_retain_evidence(setup):
+    import json
+    store, _, challenge, sign, clock = setup
+    def provider(c, evidence):
+        try:
+            json.loads(evidence)
+        except ValueError as original:
+            raise RuntimeError("PRIVATE_SYNTHETIC_PROVIDER") from original
+    service = EnrollmentService(store, clock=lambda: clock[0], attestation_verifier=provider)
+    with pytest.raises(EnrollmentError) as result:
+        complete(service, challenge, sign(enrollment_message(challenge)), evidence=b"PRIVATE_SYNTHETIC_EVIDENCE")
+    assert_redacted(result.value, "ATTESTATION_UNAVAILABLE")
+    assert store.pending(challenge.nonce) == challenge
+    assert store.lookup("test-app", "test-user", "test-key") is None
+
+
+@pytest.mark.parametrize("kind", ["public_key", "proof", "identifier", "origin"])
+def test_validation_errors_do_not_retain_internal_exception_context(setup, kind):
+    store, service, challenge, _, _ = setup
+    with pytest.raises(EnrollmentError) as result:
+        if kind == "proof":
+            complete(service, challenge, b"\0" * 64)
+        else:
+            service.issue(app_id="invalid app" if kind == "identifier" else "test-app", subject="test-user",
+                          key_id="another-key", origin="invalid origin" if kind == "origin" else challenge.origin,
+                          public_key_pem=b"PRIVATE_SYNTHETIC_INVALID_PEM" if kind == "public_key" else challenge.public_key_pem)
+    assert_redacted(result.value, "PROOF_REJECTED" if kind == "proof" else "INVALID_ENROLLMENT")
+    assert store.pending(challenge.nonce) == challenge
+    assert store.lookup("test-app", "test-user", "test-key") is None
+
+
+def test_sqlite_constraint_error_has_no_context_and_transaction_rolls_back(setup):
+    store, _, challenge, _, clock = setup
+    with pytest.raises(EnrollmentError) as result:
+        store.add_challenge(challenge, now=clock[0], max_pending=100)
+    assert_redacted(result.value, "STORE_UNAVAILABLE")
+    assert store.pending(challenge.nonce) == challenge
+    assert store.lookup("test-app", "test-user", "test-key") is None
+
+
+def test_invalid_database_error_does_not_retain_sqlite_exception(tmp_path):
+    path = tmp_path / "invalid.sqlite"
+    path.write_bytes(b"PRIVATE_SYNTHETIC_NOT_A_DATABASE")
+    path.chmod(0o600)
+    with pytest.raises(EnrollmentError) as result:
+        SqliteEnrollmentStore(path)
+    assert_redacted(result.value, "STORE_UNAVAILABLE")
+    assert path.read_bytes() == b"PRIVATE_SYNTHETIC_NOT_A_DATABASE"
+
+
+def test_os_store_error_does_not_retain_private_path(tmp_path):
+    with pytest.raises(EnrollmentError) as result:
+        SqliteEnrollmentStore(tmp_path / "PRIVATE_SYNTHETIC_MISSING_PARENT" / "db")
+    assert_redacted(result.value, "STORE_UNAVAILABLE")
+
+
+@pytest.mark.parametrize("failure", ["rollback", "close"])
+def test_sqlite_cleanup_failure_is_fixed_and_connection_is_closed(setup, monkeypatch, failure):
+    import appguard.enrollment_store as module
+    store, _, challenge, _, clock = setup
+    original = sqlite3.connect
+    closed = []
+    class Connection(sqlite3.Connection):
+        def rollback(self):
+            super().rollback()
+            if failure == "rollback":
+                raise sqlite3.OperationalError("PRIVATE_SYNTHETIC_ROLLBACK")
+        def close(self):
+            super().close()
+            closed.append(True)
+            if failure == "close":
+                raise sqlite3.OperationalError("PRIVATE_SYNTHETIC_CLOSE")
+    monkeypatch.setattr(module.sqlite3, "connect", lambda *a, **kw: original(*a, **kw, factory=Connection))
+    with pytest.raises(EnrollmentError) as result:
+        store.add_challenge(challenge, now=clock[0], max_pending=100)
+    assert closed == [True]
+    assert_redacted(result.value, "STORE_UNAVAILABLE")
+    monkeypatch.undo()
+    assert store.pending(challenge.nonce) == challenge
+
+
+def test_close_error_after_commit_requires_authenticated_state_readback(setup, monkeypatch):
+    import appguard.enrollment_store as module
+    store, service, challenge, sign, _ = setup
+    original = sqlite3.connect
+    class Connection(sqlite3.Connection):
+        def close(self):
+            changed = self.total_changes > 0
+            super().close()
+            if changed:
+                raise sqlite3.OperationalError("PRIVATE_SYNTHETIC_POST_COMMIT_CLOSE")
+    monkeypatch.setattr(module.sqlite3, "connect", lambda *a, **kw: original(*a, **kw, factory=Connection))
+    with pytest.raises(EnrollmentError) as result:
+        complete(service, challenge, sign(enrollment_message(challenge)))
+    assert_redacted(result.value, "STORE_UNAVAILABLE")
+    monkeypatch.undo()
+    assert store.pending(challenge.nonce) is None
+    assert store.lookup("test-app", "test-user", "test-key").key.key_id == "test-key"

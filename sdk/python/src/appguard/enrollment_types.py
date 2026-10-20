@@ -19,8 +19,10 @@ class EnrollmentError(Exception):
 def _identifier(value):
     try:
         validate_identifier(value)
+        return
     except VerificationError:
-        raise EnrollmentError("INVALID_ENROLLMENT") from None
+        pass
+    raise EnrollmentError("INVALID_ENROLLMENT") from None
 
 
 def _time(value):
@@ -71,9 +73,13 @@ def enrollment_message(challenge: Challenge) -> bytes:
         raise EnrollmentError("INVALID_ENROLLMENT")
     for value in (challenge.app_id, challenge.subject, challenge.key_id):
         _identifier(value)
+    valid_origin = False
     try:
         _validate_origin(challenge.origin)
+        valid_origin = True
     except VerificationError:
+        pass
+    if not valid_origin:
         raise EnrollmentError("INVALID_ENROLLMENT") from None
     _nonce(challenge.nonce)
     _time(challenge.expires)

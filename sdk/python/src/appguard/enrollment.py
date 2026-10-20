@@ -29,15 +29,19 @@ class EnrollmentService:
         try:
             return _time(self.clock())
         except Exception:
-            raise EnrollmentError("CLOCK_UNAVAILABLE") from None
+            pass
+        raise EnrollmentError("CLOCK_UNAVAILABLE") from None
 
     def issue(self, *, app_id, subject, key_id, origin, public_key_pem, ttl=120):
         for value in (app_id, subject, key_id):
             _identifier(value)
+        public = None
         try:
             _validate_origin(origin)
             public = load_p256_key(public_key_pem)
         except VerificationError:
+            pass
+        if public is None:
             raise EnrollmentError("INVALID_ENROLLMENT") from None
         now = self._now()
         if type(ttl) is not int or not 1 <= ttl <= 300 or now + ttl > _MAX_TIME:
@@ -60,17 +64,24 @@ class EnrollmentService:
         if (challenge is None or challenge.app_id != app_id or challenge.subject != subject or now >= challenge.expires):
             raise EnrollmentError("CHALLENGE_REJECTED")
         message = enrollment_message(challenge)
+        proof_valid = False
         try:
             verify_p256(challenge.public_key_pem, message, proof)
+            proof_valid = True
         except VerificationError:
+            pass
+        if not proof_valid:
             raise EnrollmentError("PROOF_REJECTED") from None
         verdict = None
         if evidence is not None:
             if self.attestation_verifier is None:
                 raise EnrollmentError("ATTESTATION_UNAVAILABLE")
+            provider_failed = False
             try:
                 verdict = self.attestation_verifier(challenge, evidence)
             except Exception:
+                provider_failed = True
+            if provider_failed:
                 raise EnrollmentError("ATTESTATION_UNAVAILABLE") from None
         elif self.profile != "basic":
             raise EnrollmentError("ATTESTATION_REQUIRED")
