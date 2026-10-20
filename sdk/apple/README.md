@@ -83,10 +83,33 @@ Only the fixed error code crosses the failure boundary; underlying native errors
 Eight bridge tests independently verify real ephemeral CryptoKit request/enrollment signatures and
 hashes, binary/empty-query preservation, exact size boundaries, native-clock rejection, hardware
 mapping, malformed input before key lookup, and redacted load/signing failures. A negative control
-removing duplicate-key detection fails its regression. Full host verification is 34 XCTest methods;
+removing duplicate-key detection fails its regression. The bridge-stage baseline was 34 XCTest methods;
 the unsigned generic iOS Simulator build passes arm64 and x86_64. No bridge test writes persistent
 Keychain items or boots a Simulator. Persistent storage, physical Secure Enclave, framework runtime,
 provider and store evidence remain separate requirements.
+
+## Optional local risk hints
+
+`LocalRiskScanner` performs a synchronous, read-only scan using public APIs. Run it off the UI thread:
+
+```swift
+let configuration = try LocalRiskConfiguration(expectedAppID: "com.example.app")
+DispatchQueue.global().async {
+    let report = LocalRiskScanner().scan(configuration: configuration)
+    let signals = report.riskSignals.map(\.rawValue)
+    // Use only as untrusted hints in an independently configured server policy.
+}
+```
+
+`LocalRiskConfiguration` also accepts `protectedResources: [String: String]`, mapping relative bundle-root paths to lowercase SHA-256 hex pins. The default empty map performs no resource lookup. Pin exact deployed, untransformed app-owned bytes; build or store transformations can invalidate assumed pins. Configuration rejects invalid identifiers, pins, paths and bounds with a fixed redacted error before scanning. At most eight resources are streamed, at most 1 MiB each and 8 MiB total. Missing configured resources mean a detected mismatch; unreadable, nonregular, oversized or escaping resources are unavailable. Resolved symlinks and the opened descriptor must remain inside the app bundle.
+
+The immutable Codable report contains exactly `schema`, `platform`, ordered `checks` (`code`, `state`), and ordered, deduplicated `riskSignals`. States are `detected`, `not_observed`, `unavailable`, and `not_configured`. Signals are `debugger`, `root`, `hook`, `tamper`, and `local_checks_unavailable`. A positive subprobe wins over unknown siblings; unknown wins over all negative observations. There is no overall clean-device verdict. Reports and descriptions contain no raw artifact paths, symbols, environment values, bundle identifiers, resource names, hashes or probe errors.
+
+The own-process debugger probe uses the public `sysctl` example only in iOS debug builds, following Apple's [QA1361 debug-only restriction](https://developer.apple.com/library/archive/qa/qa1361/_index.html). Release builds and macOS return `unavailable` for debugger observations. Root and hook checks run only on iOS devices; macOS and Simulator return `unavailable` rather than diagnosing their host. Device heuristics examine a fixed small set of artifact existence probes, global symbols via `dlsym`, and bounded selected environment values. They never enumerate the unsafe dyld image list, load or invoke suspicious code, write files, deny debugger attachment, make network calls or touch Keychain.
+
+These heuristics can produce false positives and be bypassed by a modified process, hidden artifacts, renamed/local symbols, stripped environment variables or replacement embedded pins. Empty signals never establish integrity, attestation, authentication or authorization. Release scans normally include `local_checks_unavailable`; server policies must explicitly decide how to handle that category. This API does not extend the JSON signing bridge.
+
+SwiftPM copies `Sources/AppGuardApple/Resources/PrivacyInfo.xcprivacy` into its resource bundle. It declares `NSPrivacyAccessedAPICategoryFileTimestamp` reason `C617.1` for regular-file/size validation of resources inside the app bundle. Fixed external artifact probes use `access(F_OK)` and do not read external metadata. Consumers using other packaging systems must include the SDK manifest in the resulting application; verify the final archive. This declaration is not App Store approval. See [local-risk verification](LOCAL_RISK_VERIFICATION.md) for exact commands, hashes, API references and remaining evidence limits.
 
 ## Verification and public-only probes
 
@@ -108,9 +131,9 @@ Observed with Xcode 27.1 (27A9275), Swift 6.4 and macOS 27.0.1:
 
 | Evidence tier | Result |
 | --- | --- |
-| Host SwiftPM | 34 XCTest methods pass, covering all 40 corpus canonical-base scenarios and six fixed successful CryptoKit signature checks, new signatures, limits, raw buffer ownership, DER/raw edge cases, enrollment bindings and App Attest error boundaries. |
+| Host SwiftPM | 65 XCTest methods pass (34 existing and 31 local-risk tests), covering all 40 corpus canonical-base scenarios and six fixed successful CryptoKit signature checks, new signatures, limits, raw buffer ownership, DER/raw edge cases, enrollment bindings and App Attest error boundaries. |
 | Native key operations | Real nonpersistent Security `SecKey` creation/signing and CryptoKit public-SPKI verification execute on the host; persistent I/O is replaced by an in-memory store in tests. |
-| iOS Simulator build | Unsigned generic iOS Simulator build passes for arm64 and x86_64, iOS 15.0 deployment target. No Simulator is booted or exercised. |
+| iOS build | Unsigned generic iOS Simulator Debug build passes for arm64 and x86_64; generic iOS device Release build passes for arm64, all with an iOS 15.0 deployment target. No Simulator is booted and no device is exercised. |
 | Persistence / device / provider | Actual persistent Keychain creation/reload, Secure Enclave hardware, device runtime, entitlements, Apple provider acquisition and server verification are untested here. No accounts/profiles/user keys are changed. |
 
 Observed RED/GREEN logs and build outputs remain locally ignored under `.evidence/`. A deliberate negative-control mutation confirms that removing raw-body copies or enrollment identity binding makes the targeted regression tests fail; the protections are restored before the final green suite. This is experimental local foundation code, without physical-device, provider, store or release evidence.
