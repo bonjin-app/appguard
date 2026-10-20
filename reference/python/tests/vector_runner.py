@@ -127,7 +127,8 @@ def run_vector(record):
     if record["replay_store"] == "unavailable":
         store = UnavailableStore()
     elif record["replay_store"] == "full":
-        store.claim(("occupied", "occupied", "occupied"), expires=999999999999999, now=context["now"])
+        # Fault injection must not validate scenario input before the verifier.
+        store.claim(("occupied", "occupied", "occupied"), expires=999999999999999, now=0)
     codes = []
     for _ in record["expected_codes"]:
         try:

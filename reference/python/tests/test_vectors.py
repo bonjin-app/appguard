@@ -57,6 +57,15 @@ def test_missing_review_focus_scenario_fails(raw_vectors):
         validate_coverage(incomplete)
 
 
+@pytest.mark.parametrize("now", [True, 999999999999999])
+def test_full_store_does_not_bypass_invalid_time_validation(raw_vectors, now):
+    record = copy.deepcopy(raw_vectors[0])
+    record["replay_store"] = "full"
+    record["context"]["now"] = now
+    record["expected_codes"] = ["INVALID_TIME"]
+    assert run_vector(record) == ["INVALID_TIME"]
+
+
 @pytest.mark.parametrize("mutation", ["duplicate-id", "unknown-root", "missing-field", "bad-base64",
                                       "base64-pad-bits", "unknown-request", "unknown-parameters",
                                       "unknown-key", "unknown-context", "invalid-store", "invalid-code",
