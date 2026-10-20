@@ -29,7 +29,7 @@ export class AppGuardError extends Error {
 export interface NativeBridge { invoke(operation: string, payload: string): Promise<string> }
 const MAX_JSON = 1500000;
 const MAX_BODY = 1048576;
-const nativeCodes = new Set(['APPGUARD_INVALID_INPUT','APPGUARD_KEY_UNAVAILABLE','APPGUARD_UNSUPPORTED','APPGUARD_OPERATION_FAILED']);
+const nativeCodes = new Set(['APPGUARD_INVALID_INPUT','APPGUARD_KEY_UNAVAILABLE','APPGUARD_UNSUPPORTED','APPGUARD_OPERATION_FAILED','APPGUARD_NATIVE_UNAVAILABLE']);
 const fail = (code: AppGuardErrorCode): never => { throw new AppGuardError(code); };
 function utf8Size(value: string): number {
   let n = 0;

@@ -67,3 +67,20 @@ test('noncanonical and oversized response body base64 reject with fixed errors',
   await rejectsCode(()=>createClient(()=>({invoke:async()=>ok({...prepared,bodyBase64})})).prepare(request),'APPGUARD_OPERATION_FAILED');
  }
 });
+
+test('native unavailable envelope preserves its fixed code across all public operations',async()=>{
+ const c=createClient(()=>({invoke:async()=>JSON.stringify({ok:false,error:{code:'APPGUARD_NATIVE_UNAVAILABLE',message:'NATIVE_SECRET',details:{token:'NATIVE_SECRET'}}})}));
+ const enrollment={...common,challenge:{appId:'app',origin:'https://api.example',subject:'user',keyId:'key',publicKeySha256:'hash',nonce:'nonce',expires:2},expectedAppId:'app',expectedOrigin:'https://api.example',expectedSubject:'user',expectedKeyId:'key'};
+ for(const invoke of [()=>c.publicKey(common),()=>c.prepare(request),()=>c.enrollmentProof(enrollment)]) {
+  await assert.rejects(invoke,error=>{
+   assert(error instanceof AppGuardError);
+   assert.equal(error.code,'APPGUARD_NATIVE_UNAVAILABLE');
+   assert.equal(error.message,'APPGUARD_NATIVE_UNAVAILABLE');
+   assert.equal(error.cause,undefined);
+   assert.equal(error.details,undefined);
+   assert(!JSON.stringify(error).includes('NATIVE_SECRET'));
+   assert(!error.stack.includes('NATIVE_SECRET'));
+   return true;
+  });
+ }
+});
