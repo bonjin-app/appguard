@@ -3,7 +3,8 @@
 Experimental native Android/iOS hints. The scanner performs an explicit bounded,
 read-only snapshot; call it off the UI thread. It neither authorizes requests nor
 verifies app/device integrity. A compromised application can bypass, omit or forge
-its own results. The JSON signing bridge is unchanged; use the native typed APIs.
+its own results. Native typed APIs and the optional `scanLocalRisk` operation in
+the [framework bridge](client-bridge-v0.md) expose the same report.
 
 Report fields exactly:
 
