@@ -36,6 +36,7 @@ The milestone exclusions above describe the initial protocol foundation.
 Later client, provider, policy, build and server integrations have local evidence
 in the [current support matrix](../../README.md) and its linked verification
 receipts. Their narrower tests do not establish deployment, device, provider
-approval or broad production security/performance guarantees. Local root/hook/
-jailbreak heuristics, optional AI/console and unsupported deployment adapters
-remain future work; untrusted hints never establish integrity.
+approval or broad production security/performance guarantees. Optional native
+root/hook/jailbreak hints now have [scoped local evidence](local-risk-verification.md);
+they remain bypassable and never establish integrity. Optional AI/console and
+unsupported deployment adapters remain future work.

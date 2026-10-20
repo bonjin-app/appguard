@@ -14,6 +14,10 @@ flutter:
     enable-swift-package-manager: false
 ```
 
+The Apple SDK privacy manifest ships in `AppGuardFlutterPrivacy.bundle`; verify it
+in your final archive. Staged SDK sources include optional native local risk
+scanners. Dart channel scanner operations remain outside this plugin's API.
+
 
 ## API
 

@@ -23,3 +23,11 @@ Native packaging regressions observed and fixed:
 No emulator/simulator boot, physical-device execution, installation-key exercise, HTTP integration, store submission, provider verdict, EAS operation or remote release is implied by these local checks.
 
 Detailed logs/tarballs remain in ignored package-owned `.evidence/` and `.tools/`. Source and test files are tracked; generated vendors and build products are refreshed at pack time.
+
+Local-risk follow-up: 23 tests/typecheck and the 43-file relocated pack pass with
+eight current SDK Swift sources. The actual relocated CocoaPods source accessor
+resolves `AppGuardApplePrivacy.bundle`, and its unsigned Simulator resource target
+builds with a byte-identical native manifest. Missing resource declaration first
+failed the resource accessor check. This adds no JavaScript scanner operation or
+new Expo application runtime/store evidence. See the repository's
+[stage receipt](../../docs/security/local-risk-verification.md).

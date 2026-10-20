@@ -39,7 +39,7 @@ remain deferred. Existing signing/enrollment bridge operations are unchanged.
 
 | Layer | Result |
 | --- | --- |
-| Android host | 19 new scanner + 27 existing tests in each debug/release variant: 92 executions, zero failures; release AAR, instrumentation APK and lint pass |
+| Android host | 20 new scanner + 27 existing tests in each debug/release variant: 94 executions, zero failures/errors/skips; release AAR, instrumentation APK and lint pass |
 | Apple host | 31 new + 34 existing Swift tests: 65 pass, zero failures |
 | Apple unsigned builds | Simulator Debug arm64/x86_64; device Debug and Release arm64; three final builds pass, privacy resource copies match |
 | Core server runner | Reference 209 + Python 512 + Node 333 + Java 188 = 1242 pass, zero skipped; frozen installs, package builds and four live cross-SDK Redis replay probes pass |
@@ -47,12 +47,18 @@ remain deferred. Existing signing/enrollment bridge operations are unchanged.
 | Shared policy addition | 24 supplemental local-risk cases per server language; original 42 retained; default unknown-health ignore and explicit health policy, missing auth/attestation tested |
 | Expo | 23 tests, typecheck, deterministic staging and 43-file relocated npm pack pass; actual CocoaPods source/resource resolution checked |
 | Flutter | 17 tests, analyzer, 11 Java adapter assertions, native Simulator library compile and 18-source/license relocated archive pass; actual CocoaPods source/resource resolution checked |
+| Privacy packaging | Both relocated CocoaPods resource-bundle targets build unsigned; copied manifests match native source; Unity actual PBX export/repeat-callback fixture and 20 EditMode tests pass |
 
 The scanner tests include RED-to-GREEN boundary regressions: bounded proc parsing,
 signer/observation precedence, real temporary binary resource hashing, exact size
 limits, denied/missing/oversized resources, symlink/FIFO handling, nested decoding
 redaction, interrupted reads and exact UTF-8 identity comparison. Synthetic native
 seams do not establish rooted/jailbroken/hooked-device efficacy.
+
+The final staged Flutter Simulator library also compiles after the final native
+identity fix; its pre-existing imported-framework sysroot warning remains. This
+is compile evidence only. CocoaPods uses a placeholder Flutter dependency to
+build resource targets; it does not establish a new complete Flutter app build.
 
 Two isolated Android emulator startup attempts failed before boot because available
 disk space was below the system image's required 7372.80 MB, including a bounded
@@ -84,5 +90,24 @@ the ignored stage evidence; no user cache or historical evidence was removed.
 
 ## Security review and integration
 
-The fresh whole-stage review and any required fixes are recorded here before local
-main integration. Review and cleanup evidence are retained separately from source.
+One fresh read-only whole-stage review found **0 Critical, 1 Important, 0 Minor**.
+Its independent probes reran the original 19 Android scanner tests, four Swift
+descriptor/host/redaction checks and 24 Node supplemental policy cases. It also
+reproduced the Important finding: LF-only proc maps suppressed the health hint and
+made an explicitly configured Balanced health policy allow instead of step up.
+
+The parent fixed this in one pass. The new Android regression first failed, then
+passed after requiring at least one valid map record while preserving positive
+precedence. The complete affected suite passed 94 executions, lint and both builds;
+a fresh actual Android report passed through the real Node policy now steps up
+for both LF-only and empty maps. No independent authentication/signature/attestation
+bypass was demonstrated. No Critical/Important finding remains open; no Minor was
+deferred. No second review was dispatched.
+
+The stage's ignored checksummed evidence archive is
+`.superpowers/evidence/2026-10-20-local-risk/` in the attached worktree. It retains
+the review/probes, RED/GREEN/full-run logs, source/artifact hashes, privacy bundles,
+owned Redis shutdown and emulator/global-AVD receipts. Package-owned native evidence
+and runtime caches remain preserved. Only this stage's scratch directory is removed
+after archive/readback. Integration uses the authorized clean local main fast-forward;
+no push, publication, account configuration or existing user data cleanup is included.

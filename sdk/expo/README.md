@@ -23,6 +23,11 @@ npm run verify:pack
 
 In an Expo SDK 58 app, install the resulting `appguard-expo-0.0.0-experimental.1.tgz` with `npx expo install /path/to/the/tarball`. Add `"@appguard/expo"` to `expo.plugins`, then generate/rebuild the native app and install pods as usual. Autolinking discovers the Android module and the separate `AppGuardApple` and `AppGuardExpo` pods. The config plugin raises Android's application minimum to at least 26 and iOS's deployment target to at least 16.4, preserving higher values and unrelated properties. Existing bare native projects need those same minimums applied and a native rebuild.
 
+The staged Apple SDK privacy manifest ships in `AppGuardApplePrivacy.bundle`.
+Verify its presence in your final archive. Native SDK sources also include optional
+[local risk scanners](../../protocol/local-risk-v0.md); this module's JavaScript
+API still exposes the three signing/enrollment operations below.
+
 ## API
 
 ```ts

@@ -31,7 +31,8 @@ Those three defects were subsequently resolved in the [boundary hardening follow
 scoped local review evidence, not independent security certification.
 
 The roadmap's local experimental implementation goal is bounded by these
-receipts. Local root/hook/jailbreak heuristics, complete Apple assertion/receipt/
+receipts. Local root/hook/jailbreak hints were subsequently implemented with
+[explicit limits](local-risk-verification.md). Complete Apple assertion/receipt/
 counter lifecycle, additional production ingress/build adapters, optional console
 and AI remain future work. Genuine provider/device integration, persistent Apple
 Keychain/Secure Enclave, framework mobile-player execution, hosted CI, performance

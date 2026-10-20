@@ -14,3 +14,12 @@ Observed locally on 2026-10-20; experimental, unpublished package.
 Run `python3 tool/pack.py` before using/redistributing the package. Packaging creates a local tarball only. Staging scripts require this source repository; they are excluded from the packed plugin. `tool/verify.sh` records repeatable package/native checks using caller-provided SDK locations.
 
 Limitations: no engine/device channel execution, persistent Android Keystore or Apple Keychain/Secure Enclave operation through Flutter, hardware backing, provider attestation, end-to-end HTTP signing/send, store, release, or physical-device evidence. Dart channel mocks and host adapter probes are not those runtime checks. Native SDK verification is documented independently in the native packages.
+
+Local-risk follow-up: all 17 tests, analyzer, 11 Java adapter assertions and the
+final staged native Simulator library compile pass. The relocated archive verifies
+18 source/license hashes. Actual CocoaPods resolution and an unsigned resource
+target build carry `AppGuardFlutterPrivacy.bundle` with the native manifest bytes;
+omitting that resource declaration first failed the accessor check. The resource
+fixture uses a placeholder Flutter dependency and does not establish a new complete
+Flutter app build or scanner channel API. See the repository's
+[stage receipt](../../docs/security/local-risk-verification.md).
