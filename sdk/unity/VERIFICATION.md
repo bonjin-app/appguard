@@ -2,6 +2,8 @@
 
 Task 3, `docs/superpowers/plans/2026-10-20-appguard-client-bridges.md`. Ownership: `sdk/unity/**` only. Installed engine retained: Unity **6000.3.24f1**. Tests used only package-owned scratch projects; no existing games, licensing configuration, global profiles, device Keychain or booted Simulators were modified.
 
+Parent review follow-up (`53b9ea8`): an ISO-looking valid key ID/header value exposed Newtonsoft date coercion. The added real EditMode regression failed (19/20), then passed with date coercion disabled (20/20). A separate duplicate-property test still rejects ambiguous JSON. Final Android/iOS managed branches and iOS postprocessor compilation also passed. The original relocated-package18-case evidence below predates this managed parser fix; native source/artifacts were unaffected. New packages must be staged from current source.
+
 ## Observed checks
 
 - Initial managed behavioral RED: 17/17 failures against deliberate not-implemented stubs; initial C ABI ownership RED: `owned response required` against a nil-returning stub.
