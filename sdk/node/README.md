@@ -103,7 +103,7 @@ provide a total request/replay timeout. A synchronous callback can block the eve
 loop; after it returns, an elapsed-deadline check rejects before continuing.
 Configure authentication/database clients with their own deadlines and bounded
 concurrency, and Redis connection/command timeouts separately. See the
-[server deployment guide](../../docs/operations/server-deployment.md).
+[server deployment guide](DEPLOYMENT.md).
 
 PEM input must be one complete ASCII `PUBLIC KEY` envelope with canonical Base64
 contents. LF/CRLF, no final newline and trailing ASCII spaces/tabs/line endings

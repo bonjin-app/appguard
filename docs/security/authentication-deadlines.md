@@ -50,9 +50,24 @@ production-readiness certification. See the [deployment guide](../operations/ser
   Java **211**, zero skips; builds, Node types/package smoke and cross-SDK Redis
   first-claimer/concurrent single-winner checks passed. Runtime code did not
   change after that runner; the final Node rerun includes the test adjustment.
-- Offline installed npm consumer: **50/50** actual HTTP regressions, zero skips.
+- Initial offline installed npm consumer: **50/50** actual HTTP regressions, zero skips.
   All **13** packaged files matched source, tarball and installed copies; the
   consumer retains its actual dependency lock and direct dependency inventory.
+
+## Independent review and package follow-up
+
+The scoped independent security review found **0 Critical, 0 Important and
+1 Minor** issue. The reviewer reran **162** source HTTP tests and **50** installed
+package regressions with strict unhandled-rejection handling, checked TypeScript,
+and passed nine additional public-middleware deadline/cleanup probes. The minor
+issue was a README link to a repository-only guide that was absent after package
+installation.
+
+The guide is now shipped as `DEPLOYMENT.md` in the npm package and the README
+links to that local file. Final repackaging checks compare all **14** files across
+source, tarball and installation, verify the installed link target, and rerun
+the **50** installed HTTP regressions. This follow-up changes documentation and
+the package file allowlist; the reviewed runtime implementation is unchanged.
 
 Common server, offline installed-package and scoped security-review receipts are
 collected under `.superpowers/evidence/2026-10-21-auth-deadlines/` in the primary
