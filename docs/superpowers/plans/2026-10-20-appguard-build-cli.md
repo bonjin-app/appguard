@@ -52,3 +52,15 @@
 - [x] Test subprocess `init`, `doctor`, `policy validate`, `build --dry-run`, archive/restore and invalid arguments through the actual packaged bin.
 - [x] Implement fixed errors (no secret/file contents), successful JSON output, explicit build execution and exit-code propagation.
 - [x] npm pack/install to isolated directory, run installed commands and whole suite; review with native bridge stage, document actual scope and limits.
+
+## Bounded retention continuation: archive verification
+
+The approved retention flow now also exposes `verify-archive --archive FILE
+--key-file FILE`: authenticate and fully validate an existing v0 archive without a
+plaintext filesystem restore. Verification and restore share envelope, content
+and portable-path checks. Success returns only verified/buildId/fileCount/
+plaintextBytes; failures keep fixed CLI errors. No encryption format, dependency,
+key lifecycle or cloud behavior is added. Regression tests, base-produced archive
+compatibility, an isolated package consumer and independent security review
+precede local main integration. Detailed evidence and limits are recorded in
+[archive verification](../../security/cli-archive-verification.md).

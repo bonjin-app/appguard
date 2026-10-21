@@ -10,7 +10,7 @@ const VERSION='appguard-vault-v0';
 const buildIdValid=v=>typeof v==='string' && /^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$/.test(v);
 const exact=(obj,names)=>obj!==null && typeof obj==='object' && !Array.isArray(obj) && Object.keys(obj).length===names.length && names.every(k=>Object.hasOwn(obj,k));
 const safeName=n=>typeof n==='string' && n.length<=1024 && !n.includes('\\') && !n.includes(':') && !/[\x00-\x1f\x7f]/.test(n) && !path.isAbsolute(n) && n.split('/').length<=16 && n.split('/').every(p=>p.length>0 && p.length<=200 && p!=='.' && p!=='..' && !/[. ]$/.test(p) && !/^(con|prn|aux|nul|com[0-9]|lpt[0-9])(\.|$)/i.test(p));
-// The same portability gate runs before successful retention and before restore.
+// The same portability gate runs before retention, verification and restore.
 export function validatePortablePaths(names) {
   if(!Array.isArray(names) || !names.length || names.length>MAX_FILES) fail('ARCHIVE_REJECTED');
   const folded=new Set();
@@ -24,7 +24,7 @@ export function validatePortablePaths(names) {
 function decode(value,max) {
   if(typeof value!=='string' || value.length>Math.ceil(max/3)*4) fail('ARCHIVE_REJECTED');
   const bytes=Buffer.from(value,'base64');
-  if(bytes.length>max || bytes.toString('base64')!==value) fail('ARCHIVE_REJECTED');
+  if(bytes.length>max || bytes.toString('base64')!==value) {bytes.fill(0);fail('ARCHIVE_REJECTED');}
   return bytes;
 }
 async function readRegular(input,max,{privateFile=false}={}) {
@@ -110,8 +110,10 @@ export async function archive({source,vault,keyFile,buildId}) {
     return {archiveFile,buildId,fileCount:files.length,plaintextBytes:total,sourceRetained:true};
   } finally {key.fill(0);}
 }
-export async function restore({archiveFile,destination,keyFile}) {
+async function withValidatedArchive({archiveFile,keyFile},consume) {
   const key=await readKey(keyFile);
+  const files=[];
+  let plaintext,chunk,tail;
   try {
     const bytes=await readRegular(archiveFile,MAX_ARCHIVE);
     let envelope;
@@ -119,21 +121,31 @@ export async function restore({archiveFile,destination,keyFile}) {
     if(!exact(envelope,['schemaVersion','buildId','iv','tag','ciphertext']) || envelope.schemaVersion!==VERSION || !buildIdValid(envelope.buildId)) fail('ARCHIVE_REJECTED');
     const iv=decode(envelope.iv,12),tag=decode(envelope.tag,16),ciphertext=decode(envelope.ciphertext,MAX_PAYLOAD);
     if(iv.length!==12 || tag.length!==16) fail('ARCHIVE_REJECTED');
-    let plaintext;
     try {
       const decipher=createDecipheriv('aes-256-gcm',key,iv);decipher.setAAD(aad(envelope.buildId));decipher.setAuthTag(tag);
-      plaintext=Buffer.concat([decipher.update(ciphertext),decipher.final()]);
+      chunk=decipher.update(ciphertext);tail=decipher.final();
+      plaintext=Buffer.concat([chunk,tail]);
     } catch {fail('ARCHIVE_REJECTED');}
+    finally {chunk?.fill(0);tail?.fill(0);}
     let payload;
     try {payload=JSON.parse(plaintext.toString('utf8'));} catch {fail('ARCHIVE_REJECTED');} finally {plaintext.fill(0);}
     if(!exact(payload,['files']) || !Array.isArray(payload.files) || !payload.files.length || payload.files.length>MAX_FILES) fail('ARCHIVE_REJECTED');
-    const files=[],names=new Set();let total=0;
+    const names=new Set();let total=0;
     for(const entry of payload.files) {
       if(!exact(entry,['path','bodyBase64']) || !safeName(entry.path) || names.has(entry.path)) fail('ARCHIVE_REJECTED');
       const data=decode(entry.bodyBase64,MAX_BYTES-total);total+=data.length;
       names.add(entry.path);files.push({name:entry.path,data});
     }
     validatePortablePaths(files.map(entry=>entry.name));
+    return await consume({buildId:envelope.buildId,files,total});
+  } finally {key.fill(0);plaintext?.fill(0);for(const {data} of files) data.fill(0);}
+}
+export async function verifyArchive({archiveFile,keyFile}) {
+  return withValidatedArchive({archiveFile,keyFile},({buildId,files,total})=>
+    ({verified:true,buildId,fileCount:files.length,plaintextBytes:total}));
+}
+export async function restore({archiveFile,destination,keyFile}) {
+  return withValidatedArchive({archiveFile,keyFile},async({buildId,files,total})=>{
     const target=path.resolve(destination);
     const parent=await fs.realpath(path.dirname(target));
     const actual=path.join(parent,path.basename(target));
@@ -146,6 +158,6 @@ export async function restore({archiveFile,destination,keyFile}) {
         await fs.writeFile(file,data,{flag:'wx',mode:0o600});
       }
     } catch(e) {await fs.rm(actual,{recursive:true,force:true});throw e;}
-    return {buildId:envelope.buildId,destination:actual,fileCount:files.length,plaintextBytes:total};
-  } finally {key.fill(0);}
+    return {buildId,destination:actual,fileCount:files.length,plaintextBytes:total};
+  });
 }

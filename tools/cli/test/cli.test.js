@@ -55,3 +55,53 @@ test('CLI malformed project text fails with a fixed error and preserves source b
   assert.deepEqual(await fs.readFile(path.join(root, '.gitignore')), original);
   await assert.rejects(fs.lstat(path.join(root, 'appguard.json')), {code: 'ENOENT'});
 });
+
+test('CLI verify-archive reports only authenticated counts without writing project or plaintext files',async t=>{
+  const root=await fs.mkdtemp(path.join(os.tmpdir(),'appguard-verify-command-'));
+  t.after(()=>fs.rm(root,{force:true,recursive:true}));
+  const source=path.join(root,'source'),key=path.join(root,'PRIVATE_KEY'),vault=path.join(root,'vault');
+  await fs.mkdir(source);await fs.writeFile(path.join(source,'PRIVATE_MAPPING'),'secret',{mode:0o640});
+  await fs.writeFile(path.join(source,'empty'),'');await fs.writeFile(key,randomBytes(32),{mode:0o600});
+  const a=run('archive','--source',source,'--vault',vault,'--key-file',key,'--build-id','build-verify');
+  assert.equal(a.status,0);
+  async function snapshot() {
+    const entries=[];
+    async function walk(relative='') {
+      const file=path.join(root,relative),st=await fs.lstat(file);
+      entries.push({name:relative,mode:st.mode,size:st.size,mtime:st.mtimeMs,ctime:st.ctimeMs,
+        ...(st.isFile()?{bytes:(await fs.readFile(file)).toString('hex')}:{})});
+      if(st.isDirectory()) for(const name of (await fs.readdir(file)).sort()) await walk(path.join(relative,name));
+    }
+    await walk();return entries;
+  }
+  const before=await snapshot();
+  const result=run('verify-archive','--archive',a.json.archiveFile,'--key-file',key);
+  assert.equal(result.status,0);assert.equal(result.stderr,'');
+  assert.deepEqual(result.json,{verified:true,buildId:'build-verify',fileCount:2,plaintextBytes:6});
+  assert.equal(result.stdout,JSON.stringify(result.json)+'\n');
+  assert.deepEqual(await snapshot(),before);
+  assert.ok(run('--help').json.commands.includes('verify-archive --archive FILE --key-file FILE'));
+  await fs.writeFile(a.json.archiveFile,'PRIVATE_MALFORMED_ARCHIVE');
+  const rejected=run('verify-archive','--archive',a.json.archiveFile,'--key-file',key);
+  assert.equal(rejected.status,1);assert.equal(rejected.stdout,'');
+  assert.deepEqual(rejected.json,{error:{code:'ARCHIVE_REJECTED'}});
+  assert.equal(rejected.stderr,JSON.stringify(rejected.json)+'\n');
+  assert.equal(rejected.stderr.includes(root),false);assert.equal(rejected.stderr.includes('PRIVATE'),false);
+});
+
+test('CLI verify-archive rejects malformed options with fixed errors and no raw arguments',()=>{
+  for(const args of [[],['--archive','PRIVATE_ARCHIVE'],['--key-file','PRIVATE_KEY'],
+    ['--archive','PRIVATE_ARCHIVE','--key-file','PRIVATE_KEY','--destination','PRIVATE_DESTINATION'],
+    ['--archive','PRIVATE_ARCHIVE','--archive','OTHER_ARCHIVE','--key-file','PRIVATE_KEY'],
+    ['--archive','--key-file','PRIVATE_KEY'],['--archive','','--key-file','PRIVATE_KEY'],
+    ['PRIVATE_POSITIONAL'],['--archive','PRIVATE_ARCHIVE','--key-file','PRIVATE_KEY','--help']]) {
+    const result=run('verify-archive',...args);
+    assert.equal(result.status,1);assert.equal(result.stdout,'');
+    assert.deepEqual(result.json,{error:{code:'INVALID_ARGUMENTS'}});
+    assert.equal(result.stderr,'{"error":{"code":"INVALID_ARGUMENTS"}}\n');
+  }
+  const unreadable=run('verify-archive','--archive','/no/such/PRIVATE_ARCHIVE','--key-file','/no/such/PRIVATE_KEY');
+  assert.equal(unreadable.status,1);assert.equal(unreadable.stdout,'');
+  assert.deepEqual(unreadable.json,{error:{code:'OPERATION_FAILED'}});
+  assert.equal(unreadable.stderr,'{"error":{"code":"OPERATION_FAILED"}}\n');
+});

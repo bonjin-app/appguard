@@ -69,12 +69,33 @@ Create a random 32-byte key in an application-owned private location. Keep it se
 node tools/cli/bin/appguard.js archive \
   --source /path/to/mapping-directory --vault /private/archive-directory \
   --key-file /private/appguard-vault.key --build-id android-release-001
+node tools/cli/bin/appguard.js verify-archive \
+  --archive /private/archive-directory/android-release-001.agvault \
+  --key-file /private/appguard-vault.key
 node tools/cli/bin/appguard.js restore \
   --archive /private/archive-directory/android-release-001.agvault \
   --destination /new/private/restored-directory --key-file /private/appguard-vault.key
 ```
 
 Archives use a fresh random 96-bit nonce, AES-256-GCM and authenticated version/build ID. File names and contents are encrypted. They retain at most1000 regular files/64 MiB raw bytes. Symlinks, path traversal, special files, unsafe portable names, untrusted permissions, an archive directory inside its source, and destination/ID overwrites reject. Existing source files are retained; encryption does not remove or secure the original mappings. Vault directories and restored roots are mode0700, archive/restored files0600. Authenticate and validate the complete manifest before creating any plaintext destination. Wrong keys/tampering fail closed. Relative parent directories must already exist. Keep all involved locations under exclusive local control; OS permissions and this tool are not isolation against a compromised user account. JavaScript memory is not guaranteed to be erased.
+
+`verify-archive` authenticates the archive and validates the complete manifest
+using the same rules as restore, without creating a plaintext destination. It
+returns only `{"verified":true,"buildId":"android-release-001","fileCount":2,"plaintextBytes":123}`
+(the counts above are illustrative). File names, contents, archive/key paths and
+key bytes are omitted. Success exits 0; malformed input, wrong keys, tampering,
+unsafe entries or rejected filesystem inputs exit 1 with a fixed redacted error
+on stderr and no success report. Unknown or duplicate options also reject.
+
+Verification decrypts and examines data in process memory. It does not copy,
+restore, replace, delete or repair files, create temporary plaintext directories,
+rotate keys or contact a service. Reads can update filesystem access times.
+A successful check establishes authentication and format validity for the bytes
+read at that moment; it does not establish archive freshness, the producer's
+identity, backup durability, future key recovery or a successful application
+release. Keep separate key backups and periodically test an actual restore in an
+appropriate private location. JavaScript does not guarantee complete memory
+erasure, including immutable strings and garbage-collected copies.
 
 Core library APIs are internal to this experimental package; use the CLI to receive fixed redacted tool errors. Format version `appguard-vault-v0` has no external interoperability or long-term compatibility claim. Preserve the exact CLI version with important archives. No automatic key rotation, cloud KMS, retention deletion or public artifact upload is included.
 
