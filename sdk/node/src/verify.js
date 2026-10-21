@@ -3,10 +3,19 @@ import { ALGORITHM, buildSignatureBase, validateContentDigest, validateIdentifie
 import { reject } from './errors.js';
 function loadKey(pem) {
   if (typeof pem === 'string') pem = Buffer.from(pem, 'utf8');
-  if (!Buffer.isBuffer(pem) || pem.length < 1 || pem.length > 4096 || !pem.toString('ascii').startsWith('-----BEGIN PUBLIC KEY-----')) reject('KEY_REJECTED');
+  if (!Buffer.isBuffer(pem) || pem.length < 1 || pem.length > 4096) reject('KEY_REJECTED');
+  // latin1 preserves every byte; ascii decoding would mask high-bit input.
+  const text = pem.toString('latin1');
+  const match = /^-----BEGIN PUBLIC KEY-----\r?\n([A-Za-z0-9+/=\r\n]+)-----END PUBLIC KEY-----[ \t\r\n]*$/.exec(text);
+  if (!match || match[0].length !== text.length) reject('KEY_REJECTED');
+  const encoded = match[1].replace(/[\r\n]/g, '');
+  const der = Buffer.from(encoded, 'base64');
+  if (der.toString('base64') !== encoded) reject('KEY_REJECTED');
   try {
-    const key = createPublicKey(pem);
+    const key = createPublicKey({ key: der, format: 'der', type: 'spki' });
     if (key.asymmetricKeyType !== 'ec' || key.asymmetricKeyDetails?.namedCurve !== 'prime256v1') reject('KEY_REJECTED');
+    // OpenSSL accepts a first key while ignoring trailing DER/BER material.
+    if (!der.equals(key.export({ format: 'der', type: 'spki' }))) reject('KEY_REJECTED');
     return key;
   } catch { reject('KEY_REJECTED'); }
 }

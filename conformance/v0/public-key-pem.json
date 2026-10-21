@@ -1,0 +1,117 @@
+[
+  {
+    "id": "lf",
+    "pem": "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEN1mjSNnx5jTajvB5nfqM8Q4fhPQH\nX1HEiwDcM05xWlF7Os9IKP5XmGkUsdiQpUNYmdImFW6o3PXZ+HF5kpUiLw==\n-----END PUBLIC KEY-----\n",
+    "expected_code": "VERIFIED"
+  },
+  {
+    "id": "crlf",
+    "pem": "-----BEGIN PUBLIC KEY-----\r\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEN1mjSNnx5jTajvB5nfqM8Q4fhPQH\r\nX1HEiwDcM05xWlF7Os9IKP5XmGkUsdiQpUNYmdImFW6o3PXZ+HF5kpUiLw==\r\n-----END PUBLIC KEY-----\r\n",
+    "expected_code": "VERIFIED"
+  },
+  {
+    "id": "no-final-newline",
+    "pem": "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEN1mjSNnx5jTajvB5nfqM8Q4fhPQH\nX1HEiwDcM05xWlF7Os9IKP5XmGkUsdiQpUNYmdImFW6o3PXZ+HF5kpUiLw==\n-----END PUBLIC KEY-----",
+    "expected_code": "VERIFIED"
+  },
+  {
+    "id": "trailing-ascii-whitespace",
+    "pem": "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEN1mjSNnx5jTajvB5nfqM8Q4fhPQH\nX1HEiwDcM05xWlF7Os9IKP5XmGkUsdiQpUNYmdImFW6o3PXZ+HF5kpUiLw==\n-----END PUBLIC KEY-----\n \t\r\n",
+    "expected_code": "VERIFIED"
+  },
+  {
+    "id": "duplicate-envelope",
+    "pem": "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEN1mjSNnx5jTajvB5nfqM8Q4fhPQH\nX1HEiwDcM05xWlF7Os9IKP5XmGkUsdiQpUNYmdImFW6o3PXZ+HF5kpUiLw==\n-----END PUBLIC KEY-----\n-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEN1mjSNnx5jTajvB5nfqM8Q4fhPQH\nX1HEiwDcM05xWlF7Os9IKP5XmGkUsdiQpUNYmdImFW6o3PXZ+HF5kpUiLw==\n-----END PUBLIC KEY-----\n",
+    "expected_code": "KEY_REJECTED"
+  },
+  {
+    "id": "junk-prefix",
+    "pem": "not-a-key\n-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEN1mjSNnx5jTajvB5nfqM8Q4fhPQH\nX1HEiwDcM05xWlF7Os9IKP5XmGkUsdiQpUNYmdImFW6o3PXZ+HF5kpUiLw==\n-----END PUBLIC KEY-----\n",
+    "expected_code": "KEY_REJECTED"
+  },
+  {
+    "id": "junk-suffix",
+    "pem": "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEN1mjSNnx5jTajvB5nfqM8Q4fhPQH\nX1HEiwDcM05xWlF7Os9IKP5XmGkUsdiQpUNYmdImFW6o3PXZ+HF5kpUiLw==\n-----END PUBLIC KEY-----\nnot-a-key",
+    "expected_code": "KEY_REJECTED"
+  },
+  {
+    "id": "malformed-first",
+    "pem": "-----BEGIN PUBLIC KEY-----\nnot-base64\n-----END PUBLIC KEY-----\n-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEN1mjSNnx5jTajvB5nfqM8Q4fhPQH\nX1HEiwDcM05xWlF7Os9IKP5XmGkUsdiQpUNYmdImFW6o3PXZ+HF5kpUiLw==\n-----END PUBLIC KEY-----\n",
+    "expected_code": "KEY_REJECTED"
+  },
+  {
+    "id": "unclosed-first",
+    "pem": "-----BEGIN PUBLIC KEY-----\nnot-base64\n-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEN1mjSNnx5jTajvB5nfqM8Q4fhPQH\nX1HEiwDcM05xWlF7Os9IKP5XmGkUsdiQpUNYmdImFW6o3PXZ+HF5kpUiLw==\n-----END PUBLIC KEY-----\n",
+    "expected_code": "KEY_REJECTED"
+  },
+  {
+    "id": "nested-envelope",
+    "pem": "-----BEGIN PUBLIC KEY-----\n-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEN1mjSNnx5jTajvB5nfqM8Q4fhPQH\nX1HEiwDcM05xWlF7Os9IKP5XmGkUsdiQpUNYmdImFW6o3PXZ+HF5kpUiLw==\n-----END PUBLIC KEY-----\n-----END PUBLIC KEY-----\n",
+    "expected_code": "KEY_REJECTED"
+  },
+  {
+    "id": "wrong-label",
+    "pem": "-----BEGIN CERTIFICATE-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEN1mjSNnx5jTajvB5nfqM8Q4fhPQH\nX1HEiwDcM05xWlF7Os9IKP5XmGkUsdiQpUNYmdImFW6o3PXZ+HF5kpUiLw==\n-----END CERTIFICATE-----\n",
+    "expected_code": "KEY_REJECTED"
+  },
+  {
+    "id": "legacy-headers",
+    "pem": "-----BEGIN PUBLIC KEY-----\nProc-Type: 4,ENCRYPTED\n\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEN1mjSNnx5jTajvB5nfqM8Q4fhPQH\nX1HEiwDcM05xWlF7Os9IKP5XmGkUsdiQpUNYmdImFW6o3PXZ+HF5kpUiLw==\n-----END PUBLIC KEY-----\n",
+    "expected_code": "KEY_REJECTED"
+  },
+  {
+    "id": "non-ascii-suffix",
+    "pem": "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEN1mjSNnx5jTajvB5nfqM8Q4fhPQH\nX1HEiwDcM05xWlF7Os9IKP5XmGkUsdiQpUNYmdImFW6o3PXZ+HF5kpUiLw==\n-----END PUBLIC KEY-----\n\u00a0",
+    "expected_code": "KEY_REJECTED"
+  },
+  {
+    "id": "leading-blank",
+    "pem": "\n-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEN1mjSNnx5jTajvB5nfqM8Q4fhPQH\nX1HEiwDcM05xWlF7Os9IKP5XmGkUsdiQpUNYmdImFW6o3PXZ+HF5kpUiLw==\n-----END PUBLIC KEY-----\n",
+    "expected_code": "KEY_REJECTED"
+  },
+  {
+    "id": "utf8-bom",
+    "pem": "\ufeff-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEN1mjSNnx5jTajvB5nfqM8Q4fhPQH\nX1HEiwDcM05xWlF7Os9IKP5XmGkUsdiQpUNYmdImFW6o3PXZ+HF5kpUiLw==\n-----END PUBLIC KEY-----\n",
+    "expected_code": "KEY_REJECTED"
+  },
+  {
+    "id": "malformed-body",
+    "pem": "-----BEGIN PUBLIC KEY-----\n!!!!\n-----END PUBLIC KEY-----\n",
+    "expected_code": "KEY_REJECTED"
+  },
+  {
+    "id": "empty-body",
+    "pem": "-----BEGIN PUBLIC KEY-----\n-----END PUBLIC KEY-----\n",
+    "expected_code": "KEY_REJECTED"
+  },
+  {
+    "id": "trailing-der",
+    "pem": "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEN1mjSNnx5jTajvB5nfqM8Q4fhPQH\nX1HEiwDcM05xWlF7Os9IKP5XmGkUsdiQpUNYmdImFW6o3PXZ+HF5kpUiL2p1bms=\n-----END PUBLIC KEY-----\n",
+    "expected_code": "KEY_REJECTED"
+  },
+  {
+    "id": "duplicate-der",
+    "pem": "-----BEGIN PUBLIC KEY-----\nMFkwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEN1mjSNnx5jTajvB5nfqM8Q4fhPQH\nX1HEiwDcM05xWlF7Os9IKP5XmGkUsdiQpUNYmdImFW6o3PXZ+HF5kpUiLzBZMBMG\nByqGSM49AgEGCCqGSM49AwEHA0IABDdZo0jZ8eY02o7weZ36jPEOH4T0B19RxIsA\n3DNOcVpRezrPSCj+V5hpFLHYkKVDWJnSJhVuqNz12fhxeZKVIi8=\n-----END PUBLIC KEY-----\n",
+    "expected_code": "KEY_REJECTED"
+  },
+  {
+    "id": "der-short-length",
+    "pem": "-----BEGIN PUBLIC KEY-----\nMFgwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEN1mjSNnx5jTajvB5nfqM8Q4fhPQH\nX1HEiwDcM05xWlF7Os9IKP5XmGkUsdiQpUNYmdImFW6o3PXZ+HF5kpUiLw==\n-----END PUBLIC KEY-----\n",
+    "expected_code": "KEY_REJECTED"
+  },
+  {
+    "id": "der-long-length",
+    "pem": "-----BEGIN PUBLIC KEY-----\nMFowEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEN1mjSNnx5jTajvB5nfqM8Q4fhPQH\nX1HEiwDcM05xWlF7Os9IKP5XmGkUsdiQpUNYmdImFW6o3PXZ+HF5kpUiLw==\n-----END PUBLIC KEY-----\n",
+    "expected_code": "KEY_REJECTED"
+  },
+  {
+    "id": "der-indefinite-length",
+    "pem": "-----BEGIN PUBLIC KEY-----\nMIAwEwYHKoZIzj0CAQYIKoZIzj0DAQcDQgAEN1mjSNnx5jTajvB5nfqM8Q4fhPQH\nX1HEiwDcM05xWlF7Os9IKP5XmGkUsdiQpUNYmdImFW6o3PXZ+HF5kpUiLwAA\n-----END PUBLIC KEY-----\n",
+    "expected_code": "KEY_REJECTED"
+  },
+  {
+    "id": "der-nonminimal-length",
+    "pem": "-----BEGIN PUBLIC KEY-----\nMIFZMBMGByqGSM49AgEGCCqGSM49AwEHA0IABDdZo0jZ8eY02o7weZ36jPEOH4T0\nB19RxIsA3DNOcVpRezrPSCj+V5hpFLHYkKVDWJnSJhVuqNz12fhxeZKVIi8=\n-----END PUBLIC KEY-----\n",
+    "expected_code": "KEY_REJECTED"
+  }
+]

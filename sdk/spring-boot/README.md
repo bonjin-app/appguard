@@ -44,6 +44,13 @@ The configured origin must be the trusted, externally visible lowercase HTTPS DN
 
 ## Authentication, enrolled keys, and replay store
 
+Registry keys must contain one complete ASCII `PUBLIC KEY` PEM envelope and a
+P-256 SPKI DER key. The parsed key's encoded DER must match the supplied DER;
+ignored trailing/concatenated DER and normalized nonminimal encodings reject as
+`KEY_REJECTED` before nonce claims. Existing LF/CRLF, optional final newline and
+trailing ASCII whitespace support remains. These checks validate encoding,
+not registry trust or enrollment. Java provider support remains as listed above.
+
 Provide both `IdentityResolver` and `ReplayStore` beans. Enabling AppGuard without valid app ID/origin or either security dependency fails startup. There is no automatic key resolver, token acceptance, Redis connection, or volatile replay store.
 
 The application's Bearer authentication must finish before AppGuard runs, and must not consume or change the body. With standard Spring Security servlet registration, AppGuard is registered at order `-90`, after the default security proxy order `-100`; it protects all requests reaching it before MVC controllers. A configured Spring Security chain may reject requests first using its own error responses. AppGuard does not replace those application responses.

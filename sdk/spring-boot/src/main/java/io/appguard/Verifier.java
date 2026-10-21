@@ -18,6 +18,7 @@ public final class Verifier {
             if(!m.matches()) throw new GeneralSecurityException();
             byte[] der=Base64.getDecoder().decode(m.group(1).replace("\r","").replace("\n",""));
             PublicKey key=KeyFactory.getInstance("EC").generatePublic(new X509EncodedKeySpec(der));
+            if(!java.util.Arrays.equals(der,key.getEncoded())) throw new GeneralSecurityException();
             if(!(key instanceof ECPublicKey ec)) throw new GeneralSecurityException();
             AlgorithmParameters expected=AlgorithmParameters.getInstance("EC");expected.init(new ECGenParameterSpec("secp256r1"));
             ECParameterSpec p=ec.getParams(), q=expected.getParameterSpec(ECParameterSpec.class);

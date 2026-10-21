@@ -91,6 +91,14 @@ Return `null`/`false` from `identityResolver` for unauthenticated requests. Call
 exceptions never become successful verification or leak their text in responses.
 The trusted clock is read after asynchronous authentication/key lookup completes.
 
+PEM input must be one complete ASCII `PUBLIC KEY` envelope with canonical Base64
+contents. LF/CRLF, no final newline and trailing ASCII spaces/tabs/line endings
+are supported. Leading junk/BOM, legacy headers, multiple envelopes and trailing
+data reject with `KEY_REJECTED`. Imported SPKI DER must round-trip byte-for-byte;
+ignored trailing DER, concatenated keys and normalized BER forms reject before a
+nonce claim. Existing compressed-point P-256 SPKI support is retained. These
+checks do not establish key enrollment or authorization.
+
 The frozen successful verification result retains the key ID and expiry used
 for the replay claim. Changes to caller-owned key records or parameters while
 that claim is pending do not change the result. Replay must still return strict

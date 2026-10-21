@@ -64,6 +64,14 @@ The parser rejects missing/duplicate singleton fields, ambiguous framing, extra 
 
 ## Replay storage and errors
 
+Trusted public-key PEM input must be one complete ASCII `PUBLIC KEY` envelope,
+with LF or CRLF line endings. A final newline is optional; trailing ASCII spaces,
+tabs and line endings are allowed. Leading junk/BOM, multiple or nested envelopes,
+legacy headers and trailing non-whitespace data reject as `KEY_REJECTED` before a
+nonce claim. The existing cryptography parser validates the complete DER key and
+P-256 curve. Compressed-point SPKI keys remain supported. This validates registry
+encoding; it does not establish that a key is trusted or enrolled.
+
 `RedisReplayStore` accepts a long-lived configured synchronous redis-py client; no connection is created automatically. Claims use the shared hashed namespace and a single atomic `SET key 1 NX EX ttl`, where `ttl=expires-now` in `1..150`. A duplicate claim rejects and backend faults fail closed. Provision capacity, prevent live-key eviction, secure the connection, and configure the persistence/replication/restart guarantees needed for your deployment. Redis does not create those guarantees automatically.
 
 For explicit single-process tests/development only, `appguard.replay.InMemoryReplayStore()` is bounded, thread-safe and volatile. Never create a store per request or use it for distributed guarantees. No store or permissive identity callback is selected by default.

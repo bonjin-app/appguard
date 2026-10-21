@@ -1,5 +1,7 @@
 """Supported library crypto only; RFC 9421 raw signature converts to DER."""
 
+import re
+
 from cryptography.exceptions import InvalidSignature, UnsupportedAlgorithm
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import ec, utils
@@ -9,6 +11,8 @@ from .types import VerificationError
 
 def load_p256_key(public_key_pem: bytes) -> ec.EllipticCurvePublicKey:
     if type(public_key_pem) is not bytes or not 1 <= len(public_key_pem) <= 4096:
+        raise VerificationError("KEY_REJECTED")
+    if re.fullmatch(rb"-----BEGIN PUBLIC KEY-----\r?\n[A-Za-z0-9+/=\r\n]+-----END PUBLIC KEY-----[ \t\r\n]*", public_key_pem) is None:
         raise VerificationError("KEY_REJECTED")
     try:
         key = serialization.load_pem_public_key(public_key_pem)
