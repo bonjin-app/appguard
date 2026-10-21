@@ -70,6 +70,13 @@ For explicit single-process tests/development only, `appguard.replay.InMemoryRep
 
 SDK failures contain fixed JSON codes only: 400 malformed request/evidence, 413 oversized body, 401 authentication rejection, 403 verification rejection, 503 dependency/internal-verification failure. Tokens, bodies, PEM material and exception details are not returned. A valid signature grants no resource permissions.
 
+In ordinary calls, handled replay backend failures are raised after the exception
+handler unwinds: core `REPLAY_STORE_UNAVAILABLE` and Redis adapter failures retain
+neither the backend `__context__` nor `__cause__`, including nested/grouped errors.
+This does not sanitize application-owned active exception state or captured frame
+locals, or promise the same for every unrelated SDK error. Serialize fixed codes
+and configure your application's error reporting accordingly.
+
 ## Verified scope
 
 Locally tested on Python 3.11.15 with cryptography 50.0.2, FastAPI 0.150.0 / Starlette 1.9.0, Django 5.2.18, Flask 3.1.3 / asgiref 3.12.1, redis-py 8.1.0 and Redis 7.2.10. The SDK suite uses actual framework applications through HTTPX ASGITransport plus direct ASGI stream-boundary checks. These are in-process framework tests, not live ASGI-server/TLS deployment evidence. The 209 reference tests exercise the promoted core, including all 40 shared request scenarios. The SDK separately consumes all 43 HTTP-envelope scenarios and tests authentication failures, exact target/body preservation, limits, Redis concurrency and failure redaction. A standalone wheel install is checked without reference checkout imports. See [verification evidence](../../docs/security/server-sdk-verification.md).

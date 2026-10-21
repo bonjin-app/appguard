@@ -31,9 +31,13 @@ class RedisReplayStore:
         if (type(now) is not int or type(expires) is not int
                 or not 0 <= now < expires <= 999999999999999 or not 1 <= expires - now <= 150):
             raise ReplayStoreUnavailable("invalid replay deadline")
+        backend_failed = False
         try:
             result = self._client.set(key, b"1", nx=True, ex=expires - now)
         except Exception:
+            backend_failed = True
+        # Raise after the handler so structured reporters cannot follow its chain.
+        if backend_failed:
             raise ReplayStoreUnavailable("replay backend unavailable") from None
         if result is True:
             return True

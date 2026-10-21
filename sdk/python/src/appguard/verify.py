@@ -29,9 +29,13 @@ def verify_request(
     validate_content_digest(request)
     verify_p256(key.public_key_pem, base, signature)
 
+    backend_failed = False
     try:
         claimed = replay.claim((app_id, key.key_id, parameters.nonce), expires=parameters.expires, now=now)
     except Exception:
+        backend_failed = True
+    # Suppressing display alone retains the backend exception in __context__.
+    if backend_failed:
         raise VerificationError("REPLAY_STORE_UNAVAILABLE") from None
     if claimed is False:
         raise VerificationError("REPLAY_DETECTED")
