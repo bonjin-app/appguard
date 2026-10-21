@@ -57,3 +57,37 @@ prove the thread was interrupted.
 Local thread, servlet mock, embedded-container and copied-JAR tests are distinct
 from production shutdown, load/failover, deployed transport, hosted CI, provider
 or physical-device evidence.
+
+## Local verification and independent review
+
+Runtime/test commit `b2d845aea288f1be1551a4c93049feb69a366501` received an
+independent local security/correctness review with no blocking findings. The
+subsequent verification record changes only this guide.
+
+- Baseline: 219 Java tests passed. Of ten new regressions/controls, six failed
+  before the fix specifically because the interruption status was lost; all ten
+  passed after the four catch-boundary changes.
+- Full Maven package: 229 tests passed with zero failures, errors or skips. This
+  includes shared conformance vectors, embedded Tomcat/Spring Security and an
+  isolated local Redis instance.
+- Standalone copied JAR: all ten new tests passed with SDK code-source checks and
+  project output directories excluded from the consumer classpath. All 37
+  class/resource entries and the embedded POM matched the artifact.
+- Fresh reviewer execution: 28 selected Maven tests, ten copied-JAR regressions
+  and 28 independent copied-JAR scenarios passed. Controls cover all four
+  boundaries, nested/suppressed exceptions, existing flags, successful flagged
+  callbacks, fixed error privacy/mapping, safe `AssertionError` propagation, and
+  no retry/dispatch on failure.
+- The reviewer independently compiled all 32 Java source files and matched all
+  35 generated class entries to the JAR; all 86 external dependency JAR hashes
+  matched the recorded classpath. The saved 229-test suite was inventoried, not
+  rerun in full by the reviewer.
+
+Counts overlap and are not unique tests to add together. The Python/Node.js
+runtimes and shared protocol were unchanged and their suites were not rerun for
+this Java-only fix. No JVM resource exhaustion, deployed shutdown or transport
+guarantee was tested.
+
+Commands, reports, source/artifact hashes, review receipt and integration
+readback are retained in the primary main checkout under
+`.superpowers/evidence/2026-10-21-spring-interruption/`.
