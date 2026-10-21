@@ -91,6 +91,20 @@ Return `null`/`false` from `identityResolver` for unauthenticated requests. Call
 exceptions never become successful verification or leak their text in responses.
 The trusted clock is read after asynchronous authentication/key lookup completes.
 
+`identityTimeoutMs` defaults to **10,000 ms**, starting after body capture and
+covering identity resolution plus optional key lookup together. It uses one
+monotonic deadline, not a fresh timeout per callback. Expiry returns HTTP 503
+with `IDENTITY_UNAVAILABLE` or `KEY_RESOLVER_UNAVAILABLE` for the active phase.
+Late callback results never continue SDK key lookup, verification or replay
+claims; late rejections are consumed. Timers are cleared when authentication ends.
+
+This does not cancel application callbacks, preempt synchronous JavaScript or
+provide a total request/replay timeout. A synchronous callback can block the event
+loop; after it returns, an elapsed-deadline check rejects before continuing.
+Configure authentication/database clients with their own deadlines and bounded
+concurrency, and Redis connection/command timeouts separately. See the
+[server deployment guide](../../docs/operations/server-deployment.md).
+
 PEM input must be one complete ASCII `PUBLIC KEY` envelope with canonical Base64
 contents. LF/CRLF, no final newline and trailing ASCII spaces/tabs/line endings
 are supported. Leading junk/BOM, legacy headers, multiple envelopes and trailing
@@ -202,7 +216,10 @@ content encoding is accepted. Framing is checked, including duplicate fields,
 canonical Content-Length, exact byte count and conflicting Content-Length/
 Transfer-Encoding. Capture is bounded; overflow is rejected without retaining the
 excess chunk. Incomplete, aborted, previously consumed or timed-out streams fail
-closed. `bodyTimeoutMs` defaults to 30,000 and must be a positive integer.
+closed. `bodyTimeoutMs` defaults to 30,000. Both timeout options must be integer
+milliseconds in **1..2147483647**; omission/`undefined` selects the default.
+Null, fractional, nonnumeric and overflow values reject at adapter installation.
+Previously a null body timeout selected its default; replace it with omission.
 
 Node's HTTP server parses HTTP framing and exposes parsed raw-header values; its
 own parser/limits may reject a request before middleware runs. Such server-level

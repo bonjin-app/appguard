@@ -1,4 +1,5 @@
 import { Readable } from 'node:stream';
+import { performance } from 'node:perf_hooks';
 import { validateIdentifier, validateOrigin, validateRequest } from './canonical.js';
 import { parseSignatures, validateFraming } from './wire.js';
 import { verifyRequest } from './verify.js';
@@ -11,9 +12,12 @@ export function validateOptions(options) {
   if (!options || typeof options !== 'object') throw new TypeError('AppGuard security options are required');
   validateIdentifier(options.app_id); validateOrigin(options.origin);
   if (!options.replay || typeof options.replay.claim !== 'function' || typeof options.identityResolver !== 'function' || (options.keyResolver !== undefined && typeof options.keyResolver !== 'function') || (options.clock !== undefined && typeof options.clock !== 'function') || (options.allowInsecureTransport !== undefined && typeof options.allowInsecureTransport !== 'boolean')) throw new TypeError('AppGuard trusted callbacks and replay store are required');
-  const bodyTimeoutMs = options.bodyTimeoutMs ?? 30000;
-  if (!Number.isSafeInteger(bodyTimeoutMs) || bodyTimeoutMs <= 0) throw new TypeError('bodyTimeoutMs must be a positive integer');
-  return Object.freeze({ ...options, clock: options.clock ?? (() => Math.floor(Date.now() / 1000)), bodyTimeoutMs });
+  const bodyTimeoutMs = options.bodyTimeoutMs === undefined ? 30000 : options.bodyTimeoutMs;
+  const identityTimeoutMs = options.identityTimeoutMs === undefined ? 10000 : options.identityTimeoutMs;
+  for (const [name, value] of [['bodyTimeoutMs', bodyTimeoutMs], ['identityTimeoutMs', identityTimeoutMs]]) {
+    if (!Number.isSafeInteger(value) || value < 1 || value > 2147483647) throw new TypeError(`${name} must be an integer in 1..2147483647`);
+  }
+  return Object.freeze({ ...options, clock: options.clock ?? (() => Math.floor(Date.now() / 1000)), bodyTimeoutMs, identityTimeoutMs });
 }
 function snapshot(req, options) {
   const original = ORIGINAL.get(req);
@@ -53,29 +57,48 @@ function capture(req, timeoutMs) {
 }
 async function authenticate(request, metadata, options) {
   const context = Object.freeze({ method: request.method, target: request.target, headers: request.headers, parameters: Object.freeze({ ...metadata.parameters }) });
-  let identity;
-  try { identity = await options.identityResolver(context); } catch { reject('IDENTITY_UNAVAILABLE'); }
-  if (identity === null || identity === undefined || identity === false) reject('AUTHENTICATION_REQUIRED');
-  let subject;
-  try { subject = typeof identity === 'string' ? identity : identity.subject; validateIdentifier(subject); } catch { reject('IDENTITY_UNAVAILABLE'); }
-  let key;
-  if (options.keyResolver) {
-    try { key = await options.keyResolver(Object.freeze({ ...context, subject, app_id: options.app_id, key_id: metadata.parameters.key_id })); }
-    catch { reject('KEY_RESOLVER_UNAVAILABLE'); }
+  const deadline = performance.now() + options.identityTimeoutMs;
+  let active = true, timer, phase = 'IDENTITY_UNAVAILABLE';
+  const checkpoint = () => { if (!active || performance.now() >= deadline) reject(phase); };
+  const resolve = async () => {
+    let identity;
+    try { identity = await options.identityResolver(context); } catch { reject('IDENTITY_UNAVAILABLE'); }
+    checkpoint();
+    if (identity === null || identity === undefined || identity === false) reject('AUTHENTICATION_REQUIRED');
+    let subject;
+    try { subject = typeof identity === 'string' ? identity : identity.subject; validateIdentifier(subject); } catch { reject('IDENTITY_UNAVAILABLE'); }
+    checkpoint();
+    let key;
+    if (options.keyResolver) {
+      phase = 'KEY_RESOLVER_UNAVAILABLE';
+      checkpoint();
+      try { key = await options.keyResolver(Object.freeze({ ...context, subject, app_id: options.app_id, key_id: metadata.parameters.key_id })); }
+      catch { reject('KEY_RESOLVER_UNAVAILABLE'); }
+    } else {
+      try { if (!('key' in identity)) reject('IDENTITY_UNAVAILABLE'); key = identity.key; } catch { reject('IDENTITY_UNAVAILABLE'); }
+    }
+    checkpoint();
     if (key === null || key === undefined) return { subject, key: null };
-    if (typeof key !== 'object') reject('KEY_RESOLVER_UNAVAILABLE');
-  } else {
-    try { if (!('key' in identity)) reject('IDENTITY_UNAVAILABLE'); key = identity.key; } catch { reject('IDENTITY_UNAVAILABLE'); }
-    if (key === null || key === undefined) return { subject, key: null };
-    if (typeof key !== 'object') reject('IDENTITY_UNAVAILABLE');
-  }
+    if (typeof key !== 'object') reject(phase);
+    try {
+      key = { app_id: key.app_id, key_id: key.key_id, subject: key.subject, algorithm: key.algorithm, revoked: key.revoked, public_key_pem: key.public_key_pem };
+      if (['app_id', 'key_id', 'subject', 'algorithm'].some(field => typeof key[field] !== 'string') || typeof key.revoked !== 'boolean' || (typeof key.public_key_pem !== 'string' && !Buffer.isBuffer(key.public_key_pem))) throw new TypeError();
+      if (Buffer.isBuffer(key.public_key_pem)) key.public_key_pem = Buffer.from(key.public_key_pem);
+      Object.freeze(key);
+    } catch { reject(phase); }
+    checkpoint();
+    return { subject, key };
+  };
+  const timeout = new Promise((_, fail) => {
+    timer = setTimeout(() => { active = false; fail(new VerificationError(phase)); }, options.identityTimeoutMs);
+    timer.unref();
+  });
   try {
-    key = { app_id: key.app_id, key_id: key.key_id, subject: key.subject, algorithm: key.algorithm, revoked: key.revoked, public_key_pem: key.public_key_pem };
-    if (['app_id', 'key_id', 'subject', 'algorithm'].some(field => typeof key[field] !== 'string') || typeof key.revoked !== 'boolean' || (typeof key.public_key_pem !== 'string' && !Buffer.isBuffer(key.public_key_pem))) throw new TypeError();
-    if (Buffer.isBuffer(key.public_key_pem)) key.public_key_pem = Buffer.from(key.public_key_pem);
-    Object.freeze(key);
-  } catch { reject(options.keyResolver ? 'KEY_RESOLVER_UNAVAILABLE' : 'IDENTITY_UNAVAILABLE'); }
-  return { subject, key };
+    return await Promise.race([resolve(), timeout]);
+  } finally {
+    active = false;
+    clearTimeout(timer);
+  }
 }
 async function enforce(req, options) {
   const { request, metadata } = snapshot(req, options);

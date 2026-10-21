@@ -3,9 +3,11 @@ import {createClient} from 'redis';
 import {createServer} from 'node:http';
 import { buildSignatureBase, verifyRequest, parseSignatures, RedisReplayStore, InMemoryReplayStore, expressMiddleware, nestMiddleware, installFastify, type AdapterOptions, type KeyRecord, type VerificationResult } from '@appguard/server';
 const key: KeyRecord = { app_id:'a', key_id:'k', subject:'u', public_key_pem:'pem', algorithm:'ecdsa-p256-sha256', revoked:false };
-const combined: AdapterOptions = { app_id:'a', origin:'https://api.example.test', replay:new InMemoryReplayStore(), identityResolver: async context => ({subject:'u', key}) };
+const combined: AdapterOptions = { app_id:'a', origin:'https://api.example.test', replay:new InMemoryReplayStore(), identityTimeoutMs:10000, identityResolver: async context => ({subject:'u', key}) };
 const separate: AdapterOptions = { app_id:'a', origin:'https://api.example.test', replay:new RedisReplayStore({sendCommand: async args => 'OK'}), identityResolver: async () => 'u', keyResolver: async context => key };
 expressMiddleware(combined); nestMiddleware(separate); installFastify({server:createServer(),addHook: () => {}}, combined);
+// @ts-expect-error deadline milliseconds must be numeric
+expressMiddleware({...combined, identityTimeoutMs:'slow'});
 // @ts-expect-error an identity callback is mandatory
 expressMiddleware({ app_id:'a', origin:'https://api.example.test', replay:new InMemoryReplayStore() });
 // @ts-expect-error a string identity requires a separate trusted key resolver

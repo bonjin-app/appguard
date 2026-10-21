@@ -37,7 +37,13 @@ export function verifyRequest(request: RequestInput, parameters: SignatureParame
 export interface Identity { subject: string; key: KeyRecord | null; }
 export interface IdentityContext { readonly method: string; readonly target: string; readonly headers: readonly HeaderPair[]; readonly parameters: Readonly<SignatureParameters>; }
 export interface KeyContext extends IdentityContext { readonly subject: string; readonly app_id: string; readonly key_id: string; }
-export interface CommonAdapterOptions { app_id: string; origin: string; replay: ReplayStore; clock?: () => number; allowInsecureTransport?: boolean; bodyTimeoutMs?: number; }
+export interface CommonAdapterOptions {
+  app_id: string; origin: string; replay: ReplayStore; clock?: () => number; allowInsecureTransport?: boolean;
+  /** Body capture timeout, default 30000; integer 1..2147483647. */
+  bodyTimeoutMs?: number;
+  /** Total identity/key lookup deadline, default 10000; integer 1..2147483647. Does not cancel host callbacks. */
+  identityTimeoutMs?: number;
+}
 export type AdapterOptions = CommonAdapterOptions & (
   { identityResolver(context: IdentityContext): Identity | null | false | Promise<Identity | null | false>; keyResolver?: never } |
   { identityResolver(context: IdentityContext): string | null | false | Promise<string | null | false>; keyResolver(context: KeyContext): KeyRecord | null | undefined | Promise<KeyRecord | null | undefined> }
