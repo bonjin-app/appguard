@@ -53,3 +53,32 @@ and [native coroutine close](https://docs.python.org/3.11/reference/datamodel.ht
 Local verification uses CPython 3.11.15; newer documentation is not additional
 runtime coverage. Deployed load/failover, hosted CI, external audit, provider and
 physical-device verification remain separate gates.
+
+## Local verification and independent review
+
+Independent security review approved
+`e91c0cf6fe12ee446b9469441153372a6cd79952` with no unresolved findings.
+Design review reproduced custom `__class__` spoofing; the exact-type boundary
+was added and the spoof regression changed from failure to pass. The initial
+16-test suite reproduced nine abandoned-result failures with seven existing
+contract controls passing. The final new suite contains 17 cases.
+
+Recorded checks, all with zero skipped tests:
+
+- Baseline Python SDK: 583 pass; final Python SDK: 600 pass.
+- Focused cleanup/deadline/ASGI tests: 102 pass.
+- Common server runner: reference Python 209, Python SDK 600, Node SDK 561 and
+  Java SDK 211 (1,581 total); packaging/types and cross-SDK Redis sequential and
+  concurrent replay checks also passed.
+- Isolated offline-installed wheel: 45 regressions pass; 21 packaged source/assets
+  match reviewed source and installed files, including README metadata readback.
+- Independent fresh review: 102 focused tests and five additional probes pass.
+  The probes cover both finalizer/lock handoff orderings, late sync exception
+  privacy under timeout/caller cancellation, and untouched hostile object hooks.
+
+These counts overlap. Framework requests run in-process through ASGI, not a
+production ingress or TLS endpoint. Loop-close evidence lets a bounded test
+worker return after its request loop closes; it is not proof that all workers
+finish during process shutdown. Full logs, RED/GREEN results, package/source
+hashes and the independent review receipt are retained in the primary checkout:
+`.superpowers/evidence/2026-10-21-python-resolver-cleanup/`.
