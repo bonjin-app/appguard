@@ -19,9 +19,9 @@ function options(args,allowed,flags=[]) {
 function required(opts,name) {if(!opts[name]) fail('INVALID_ARGUMENTS');return opts[name];}
 async function run(args) {
   const command=args.shift();
-  if(command==='--help' || command==='help') return {commands:['init --app-id ID [--platform android|flutter|expo] [--profile basic|balanced|strict] [--project PATH]','doctor [--project PATH]','policy validate --file PATH','build [--project PATH] [--dry-run]','archive --source DIR --vault DIR --key-file FILE --build-id ID','restore --archive FILE --destination NEW_DIR --key-file FILE'],experimental:true};
+  if(command==='--help' || command==='help') return {commands:['init --app-id ID [--platform android|flutter|expo] [--profile basic|balanced|strict] [--project PATH]','doctor [--project PATH] [--check]','policy validate --file PATH','build [--project PATH] [--dry-run]','archive --source DIR --vault DIR --key-file FILE --build-id ID','restore --archive FILE --destination NEW_DIR --key-file FILE'],experimental:true};
   if(command==='init') {const o=options(args,['--project','--app-id','--platform','--profile']);return initialize(o['--project']??process.cwd(),{appId:required(o,'--app-id'),...(o['--platform']?{platform:o['--platform']}:{}),...(o['--profile']?{profile:o['--profile']}:{})});}
-  if(command==='doctor') {const o=options(args,['--project']);return inspect(o['--project']??process.cwd());}
+  if(command==='doctor') {const o=options(args,['--project','--check'],['--check']);const report=await inspect(o['--project']??process.cwd());if(o['--check'] && !report.localChecksPassed) process.exitCode=2;return report;}
   if(command==='build') {const o=options(args,['--project','--dry-run'],['--dry-run']);return o['--dry-run']?buildPlan(o['--project']??process.cwd()):executeBuild(o['--project']??process.cwd());}
   if(command==='policy' && args.shift()==='validate') {
     const o=options(args,['--file']);

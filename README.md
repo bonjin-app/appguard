@@ -80,7 +80,7 @@ Native tests distinguish JVM/macOS crypto, platform builds and an isolated Andro
 
 The [bridge contract](protocol/client-bridge-v0.md) exposes only public-key lookup, validated request preparation and enrollment possession proof. Stage each framework package's native sources before local installation as documented; installing a JS/Dart/C# wrapper alone cannot add native code to Expo Go or an existing binary. No transport, provider verdict or arbitrary signing/private-key export is exposed. Packages preserve exact body/target/header values; the application must verify actual HTTP behavior.
 
-For a supported local app project, `node tools/cli/bin/appguard.js init --project /path/to/app --app-id your-app` creates explicit configuration. `doctor`, `policy validate`, `build --dry-run`, `archive` and `restore` are documented in the [CLI guide](tools/cli/README.md). Setup does not install or publish SDK dependencies or configure provider accounts. Keep original build mappings private as well as their encrypted archives.
+For a supported local app project, `node tools/cli/bin/appguard.js init --project /path/to/app --app-id your-app` creates explicit configuration. `doctor` (read-only local prerequisites), `doctor --check` (CI exit status), `policy validate`, `build --dry-run`, `archive` and `restore` are documented in the [CLI guide](tools/cli/README.md). Setup does not install or publish SDK dependencies or configure provider accounts. Keep original build mappings private as well as their encrypted archives.
 
 ## Common verification behavior
 

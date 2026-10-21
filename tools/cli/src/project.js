@@ -3,6 +3,7 @@ import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { fail } from './errors.js';
 import { projectRoot, readOptional, safePath, privateDirectory } from './files.js';
+import { localChecks } from './local-checks.js';
 
 const platforms=['android','expo','flutter'];
 const profiles=['basic','balanced','strict'];
@@ -110,5 +111,6 @@ export async function inspect(input) {
     const apply=config.androidBuildFile.endsWith('.kts')?'apply(from = "appguard-release.gradle")':"apply from: 'appguard-release.gradle'";
     protectionConfigured=await readOptional(root,'app/appguard-release.gradle')===androidProtection && build!==null && build.split(/\r?\n/).includes(apply);
   }
-  return {configurationValid:true,platform:config.platform,appId:config.appId,profile:config.profile,protectionConfigured,sdkInstalled:'not_checked',providerConfigured:'not_checked',buildVerified:false};
+  const checks=await localChecks(root,config,protectionConfigured);
+  return {configurationValid:true,platform:config.platform,appId:config.appId,profile:config.profile,protectionConfigured,sdkInstalled:'not_checked',providerConfigured:'not_checked',buildVerified:false,checks,localChecksPassed:checks.every(check=>check.status==='pass')};
 }

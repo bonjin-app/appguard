@@ -5,6 +5,7 @@ Local Node 22+ tool, Apache-2.0, no runtime dependencies. No package has been pu
 ```sh
 node tools/cli/bin/appguard.js init --project /path/to/app --app-id your-app
 node tools/cli/bin/appguard.js doctor --project /path/to/app
+node tools/cli/bin/appguard.js doctor --project /path/to/app --check
 node tools/cli/bin/appguard.js build --project /path/to/app --dry-run
 node tools/cli/bin/appguard.js build --project /path/to/app
 ```
@@ -23,7 +24,34 @@ Android init appends an apply statement and creates an app-specific release side
 
 Flutter build invokes `flutter build apk --release --obfuscate --split-debug-info=<project>/.appguard/symbols`. Supply the locally installed Flutter tool on PATH. This first CLI profile builds Android APKs; iOS release targets and Unity builds are not CLI adapters yet. Expo build uses the project's installed `node_modules/expo/bin/cli export --platform all --output-dir <project>/dist`. Production minification is the Expo default; no source-map flag is passed. Minification and Hermes bytecode do not guarantee source concealment. Existing Metro/Expo configuration can still change export behavior or emit sensitive files: inspect final output before distributing it. Expo prebuild, native release builds and EAS are separate steps.
 
-`doctor` validates the config and, for Android, exact generated sidecar/apply-line content. It does not evaluate the final Gradle model, install SDKs, configure provider accounts, verify attestation, authenticate users or prove a successful build. Its `sdkInstalled`/`providerConfigured` fields are explicitly `not_checked`; `buildVerified` is false. A dry-run only returns the argument array. Actual builds inherit application build output, propagate nonzero exit codes, and use no shell. Windows Android wrapper execution is currently unsupported. Build logs belong to the application's toolchain and may contain its own sensitive output.
+`doctor` validates configuration and reports read-only local build prerequisites.
+For Android it checks the exact generated sidecar/apply line and the local Gradle
+wrapper. For Expo it checks the installed local CLI entrypoint, which Node runs
+without requiring an executable bit. For Flutter it looks for an executable
+`flutter` on the build's PATH without running it. Required checks and their fixed
+reason codes appear in `checks`; `localChecksPassed` is true only when every
+required check passes. No project files or build tools are changed by diagnosis. Android/Expo project
+paths follow the existing no-symlink policy. Flutter PATH lookup permits normal
+symlinked installations; empty or relative PATH entries are resolved against the
+target project, as with a build. An unset PATH is explicitly `not_checked` with
+`PATH_NOT_SET`. POSIX executability uses access checks, not a tool invocation.
+Android/Flutter Windows tool checks are `not_checked` with
+`PLATFORM_UNSUPPORTED`; required unchecked results also fail `--check`.
+
+Default `doctor` remains report-only: a valid config produces a JSON report and
+exit 0 even when local checks fail. `doctor --check` prints the report on stdout
+and exits 2 when required local checks do not pass, so a CI job can reject missing
+prerequisites. Invalid arguments or configuration reads retain fixed redacted errors on stderr
+and exit 1; missing, unreadable or unsafe tool paths are reported as failed
+checks with fixed codes. Diagnostics do not include raw PATH
+entries or build-tool error text. Neither mode executes a build or tool version
+command, installs dependencies, or contacts provider services.
+
+A passing check establishes local prerequisite presence at that instant. It does
+not evaluate the final Gradle model, tool version, Android SDK, signing readiness,
+SDK installation, provider accounts, attestation, user authentication or a
+successful build. The existing `sdkInstalled`/`providerConfigured` fields remain
+`not_checked`; `buildVerified` remains false. A dry-run only returns the argument array. Actual builds inherit application build output, propagate nonzero exit codes, and use no shell. Windows Android wrapper execution is currently unsupported. Build logs belong to the application's toolchain and may contain its own sensitive output.
 
 ## Policy file validation
 
