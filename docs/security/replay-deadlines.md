@@ -42,3 +42,37 @@ recovery requirements. The official Node [timer reference](https://github.com/no
 describes timer liveness and delay bounds; the [performance reference](https://github.com/nodejs/node/blob/main/doc/api/perf_hooks.md)
 describes process-relative elapsed time. Local runtime tests establish the
 behaviors of this implementation on the recorded toolchain.
+
+## Local verification and review
+
+- Frozen Node install and original tracked suite: **429/429**, zero skipped.
+- RED main run: **94 tests, 28 passed and 66 failed**, zero cancellations/skips.
+  Supplemental standalone/default-deadline and nonce-retention probes failed as
+  expected; slow-authentication ordering probes passed. TypeScript rejected the
+  two missing option declarations. The final file includes **98** tests.
+- Focused GREEN: **98/98** with strict unhandled-rejection handling; TypeScript
+  passed. Tests cover real P-256 verification, Express/Fastify/Nest localhost
+  servers, hung/late outcomes, synchronous overrun, independent requests, invalid
+  configuration and standalone process liveness/cleanup. The omitted-default
+  probe observes the real 10-second deadline. A late gated backend claim uses
+  the real in-memory store; the same request subsequently rejects as replay.
+- Common server runner: reference **209**, Python **555**, Node **527**, Java
+  **211** (**1502 total**), zero skipped. Wheel/JAR/package builds, Node types,
+  package import smoke, shared-Redis first-claim rotations and cross-process
+  simultaneous single-winner checks passed on an owned disposable instance.
+- Offline installed npm consumer: **98/98** strict regressions, zero skipped or
+  cancelled; all **14** source/tarball/actual installed files were byte-identical.
+  The installed README's `DEPLOYMENT.md` link target exists. Consumer dependency
+  lock, dependency inventory, tests and tarball are retained as evidence.
+- Independent security review approved implementation commit
+  `5010ae13473182b15037337c613230a68fa98a2a`: **0 Critical, 0 Important, 0 Minor**.
+  The reviewer independently passed **135** tests (98 focused, 10 adversarial,
+  27 replay/result-binding including live Redis), checked TypeScript and read
+  back eight changed source hashes plus all 14 installed package file hashes.
+  The common-runner receipts were inspected, not independently rerun wholesale.
+
+Receipts, logs, test probes and build/package hashes are archived under
+`.superpowers/evidence/2026-10-21-replay-deadlines/` in the primary checkout at
+integration. This verification-record follow-up changes no reviewed runtime,
+types, tests or npm package contents. Clean-main integration, merged Node tests
+and archive-manifest readback precede temporary worktree cleanup.
