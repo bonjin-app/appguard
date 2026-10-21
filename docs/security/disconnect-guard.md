@@ -49,3 +49,40 @@ concurrency/capacity controls remain host-owned. Deployed proxy/ingress/load/
 failover, hosted CI, supported release, external audit, provider and physical
 device verification remain separate gates. The Unity physical branch and its
 historical receipts are excluded from this independent main continuation.
+
+## Local verification and independent review
+
+- Frozen original Node suite: **527/527**, zero skipped/cancelled.
+- RED: initial **33 tests, 15 passed and 18 failed**; the relocation-safe
+  standalone-process and Fastify handoff follow-up had **4/4 expected failures**.
+  There were no skipped/cancelled tests. Final focused file has **34** cases.
+- Focused GREEN: **34/34** under strict unhandled-rejection handling. Actual
+  Express/Fastify/Nest servers observe native response closure before releasing
+  pending identity/key/replay callbacks. Healthy completed bodies, async
+  authentication, same-socket keepalive, request isolation and live fixed-code
+  failures pass. All three standalone servers exit with a still-pending backend
+  promise and a configured long replay deadline after the client disconnects.
+- Common server runner: reference **209**, Python **555**, Node **561**, Java
+  **211** (**1536 total**), zero skipped. Builds, types/package smoke and shared
+  Redis first-claim rotations/simultaneous single-winner checks passed.
+- Final offline installed consumer: **34/34** strict tests, zero skips or
+  cancellations; all **15** source/tarball/installed files match byte-for-byte,
+  including the private connection module and packaged deployment guide.
+- Independent review approved scope-correction commit
+  `27d3b0e8081e1248e0c328d7367907095b10d417`; **no open findings**. One Low
+  documentation ambiguity about continuous Fastify hook cancellation was fixed
+  and re-reviewed; there were no Critical/Important runtime findings.
+  The reviewer independently passed the full **561**, focused **34**, additional
+  **20** lifecycle probes and final installed **34** tests plus TypeScript.
+  Probes include 100 sequential async keepalive requests per framework with no
+  SDK timer/listener accumulation, partial-body cancellation, thenables/clock
+  response-end boundaries and retention of a late backend nonce claim.
+
+The implementation/tests are unchanged from tested commit
+`84f3ef0a4694f15f5482a9270ceec8d903520a9b`. Package documentation was repacked
+after its scope correction; prior and final packages/consumer locks are retained
+separately. Logs, probes, build/package hashes and review receipts are archived
+under `.superpowers/evidence/2026-10-21-disconnect-guard/` in the primary checkout
+at integration. This record-only follow-up does not change the reviewed runtime,
+tests or npm package. Clean-main integration, merged tests and archive-manifest
+readback precede temporary worktree cleanup.
