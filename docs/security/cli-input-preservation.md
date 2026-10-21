@@ -54,8 +54,17 @@ Archive encryption/format, server/native SDKs and signing credentials are unchan
 
 ## Integration boundary
 
-The independent CLI fix is intended for local main after review and clean-main
-checks. Unity iPhone installation/runtime and Android physical validation remain
+One fresh read-only security review found **0 Critical, 0 Important, 0 Minor**
+findings and approved this CLI-only repair for local integration. The reviewer
+reran all23 tests and independently compared production JS/package metadata across
+source, tarball and offline-installed consumer. Exclusive filesystem control,
+remote CI, publication and unrelated device/provider/archive assurances were
+explicitly outside that review.
+
+Local integration uses clean-main/fast-forward checks and a complete CLI test run
+on the merged tree. Source hashes, tarball hash, review and actual integration
+readback are retained under `.superpowers/evidence/2026-10-21-cli-input-preservation/`
+in the primary checkout. Unity iPhone installation/runtime and Android physical validation remain
 pending in the preserved `codex/unity-physical-runtime` worktree; none of those
 changes or evidence tiers is promoted by this repair. No remote push, publication,
 device operation or provider mutation is part of this stage.
