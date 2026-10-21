@@ -12,7 +12,8 @@ export class PolicyError extends Error {
 }
 export const validTime = value => Number.isInteger(value) && value >= 0 && value <= 999999999999999;
 export function options(value, keys) {
-  return value !== null && typeof value === 'object' && [Object.prototype, null].includes(Object.getPrototypeOf(value)) && Reflect.ownKeys(value).every(key => keys.includes(key));
+  // Missing fields must use local defaults, never values on Object.prototype.
+  return value !== null && typeof value === 'object' && [Object.prototype, null].includes(Object.getPrototypeOf(value)) && Reflect.ownKeys(value).every(key => keys.includes(key)) && keys.every(key => Object.hasOwn(value, key) || !(key in value));
 }
 function signals(value) {
   if (!Array.isArray(value)) throw new Error();

@@ -304,6 +304,11 @@ Policy/context/decision objects and copied signal arrays are immutable. Signal
 lists contain at most 32 unique `[a-z][a-z0-9_]{0,63}` codes. Clocks are integers
 from 0 through 999999999999999. Unknown fields and malformed input reject with
 fixed `PolicyError` codes. Custom classes and structural lookalikes are rejected.
+Recognized policy/context/evaluation fields inherited from `Object.prototype`
+are rejected with the corresponding fixed error; they cannot override omitted
+defaults. Audit metadata follows the same own-field rule. Explicit own fields
+and null-prototype option objects remain supported. This does not repair or
+isolate an application's globally modified JavaScript runtime.
 
 `auditEvent(decision, metadata)` returns a frozen allowlisted event. Its optional
 context contributes only `risk_count` and `attestation_state`; raw hints, tokens,
