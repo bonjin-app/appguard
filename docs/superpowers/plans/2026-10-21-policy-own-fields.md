@@ -15,7 +15,7 @@ Object.prototype. Only explicitly owned fields can configure security behavior.
   explicit Basic signature optout, legitimate own undefined defaults and exports.
   Do not mutate/freeze globals or caller inputs. Run focused GREEN, the complete
   shared server runner with an owned disposable Redis, types and package smoke.
-- [ ] Run the regression against the offline installed npm tarball and compare
+- [x] Run the regression against the offline installed npm tarball and compare
   its source bytes. Document exact guarantees and limits in the Node README and
   `docs/security/policy-own-fields.md`. One fresh scoped read-only security review,
   resolve material findings, fast-forward clean local main, rerun merged Node
