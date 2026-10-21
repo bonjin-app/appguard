@@ -52,8 +52,17 @@ replacement require broader application controls and are outside this repair.
   artifact was retained and not counted as success. Final repacking and checks
   above used the completed README. No production source changed for that retry.
 
+One independent read-only review found **0 Critical, 0 Important and 1 Minor**
+issue. The minor issue was premature wording about an evidence archive that had
+not yet been created; this text now describes the integration gate prospectively.
+The reviewer reran the source policy/audit suite (91/91), installed regressions
+(16/16), TypeScript and a broader isolated property/default-value matrix. It
+verified all 13 packaged files and inspected, but did not rerun, the full runner.
+
+Local integration requires a clean recorded main, a fast-forward-only merge,
+complete merged-tree Node tests, and archive hash readback before worktree cleanup.
 The complete server runner, installed npm consumer, security review and merged
-tree receipts are retained under
+tree receipts are collected during integration under
 `.superpowers/evidence/2026-10-21-policy-own-fields/` in the primary checkout.
 These are local checks; remote CI, publication and deployment are separate.
 Unity iPhone/Android physical validation remains pending in its preserved worktree.
