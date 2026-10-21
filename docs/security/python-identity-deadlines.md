@@ -85,3 +85,7 @@ unresolved findings: full Python **583**, reverse-order **85** and installed-whe
 **28** checks pass, with zero skipped tests. The relevant 16 tests still fail the
 old runtime. Original failures and both review receipts are retained. Runtime,
 README and packaged source bytes are unchanged by these test-only follow-ups.
+
+The later [synchronous resolver cleanup follow-up](python-resolver-cleanup.md)
+addresses the abandoned never-started native coroutine limitation recorded
+above. The original deadline-stage receipts remain historical evidence.

@@ -6,6 +6,8 @@ import json
 import math
 import time
 from dataclasses import dataclass, field
+from threading import Lock
+from types import CoroutineType
 
 from .canonical import _validate_origin, validate_identifier
 from .types import KeyRecord, RequestInput, VerificationError
@@ -23,6 +25,44 @@ def _identity_finished(task):
     _IDENTITY_TASKS.discard(task)
     if not task.cancelled():
         task.exception()
+
+
+def _discard_identity_value(value):
+    # Never run late host awaitables or invoke their arbitrary cleanup methods.
+    if type(value) is CoroutineType and inspect.getcoroutinestate(value) == inspect.CORO_CREATED:
+        try:
+            value.close()
+        except Exception:
+            pass  # Best effort; cleanup must not replace the original failure.
+
+
+async def _call_sync_identity(resolver, scope, key_id):
+    lock = Lock()
+    abandoned, result = False, None
+
+    def invoke():
+        nonlocal result
+        value = resolver(scope, key_id)
+        with lock:
+            if not abandoned:
+                result = value
+                return value
+        _discard_identity_value(value)
+        return None
+
+    try:
+        value = await asyncio.to_thread(invoke)
+    except BaseException:
+        # Either take the published result, or leave disposal to its worker.
+        # Holding a local reference keeps object finalizers outside this lock.
+        with lock:
+            abandoned = True
+            value, result = result, None
+        _discard_identity_value(value)
+        raise
+    with lock:
+        result = None
+    return value
 
 
 @dataclass(frozen=True)
@@ -139,7 +179,7 @@ class AppGuardMiddleware:
             if inspect.iscoroutinefunction(self.identity_resolver):
                 value = self.identity_resolver(scope, key_id)
             else:
-                value = await asyncio.to_thread(self.identity_resolver, scope, key_id)
+                value = await _call_sync_identity(self.identity_resolver, scope, key_id)
             return await value if inspect.isawaitable(value) else value
 
         task = loop.create_task(resolve())

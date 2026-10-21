@@ -57,6 +57,15 @@ Pending resolver tasks are retained until completion and their eventual failures
 are consumed. Caller ASGI-task cancellation propagates without an SDK response
 and requests resolver cancellation as well.
 
+If a synchronous resolver's thread returns after its wait was canceled, a
+lock-protected handoff disposes an abandoned, never-started native coroutine
+without awaiting its body. Native coroutine results transfer ownership to the
+SDK and must not be shared with another consumer. Exact type/state checks leave
+host Tasks, Futures, custom awaitables and already-started coroutines untouched.
+Disposal can run on the worker or event-loop thread; closing clears the native
+frame and can invoke captured-object finalizers. It is best effort and adds no
+hard cleanup/shutdown deadline. See the [cleanup review](../../docs/security/python-resolver-cleanup.md).
+
 Cancellation is best effort. A resolver can suppress it, a worker thread can
 continue, and blocking event-loop work cannot be preempted. After blocking work
 returns, elapsed-budget checks reject late success, including slow identity
