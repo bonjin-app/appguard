@@ -53,3 +53,35 @@ defines the name getter. The consistent snapshot is AppGuard's adapter choice;
 the fixtures do not assert that normal Spring principals mutate in production.
 Local mock/embedded-container or copied-JAR evidence is separate from deployed
 ingress/load/failover, hosted CI, external audit, provider or physical-device proof.
+
+## Local verification and independent review
+
+Runtime and regression commit `1b708a7a8120769e6682a4e4f26015a28968739c`
+was reviewed independently with no actionable findings. The subsequent record
+commit changes only this guide.
+
+- Baseline: 211 Java tests passed. Before the fix, five of the first six new
+  regressions failed. Two added getter-origin/direct-adapter cases then failed
+  against the intermediate snapshot implementation, exposing the remaining
+  exception-boundary issue.
+- Final Maven package: 219 tests passed with zero failures, errors or skips,
+  including eight new Principal regressions, the shared corpus, embedded
+  Tomcat/Spring Security and an isolated local Redis instance.
+- A standalone consumer compiled and ran all eight regressions against a copied
+  SDK JAR with project output directories excluded. All 37 compiled class/resource
+  entries and the embedded POM matched the built artifact. This is local artifact
+  verification, not registry publication or deployment.
+- The independent reviewer freshly passed 18 selected Maven tests, eight
+  copied-JAR regressions and eight independent copied-JAR probes. These covered
+  adapter reuse, concurrent invocation isolation, valid subject-length boundaries,
+  failure classification/privacy and deliberate fatal-Error propagation. The
+  reviewer inventoried the 219-test report rather than rerunning that full suite.
+
+These counts overlap and must not be added as unique tests. Python and Node.js
+runtimes and the common protocol were unchanged; their suites were not rerun for
+this Java-only change. Controlled mutable-host fixtures establish the adapter
+behavior, not a remote bypass of immutable Spring Security principals.
+
+Local commands, reports, source/artifact hashes, review receipt and integration
+readback are retained under
+`.superpowers/evidence/2026-10-21-spring-principal-binding/` in the main checkout.
