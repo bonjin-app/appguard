@@ -182,6 +182,7 @@ def test_django_asgi_real_request(headers, key):
     from django.conf import settings
     from django.core.asgi import get_asgi_application
     from django.http import HttpResponse
+    from django.test import override_settings
     from django.urls import path
 
     if not settings.configured:
@@ -199,7 +200,8 @@ def test_django_asgi_real_request(headers, key):
         async with httpx.AsyncClient(transport=httpx.ASGITransport(app), base_url=ORIGIN) as client:
             return await client.post(VECTOR["request"]["target"], headers=headers, content=b"{}")
 
-    result = asyncio.run(run())
+    with override_settings(ROOT_URLCONF=__name__):
+        result = asyncio.run(run())
     assert (result.status_code, result.content) == (200, b"{}")
 
 
@@ -413,6 +415,7 @@ def framework_app(name, reached):
         from django.conf import settings
         from django.core.asgi import get_asgi_application
         from django.http import HttpResponse
+        from django.test import override_settings
         from django.urls import clear_url_caches, path
         if not settings.configured:
             settings.configure(SECRET_KEY="TEST_ONLY_DJANGO_KEY", ROOT_URLCONF=__name__, ALLOWED_HOSTS=["api.example.test"],
@@ -425,7 +428,13 @@ def framework_app(name, reached):
 
         globals()["urlpatterns"] = [path("v1/items", endpoint)]
         clear_url_caches()
-        return get_asgi_application()
+        api = get_asgi_application()
+
+        async def scoped_api(scope, receive, send):
+            with override_settings(ROOT_URLCONF=__name__):
+                await api(scope, receive, send)
+
+        return scoped_api
     from flask import Flask, request, Response
     from asgiref.wsgi import WsgiToAsgi
     api = Flask(__name__)
