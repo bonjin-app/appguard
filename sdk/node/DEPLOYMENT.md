@@ -58,8 +58,10 @@ Node HTTP adapters stop their own verification waits after an observed response
 or socket close, or an already-ended response. Late identity/key/replay outcomes
 cannot dispatch downstream application work. The guard clears owned timers and
 listeners; normal completed request bodies and keepalive remain supported.
-Fastify stops later request processing for the closed reply and checks its owned `preParsing`
-handoff as well as the initial authentication/verification handoff.
+At the SDK-owned Fastify `onRequest` and `preParsing` checkpoints, observed
+closure hijacks the reply and stops subsequent processing. Host hook chains
+already handed off may continue until the next SDK-owned checkpoint. The guard
+does not continuously wrap arbitrary application hooks.
 
 This neither cancels an already-issued backend command nor rolls back its nonce.
 Runtime-observed closure is the boundary: OS/network notification can be delayed

@@ -254,8 +254,11 @@ results cannot authorize application handling. Late rejections remain consumed.
 SDK-owned timers and connection listeners are cleared when enforcement ends.
 
 A normally completed request body is not a lost connection: keepalive and async
-authentication continue. Express/Nest recheck before `next`; Fastify stops later
-request hooks/handler dispatch and rechecks at its owned `preParsing` boundary.
+authentication continue. Express/Nest recheck before `next`. At the SDK-owned
+Fastify `onRequest` and `preParsing` checkpoints, observed closure hijacks the
+reply and stops subsequent processing. Host hook chains already handed off may
+continue until the next SDK-owned checkpoint; there is no continuous guard
+around arbitrary host hooks.
 A response already ended by the host also stops SDK continuation. There may be no
 JSON error response to deliver after a socket is closed.
 

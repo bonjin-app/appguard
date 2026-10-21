@@ -19,9 +19,11 @@ waiters/listeners are disposed in `finally`. Authentication checkpoints prevent
 late key/replay work; a replay proxy rejects the SDK-facing wait on close so the
 core's deadline timer is cleared. The issued backend command may continue.
 
-Express/Nest recheck native connection state before dispatch. Fastify uses
-`reply.hijack()` to halt later request hooks/parser/handler dispatch and checks
-again at its owned `preParsing` boundary. No public option, protocol field,
+Express/Nest recheck native connection state before dispatch. At the SDK-owned
+Fastify `onRequest` and `preParsing` checkpoints, observed closure hijacks the
+reply and stops subsequent processing. Host hook chains already handed off may
+continue until the next SDK-owned checkpoint; arbitrary application hooks are
+not continuously wrapped. No public option, protocol field,
 error code or runtime dependency is added. Direct core behavior is unchanged.
 
 The guard does not use a completed `IncomingMessage.close` or its post-body
