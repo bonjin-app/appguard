@@ -46,3 +46,32 @@ describes `wait_for` cancellation waits, `wait`, cancellation and task retention
 Local checks use CPython 3.11.15 and in-process ASGI transports. Deployed ingress,
 load/failover, hosted CI, external audit, provider and physical-device verification
 remain separate gates. The Unity physical candidate stays separate and pending.
+
+## Local verification and independent review
+
+Independent security review approved
+`ad04c913b8a364f9513c701cfe7b88ec759fbb3a` with no unresolved findings.
+The initial receiver fixture yielded to the HTTPX stream after blocking, which
+let three overrun cases reject already. The strengthened fixture returns a final
+event without yielding again; final RED reproduces 17 failures with three
+existing-contract controls passing. All 20 new cases then pass after the fix.
+
+Recorded local checks, with zero skipped tests:
+
+- Baseline Python SDK: 600 pass; final Python SDK: 620 pass.
+- Body/ASGI/identity/sync-cleanup regressions: 122 pass.
+- Common runner: reference Python 209, Python SDK 620, Node SDK 561 and Java SDK
+  211 (1,601 total); package/type checks and cross-SDK Redis sequential/concurrent
+  replay checks also pass.
+- Isolated offline-installed wheel: 122 regressions pass; 21 packaged source/assets
+  match reviewed source and installed files, with README metadata readback.
+- Independent fresh review: 122 focused tests and four additional probes pass.
+  Probes cover SDK-only retention through GC and late private failure, independent
+  request progress while an old receive resists cancellation, one cumulative
+  budget across individually timely chunks, and a deliberately slowed final copy.
+
+Counts overlap. These are local CPython 3.11.15/in-process ASGI and package/Redis
+checks, not deployed ingress/TLS, load/failover, hosted CI, external audit or
+physical-device proof. Raw RED/GREEN logs, hashes, packages and the review receipt
+are retained in the primary checkout under
+`.superpowers/evidence/2026-10-21-python-body-deadlines/`.
