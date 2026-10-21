@@ -74,3 +74,14 @@ Raw logs, test-order failures and fixes, package/source hashes and the independe
 review receipt are retained under
 `.superpowers/evidence/2026-10-21-python-identity-deadlines/` in the primary
 checkout. They are local evidence, not hosted CI, external audit or device proof.
+
+A subsequent merged-checkout run found a test scheduling assumption: one of
+582 tests correctly received pre-start expiry before its resolver could start.
+The test-only follow-up uses 200ms scheduling headroom, explicit start/release
+gates and a 1s watchdog, and adds a separate pre-start-expiry regression. Finite
+real-clock budgets still cannot guarantee scheduling under arbitrary suspension.
+Independent review approved `4eebb4f8d35c8e100c186a3f27850f731c79aded` with no
+unresolved findings: full Python **583**, reverse-order **85** and installed-wheel
+**28** checks pass, with zero skipped tests. The relevant 16 tests still fail the
+old runtime. Original failures and both review receipts are retained. Runtime,
+README and packaged source bytes are unchanged by these test-only follow-ups.
