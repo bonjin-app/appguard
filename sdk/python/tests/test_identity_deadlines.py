@@ -10,6 +10,7 @@ from types import ModuleType
 import httpx
 import pytest
 
+import appguard.asgi as asgi
 from appguard.asgi import AppGuardMiddleware, Identity
 from appguard.replay import InMemoryReplayStore
 from conftest import NOW, ORIGIN, VECTOR
@@ -126,7 +127,7 @@ async def http_invoke(headers, body, app):
 
 async def watchdog(task):
     # wait_for itself waits for cancellation cleanup, exactly the bug under test.
-    done, _ = await asyncio.wait({task}, timeout=0.3)
+    done, _ = await asyncio.wait({task}, timeout=1)
     assert task in done, "identity middleware waited for cancellation-resistant host cleanup"
     return await task
 
@@ -174,9 +175,13 @@ def test_resistant_cleanup_cannot_hold_framework_response(framework, outcome, he
         loop.set_exception_handler(lambda loop, context: errors.append(context))
         with framework_app(framework, counts) as api:
             resolver = resistant(gate, started, canceled, owned, key, outcome)
-            app = AppGuardMiddleware(api, **dependencies(key, resolver, counts))
+            # This scenario needs the resolver to start before expiry. A 10ms
+            # budget can instead exercise legitimate pre-start rejection under
+            # load; allow scheduling headroom while keeping cleanup gated.
+            app = AppGuardMiddleware(api, **dependencies(key, resolver, counts, timeout=0.2))
             request = asyncio.create_task(http_invoke(headers, body, app))
             try:
+                await asyncio.wait_for(started.wait(), 1)
                 response = await watchdog(request)
                 assert started.is_set() and not gate.is_set()
                 assert_unavailable(response)
@@ -203,15 +208,16 @@ def test_late_resistant_outcome_does_not_replace_expired_failure(outcome, header
         gate, started, canceled = asyncio.Event(), asyncio.Event(), asyncio.Event()
         owned, counts = set(), counters()
         resolver = resistant(gate, started, canceled, owned, key, outcome)
-        app = AppGuardMiddleware(endpoint(counts), **dependencies(key, resolver, counts))
+        app = AppGuardMiddleware(endpoint(counts), **dependencies(key, resolver, counts, timeout=0.2))
         request = asyncio.create_task(invoke(headers, body, app))
-        release = asyncio.get_running_loop().call_later(0.06, gate.set)
         try:
+            await asyncio.wait_for(started.wait(), 1)
             assert_unavailable(await watchdog(request))
+            assert canceled.is_set() and not gate.is_set()
+            gate.set()
             await asyncio.gather(*owned, return_exceptions=True)
             assert counts == counters()
         finally:
-            release.cancel()
             await cleanup(gate, request, owned)
     asyncio.run(run())
 
@@ -273,9 +279,10 @@ def test_sync_resolver_thread_can_finish_after_timeout_without_verification(head
             finished.set()
             return Identity(VECTOR["context"]["subject"], key)
 
-        app = AppGuardMiddleware(endpoint(counts), **dependencies(key, resolve, counts))
+        app = AppGuardMiddleware(endpoint(counts), **dependencies(key, resolve, counts, timeout=0.2))
         request = asyncio.create_task(invoke(headers, body, app))
         try:
+            assert await asyncio.to_thread(started.wait, 1)
             assert_unavailable(await watchdog(request))
             assert started.is_set() and not finished.is_set()
             assert counts == counters()
@@ -304,10 +311,10 @@ def test_timed_out_identity_does_not_block_an_independent_request(framework, hea
             return Identity(VECTOR["context"]["subject"], key)
 
         with framework_app(framework, counts) as api:
-            app = AppGuardMiddleware(api, **dependencies(key, resolve, counts, timeout=0.03))
+            app = AppGuardMiddleware(api, **dependencies(key, resolve, counts, timeout=0.2))
             request = asyncio.create_task(http_invoke(headers, body, app))
             try:
-                await asyncio.wait_for(started.wait(), 0.3)
+                await asyncio.wait_for(started.wait(), 1)
                 second = asyncio.create_task(http_invoke(headers, body, app))
                 assert await watchdog(second) == (200, body)
                 assert_unavailable(await watchdog(request))
@@ -362,3 +369,22 @@ def test_trusted_identity_normalization_shares_total_deadline(field, headers, bo
     app = AppGuardMiddleware(endpoint(counts), **dependencies(key, resolve, counts))
     assert_unavailable(asyncio.run(invoke(headers, body, app)))
     assert counts == counters()
+
+
+def test_expiry_before_resolver_starts_does_not_invoke_host(key):
+    async def run():
+        called, counts = [], counters()
+
+        async def resolve(scope, key_id):
+            called.append(True)
+            return Identity(VECTOR["context"]["subject"], key)
+
+        app = AppGuardMiddleware(endpoint(counts), **dependencies(key, resolve, counts))
+        # Queue the stall before the resolver's first turn. The deadline begins
+        # before this queued callback runs, so expiry must skip the host callback.
+        asyncio.get_running_loop().call_soon(time.sleep, 0.08)
+        with pytest.raises(asgi._HttpFailure) as failure:
+            await app._identity({}, key.key_id)
+        assert (failure.value.status, failure.value.code) == (503, "IDENTITY_UNAVAILABLE")
+        assert called == [] and counts == counters()
+    asyncio.run(run())
