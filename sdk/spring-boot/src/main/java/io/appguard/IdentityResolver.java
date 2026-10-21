@@ -9,11 +9,16 @@ import java.util.Objects;
         Objects.requireNonNull(keys);
         return (request,parameters)->{
             Principal principal=request.getUserPrincipal();if(principal==null) return null;
+            // Keep repository lookup and returned identity bound to one subject.
+            String subject;
+            try{subject=principal.getName();}
+            catch(Exception e){throw Canonical.fail("IDENTITY_UNAVAILABLE");}
+            if(!Canonical.validIdentifier(subject)) throw Canonical.fail("IDENTITY_UNAVAILABLE");
             KeyRecord key;
-            try{key=keys.resolve(principal.getName(),parameters.keyId());}
+            try{key=keys.resolve(subject,parameters.keyId());}
             catch(Exception e){throw Canonical.fail("KEY_RESOLVER_UNAVAILABLE");}
             if(key!=null && !key.validResolverContract()) throw Canonical.fail("KEY_RESOLVER_UNAVAILABLE");
-            return new Identity(principal.getName(),key);
+            return new Identity(subject,key);
         };
     }
 }

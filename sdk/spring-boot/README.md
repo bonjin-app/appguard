@@ -67,6 +67,16 @@ IdentityResolver appGuardIdentity(EnrollmentRepository enrolledKeys) {
 
 `EnrollmentRepository` is application-owned; the SDK does not supply it. Return a trusted `KeyRecord(appId, keyId, subject, publicKeyPemBytes, "ecdsa-p256-sha256", revoked)`. Unknown key may return `null` and rejects with `KEY_REJECTED`. The resolver must never trust a client-supplied subject or key. `fromPrincipal` returns `AUTHENTICATION_REQUIRED` if there is no principal and maps lookup exceptions or malformed non-null key contracts to `KEY_RESOLVER_UNAVAILABLE`. A custom `IdentityResolver` may implement equivalent trusted authentication/key binding, returns `null` for authentication rejection, and must return a validated authenticated subject plus enrolled key. Resolver exceptions produce fixed `IDENTITY_UNAVAILABLE` responses.
 
+`fromPrincipal` reads the principal name once per invocation, validates the existing
+AppGuard subject format (1–128 ASCII letters, digits, `.`, `_`, `:`, `-`), then uses
+that same immutable string for key lookup and the returned `Identity`. A getter
+failure or malformed name produces fixed `IDENTITY_UNAVAILABLE` in the filter
+before key lookup. Only key callback/contract failures use `KEY_RESOLVER_UNAVAILABLE`.
+Key ownership is still checked by the verifier against the captured subject;
+a mutable custom principal cannot replace it after lookup. The host Principal
+object is preserved, so the application still owns its authentication context,
+immutability and resource authorization. See [principal binding verification](../../docs/security/spring-principal-binding.md).
+
 If authentication or body-processing filters use nonstandard orders, install AppGuard explicitly in the application's Spring Security chain after Bearer authentication and before authorization/body consumers. Set `appguard.register-servlet-filter=false` to disable its automatic servlet registration; keep the supplied `AppGuardFilter` bean and add it exactly once to the security chain. Register it for REQUEST and all redispatch types when registering outside Spring Security. Do not put a JSON/form/decompression filter before it. SDK filtering has no default route exclusions; use an intentional application/filter mapping for the intended protected surface.
 
 For shared replay protection add the application's Redis dependencies (the SDK marks them optional), configure a long-lived secured `StringRedisTemplate`, and supply:
