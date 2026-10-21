@@ -18,6 +18,13 @@ _LIMIT = 1024 * 1024
 _CORE_CODES = {"INVALID_REQUEST", "UNSUPPORTED_PROFILE", "INVALID_TIME", "KEY_REJECTED",
                "DIGEST_MISMATCH", "INVALID_SIGNATURE", "REPLAY_DETECTED", "REPLAY_STORE_UNAVAILABLE"}
 _IDENTITY_TASKS = set()
+_BODY_TASKS = set()
+
+
+def _body_finished(task):
+    _BODY_TASKS.discard(task)
+    if not task.cancelled():
+        task.exception()
 
 
 def _identity_finished(task):
@@ -148,14 +155,33 @@ class AppGuardMiddleware:
         length = int(headers["content-length"]) if "content-length" in headers else None
         if length is not None and length > _LIMIT:
             raise _HttpFailure(413, "INVALID_REQUEST")
-        deadline = asyncio.get_running_loop().time() + self.body_timeout
+        loop = asyncio.get_running_loop()
+        deadline = loop.time() + self.body_timeout
+
+        async def receive_event():
+            if loop.time() >= deadline:
+                raise TimeoutError
+            return await receive()
+
         body = bytearray()
         while True:
+            task = None
             try:
-                remaining = deadline - asyncio.get_running_loop().time()
-                event = await asyncio.wait_for(receive(), timeout=max(0, remaining))
+                if loop.time() >= deadline:
+                    raise TimeoutError
+                task = asyncio.ensure_future(receive_event())
+                _BODY_TASKS.add(task)
+                task.add_done_callback(_body_finished)
+                done, _ = await asyncio.wait({task}, timeout=max(0, deadline - loop.time()))
+                if not done or loop.time() >= deadline:
+                    raise TimeoutError
+                event = task.result()
             except Exception:
                 raise _HttpFailure(400, "INVALID_REQUEST") from None
+            finally:
+                # A server receive can suppress cancellation; never await it here.
+                if task is not None and not task.done():
+                    task.cancel()
             if (type(event) is not dict or event.get("type") != "http.request"
                     or type(event.get("body", b"")) is not bytes or type(event.get("more_body", False)) is not bool):
                 raise _HttpFailure(400, "INVALID_REQUEST")
@@ -167,7 +193,10 @@ class AppGuardMiddleware:
                 break
         if length is not None and length != len(body):
             raise _HttpFailure(400, "INVALID_REQUEST")
-        return bytes(body)
+        captured = bytes(body)
+        if loop.time() >= deadline:
+            raise _HttpFailure(400, "INVALID_REQUEST")
+        return captured
 
     async def _identity(self, scope, key_id):
         loop = asyncio.get_running_loop()

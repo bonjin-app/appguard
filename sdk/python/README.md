@@ -48,6 +48,16 @@ application = AppGuardMiddleware(
 
 Resolvers may be synchronous or asynchronous. Synchronous callbacks and verification/Redis claims run off the ASGI event loop. Authentication has a configurable total `identity_timeout` (default 10 seconds); bounded body capture has `body_timeout` (30 seconds). Configure Redis connection and command timeouts on the supplied client as well. A timed-out synchronous callback may continue in its worker thread; the SDK cannot forcibly cancel application code. The clock is read after authentication; optionally pass a trusted `clock` returning integer Unix seconds.
 
+The body budget uses one monotonic deadline across all chunks, framing checks
+and the final byte copy. Expiry returns fixed 400 `INVALID_REQUEST` before
+authentication when the loop can run. The SDK requests cancellation without
+waiting for a resistant host `receive` to finish; it does not initiate another
+read or use late events for authentication. Pending reads remain strongly held
+until completion and late exceptions are consumed without logging private data.
+Caller ASGI-task cancellation propagates without an SDK response. A running host
+receive can continue; the SDK does not drain the stream or close its transport.
+See the [body deadline verification](../../docs/security/python-body-deadlines.md).
+
 The identity budget uses one monotonic event-loop deadline covering resolver
 completion and trusted identity validation. If it expires, the SDK returns fixed
 503 `IDENTITY_UNAVAILABLE` when the event loop can run, without waiting for a
@@ -69,9 +79,11 @@ hard cleanup/shutdown deadline. See the [cleanup review](../../docs/security/pyt
 Cancellation is best effort. A resolver can suppress it, a worker thread can
 continue, and blocking event-loop work cannot be preempted. After blocking work
 returns, elapsed-budget checks reject late success, including slow identity
-validation. Resolver work may outlive its request and delay process shutdown.
-This budget does not bound outstanding task/thread counts, body or verification/
-replay time, or install HTTP-disconnect monitoring. Configure backend timeouts,
+validation. Pending body reads and resolver work may outlive their requests and
+delay process shutdown.
+These phase budgets do not cap outstanding tasks/threads, bound verification/
+replay or downstream time, or install a total request deadline or HTTP-disconnect
+monitoring. Configure server read/backend timeouts,
 admission/concurrency limits and shutdown behavior in the hosting application.
 
 All requests reaching the wrapper are protected; install it on the intended application surface. A successful check preserves the exact captured body and existing ASGI state, and stores `VerificationResult` in `scope["state"]["appguard"]`. Application exceptions after verification retain application handling. WebSocket connections reject; lifespan events pass through.
