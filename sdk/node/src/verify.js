@@ -21,10 +21,11 @@ export async function verifyRequest(request, parameters, signature, { origin, ap
   if (!Buffer.isBuffer(signature) || signature.length !== 64) reject('INVALID_SIGNATURE');
   try { if (!verify('sha256', base, { key: publicKey, dsaEncoding: 'ieee-p1363' }, signature)) reject('INVALID_SIGNATURE'); }
   catch { reject('INVALID_SIGNATURE'); }
+  const result = Object.freeze({ app_id, key_id: key.key_id, expires: parameters.expires, code: 'VERIFIED' });
   let claimed;
-  try { claimed = await replay.claim([app_id, key.key_id, parameters.nonce], { expires: parameters.expires, now }); }
+  try { claimed = await replay.claim([app_id, result.key_id, parameters.nonce], { expires: result.expires, now }); }
   catch { reject('REPLAY_STORE_UNAVAILABLE'); }
   if (claimed === false) reject('REPLAY_DETECTED');
   if (claimed !== true) reject('REPLAY_STORE_UNAVAILABLE');
-  return Object.freeze({ app_id, key_id: key.key_id, expires: parameters.expires, code: 'VERIFIED' });
+  return result;
 }

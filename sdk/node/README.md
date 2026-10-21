@@ -91,6 +91,12 @@ Return `null`/`false` from `identityResolver` for unauthenticated requests. Call
 exceptions never become successful verification or leak their text in responses.
 The trusted clock is read after asynchronous authentication/key lookup completes.
 
+The frozen successful verification result retains the key ID and expiry used
+for the replay claim. Changes to caller-owned key records or parameters while
+that claim is pending do not change the result. Replay must still return strict
+`true` before verification succeeds. This does not recheck the clock or key
+revocation after awaiting the store.
+
 ## Express 5
 
 Install the guard first at the application root, before routers, URL rewrites,
