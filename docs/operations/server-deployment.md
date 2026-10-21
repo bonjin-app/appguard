@@ -13,6 +13,8 @@ see [body deadline verification](../security/python-body-deadlines.md).
 
 For the Spring Boot Principal adapter's subject snapshot, early validation and
 identity/key failure boundary, see [principal binding verification](../security/spring-principal-binding.md).
+For preservation of directly reported callback interruption and host lifecycle
+limits, see [Spring interruption verification](../security/spring-interruption.md).
 
 The guide separates local SDK behavior from deployed ingress/load/failover,
 supported-release, hosted CI, external audit, provider and physical-device

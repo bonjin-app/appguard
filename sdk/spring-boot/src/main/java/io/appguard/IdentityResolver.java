@@ -12,11 +12,11 @@ import java.util.Objects;
             // Keep repository lookup and returned identity bound to one subject.
             String subject;
             try{subject=principal.getName();}
-            catch(Exception e){throw Canonical.fail("IDENTITY_UNAVAILABLE");}
+            catch(Exception e){if(e instanceof InterruptedException)Thread.currentThread().interrupt();throw Canonical.fail("IDENTITY_UNAVAILABLE");}
             if(!Canonical.validIdentifier(subject)) throw Canonical.fail("IDENTITY_UNAVAILABLE");
             KeyRecord key;
             try{key=keys.resolve(subject,parameters.keyId());}
-            catch(Exception e){throw Canonical.fail("KEY_RESOLVER_UNAVAILABLE");}
+            catch(Exception e){if(e instanceof InterruptedException)Thread.currentThread().interrupt();throw Canonical.fail("KEY_RESOLVER_UNAVAILABLE");}
             if(key!=null && !key.validResolverContract()) throw Canonical.fail("KEY_RESOLVER_UNAVAILABLE");
             return new Identity(subject,key);
         };

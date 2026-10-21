@@ -49,7 +49,7 @@ public final class AppGuardFilter implements Filter {
         Identity identity;
         try{identity=identities.resolve(request,parsed.parameters());}
         catch(VerificationException e){String code=e.code().equals("KEY_RESOLVER_UNAVAILABLE")?"KEY_RESOLVER_UNAVAILABLE":"IDENTITY_UNAVAILABLE";failure(response,503,code);return;}
-        catch(Exception e){failure(response,503,"IDENTITY_UNAVAILABLE");return;}
+        catch(Exception e){if(e instanceof InterruptedException)Thread.currentThread().interrupt();failure(response,503,"IDENTITY_UNAVAILABLE");return;}
         if(identity==null){failure(response,401,"AUTHENTICATION_REQUIRED");return;}
         if(!Canonical.validIdentifier(identity.subject()) || (identity.key()!=null && !identity.key().validResolverContract())){failure(response,503,"IDENTITY_UNAVAILABLE");return;}
         VerificationResult result;

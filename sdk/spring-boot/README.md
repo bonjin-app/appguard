@@ -104,6 +104,14 @@ Containers/proxies can reject malformed framing or unsupported targets before th
 
 AppGuard failures contain only `{"code":"FIXED_REASON"}`: 400 malformed request/evidence; 413 oversized content; 401 no authenticated identity; 403 core verification/profile/time/key/digest/signature/replay rejection; 503 identity/key/replay dependency failure. Exception details, tokens, bodies, PEM material and signature bases never enter SDK error responses.
 
+When the Principal adapter, custom filter identity resolver or core replay callback
+directly throws `InterruptedException`, the SDK restores the current thread's
+interrupt flag before returning its existing fixed failure. Causes are not
+traversed to infer interruption. Host code still owns thread lifecycle,
+interruption policy and dependency timeouts; this adds no cancellation/deadline
+mechanism or guarantee that an HTTP error can be delivered after interruption.
+See [callback interruption verification](../../docs/security/spring-interruption.md).
+
 ## Verification evidence
 
 On 2026-10-20, `APPGUARD_REDIS_URL=redis://127.0.0.1:<disposable-port>/0 mvn -B package` completed with **113 tests, zero failures/errors/skips** and built the starter JAR. A separate `javac`/`java` consumer using only that JAR and the JDK verified the shared signed fixture, then rejected its replay. A second smoke booted Tomcat and Spring Security with SDK classes loaded from the packaged JAR (excluding `target/classes`), then passed signed HTTP byte/query/replay and async redispatch checks. The JAR contains the auto-configuration import and Apache license, and excludes test classes. Initial missing-feature compilation RED evidence and later behavioral RED/GREEN regressions for forwarded transport, malformed resolver contracts, and asynchronous worker body preservation are retained locally.

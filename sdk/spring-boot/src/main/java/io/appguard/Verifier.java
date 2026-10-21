@@ -39,7 +39,7 @@ public final class Verifier {
         }catch(GeneralSecurityException e){throw Canonical.fail("INVALID_SIGNATURE");}
         Boolean claimed;
         try{claimed=replay.claim(new ReplayScope(appId,key.keyId(),parameters.nonce()),parameters.expires(),now);}
-        catch(Exception e){throw Canonical.fail("REPLAY_STORE_UNAVAILABLE");}
+        catch(Exception e){if(e instanceof InterruptedException)Thread.currentThread().interrupt();throw Canonical.fail("REPLAY_STORE_UNAVAILABLE");}
         Canonical.require(claimed!=null,"REPLAY_STORE_UNAVAILABLE");Canonical.require(claimed,"REPLAY_DETECTED");
         return new VerificationResult(appId,key.keyId(),parameters.expires());
     }
