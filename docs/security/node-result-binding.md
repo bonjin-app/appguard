@@ -53,6 +53,17 @@ test file and is reported as such.
 
 ## Validation boundary
 
+One fresh read-only security review approved `47a151b` with **0 Critical,
+0 Important and 0 Minor** findings. It independently reran the source and
+installed-package regressions (6/6 each), checked TypeScript declarations and all
+13 packaged files, and exercised pending-result withholding, nonboolean replay
+responses, redacted synchronous store errors and invalid-signature rejection
+before claiming. It inspected, but did not rerun, the complete common runner.
+The hostile-object and post-wait freshness limitations above were explicitly
+assessed and accepted as outside this repair.
+
+Local integration requires a clean main at the recorded base, fast-forward-only
+merge and complete Node tests on the merged tree with the same owned Redis.
 Common server verification, packaged consumer evidence and security review are
 recorded with the local integration receipt under
 `.superpowers/evidence/2026-10-21-node-result-binding/` in the primary checkout.
