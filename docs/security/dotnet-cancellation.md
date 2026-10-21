@@ -69,3 +69,42 @@ HTTP/2/3, ingress/proxy, load, distributed-store failover, supported release,
 hosted CI, external audit, provider or physical-device behavior. Public APIs,
 protocol/corpora, package versions, dependencies and signature/key rules remain
 unchanged. Other server SDK runtimes are outside this correction.
+
+## Local verification and independent review
+
+Runtime/test commit `bcfdcb955fe5dcda50c7416c03131402ea3a6cab` received an
+independent local security/correctness review with no blocking or unresolved
+source findings. The following record commit changes only this guide.
+
+- Locked offline baseline: 199 .NET tests passed. The 17 new regression/control
+  cases initially produced 13 expected failures and four passes, including two
+  actual Kestrel disconnect cases. After the fix all 17 passed.
+- Clean committed-source Release verification: all 216 tests passed with zero
+  failures/skips; solution build reported zero warnings/errors and NuGet pack
+  completed. No NuGet vulnerability-feed audit was run by the offline restore.
+- A fresh local NuGet cache/consumer using only PackageReference passed all 216
+  cases plus one loaded-DLL hash/commit-provenance control (217 total). There were
+  no project references. Package DLL, installed DLL and loaded copy matched.
+- The reviewer freshly repeated source216 and final consumer217 and passed 13
+  independent probes: 11 behavior cases plus two provenance/compiled-code
+  controls. The independent source rebuild had zero warnings/errors; all 251
+  method bodies, 254 method signatures and 151 fields matched the packaged code.
+  One optional reviewer PathMap CLI setup failed before compilation; the corrected
+  rebuild passed, and both attempts remain in the receipt.
+
+The first package was built before the source commit, so its informational and
+SourceLink metadata referenced the base commit. That artifact is superseded.
+The final package was rebuilt at the clean runtime commit and installed into a
+fresh cache; DLL informational version, NuGet repository commit and SourceLink
+all reference `bcfdcb955fe5dcda50c7416c03131402ea3a6cab`. Earlier evidence is
+retained with its superseded status. Local metadata binding does not establish
+publication or public availability of the commit.
+
+Counts overlap and must not be added as unique tests. Runtime source bytes remain
+identical through the subsequent documentation-only integration record; merged
+main is verified separately. Other server SDKs and shared protocol/corpora were
+unchanged and were not rerun in this .NET-only correction.
+
+Commands, TRX reports, package/source hashes, old/new provenance, review receipt
+and integration readback are retained in the primary main checkout under
+`.superpowers/evidence/2026-10-21-dotnet-cancellation/`.
