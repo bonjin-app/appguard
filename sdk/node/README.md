@@ -244,6 +244,28 @@ attributes to the request; it does not overwrite `user` or another authenticated
 identity. Fastify exposes the attributes on both its request and raw request.
 `VERIFIED` permits downstream handling and does not grant resource authorization.
 
+## Connection closure during verification
+
+The HTTP adapters observe the native response/socket lifetime while capturing the
+body and awaiting identity, key and replay dependencies. Once closure or an ended
+response is observed, SDK waits settle without downstream dispatch. Late identity
+results cannot start key lookup, late keys cannot start replay, and late replay
+results cannot authorize application handling. Late rejections remain consumed.
+SDK-owned timers and connection listeners are cleared when enforcement ends.
+
+A normally completed request body is not a lost connection: keepalive and async
+authentication continue. Express/Nest recheck before `next`; Fastify stops later
+request hooks/handler dispatch and rechecks at its owned `preParsing` boundary.
+A response already ended by the host also stops SDK continuation. There may be no
+JSON error response to deliver after a socket is closed.
+
+This cannot preempt JavaScript, detect closure before the runtime reports it,
+cancel host/backend work or undo nonce claims. It does not stop application work
+already dispatched or suppress host event listeners/framework response cleanup.
+It does not install a global request timeout or add HTTP cancellation to direct
+`verifyRequest`/store calls. Backend deadlines, concurrency controls and
+business idempotency remain required.
+
 ## Replay deployment
 
 `replayTimeoutMs` defaults to **10,000 ms** in both `verifyRequest(..., options)`
@@ -260,8 +282,9 @@ returns, an elapsed-deadline check rejects before success. The SDK clears its
 timer on settlement; a pending direct-core call keeps its deadline timer active
 even when there is no other event-loop work.
 
-This does not cancel a backend command, roll back a nonce claim, or implement
-client-disconnect cancellation. A timed-out command may still claim its nonce.
+This does not cancel a backend command or roll back a nonce claim. HTTP adapter
+waits stop on observed connection closure as described above; direct core calls
+have no HTTP lifetime. A timed-out or disconnected command may still claim its nonce.
 Do not delete that nonce or fall back to a local store. A retry needs a fresh
 signed request and nonce, plus application-level idempotency/recovery when an
 operation's outcome is uncertain. Configure replay-client connection/command

@@ -52,6 +52,23 @@ A failed backend response does not prove that its operation rolled back. Nonce
 claims also do not provide business idempotency. Apply the application's normal
 idempotency and authenticated recovery/readback rules when outcomes are uncertain.
 
+## Connection closure
+
+Node HTTP adapters stop their own verification waits after an observed response
+or socket close, or an already-ended response. Late identity/key/replay outcomes
+cannot dispatch downstream application work. The guard clears owned timers and
+listeners; normal completed request bodies and keepalive remain supported.
+Fastify stops later request processing for the closed reply and checks its owned `preParsing`
+handoff as well as the initial authentication/verification handoff.
+
+This neither cancels an already-issued backend command nor rolls back its nonce.
+Runtime-observed closure is the boundary: OS/network notification can be delayed
+and synchronous JavaScript cannot be preempted. Work already dispatched to the
+application is host-owned; event listeners and framework response cleanup may
+still run. Direct core/store calls have no HTTP disconnect
+context. Test actual ingress disconnect/timeout behavior and application-level
+idempotency during deployment; local loopback checks do not prove proxy behavior.
+
 ## Authentication, transport and rollout
 
 Supply validated subjects and trusted enrolled key records; a request signature

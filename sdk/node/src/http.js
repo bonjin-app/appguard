@@ -4,6 +4,7 @@ import { validateIdentifier, validateOrigin, validateRequest } from './canonical
 import { parseSignatures, validateFraming } from './wire.js';
 import { verifyRequest, validateReplayTimeoutMs } from './verify.js';
 import { VerificationError, reject } from './errors.js';
+import { connectionClosed, watchConnection } from './connection.js';
 const LIMIT = 1048576;
 const ORIGINAL = new WeakMap();
 const CAPTURING_SERVERS = new WeakSet();
@@ -37,11 +38,11 @@ function snapshot(req, options) {
   validateRequest(request);
   return { request, metadata };
 }
-function capture(req, timeoutMs) {
+function capture(req, timeoutMs, connection) {
   return new Promise((resolve, rejectPromise) => {
-    let size = 0, settled = false;
+    let size = 0, settled = false, unwatch = () => {};
     const chunks = [];
-    const clean = () => { clearTimeout(timer); req.removeListener('data', data); req.removeListener('end', end); req.removeListener('error', fail); req.removeListener('aborted', fail); req.removeListener('close', close); };
+    const clean = () => { clearTimeout(timer); unwatch(); req.removeListener('data', data); req.removeListener('end', end); req.removeListener('error', fail); req.removeListener('aborted', fail); req.removeListener('close', close); };
     const finish = (error, value) => { if (settled) return; settled = true; clean(); if (error) { req.pause(); rejectPromise(error); } else resolve(value); };
     const fail = () => finish(new VerificationError('INVALID_REQUEST'));
     const data = chunk => {
@@ -54,14 +55,16 @@ function capture(req, timeoutMs) {
     const close = () => { if (!req.readableEnded) fail(); };
     const timer = setTimeout(fail, timeoutMs); timer.unref();
     req.on('error', fail); req.on('aborted', fail); req.on('close', close); req.on('end', end); req.on('data', data);
+    unwatch = connection.watch(fail);
   });
 }
-async function authenticate(request, metadata, options) {
+async function authenticate(request, metadata, options, connection) {
   const context = Object.freeze({ method: request.method, target: request.target, headers: request.headers, parameters: Object.freeze({ ...metadata.parameters }) });
   const deadline = performance.now() + options.identityTimeoutMs;
   let active = true, timer, phase = 'IDENTITY_UNAVAILABLE';
-  const checkpoint = () => { if (!active || performance.now() >= deadline) reject(phase); };
+  const checkpoint = () => { connection.check(); if (!active || performance.now() >= deadline) reject(phase); };
   const resolve = async () => {
+    checkpoint();
     let identity;
     try { identity = await options.identityResolver(context); } catch { reject('IDENTITY_UNAVAILABLE'); }
     checkpoint();
@@ -95,25 +98,37 @@ async function authenticate(request, metadata, options) {
     timer.unref();
   });
   try {
-    return await Promise.race([resolve(), timeout]);
+    return await Promise.race([connection.wait(resolve), timeout]);
   } finally {
     active = false;
     clearTimeout(timer);
   }
 }
-async function enforce(req, options) {
-  const { request, metadata } = snapshot(req, options);
-  request.body = await capture(req, options.bodyTimeoutMs);
-  validateFraming(request.headers, request.body.length);
-  const { subject, key } = await authenticate(request, metadata, options);
-  let now;
-  try { now = options.clock(); } catch { reject('INVALID_TIME'); }
-  const result = await verifyRequest(request, metadata.parameters, metadata.signature, { origin: options.origin, app_id: options.app_id, subject, key, now, replay: options.replay, replayTimeoutMs: options.replayTimeoutMs });
-  return { request, result };
+async function enforce(req, res, options) {
+  const connection = watchConnection(req, res);
+  try {
+    connection.check();
+    const { request, metadata } = snapshot(req, options);
+    request.body = await capture(req, options.bodyTimeoutMs, connection);
+    connection.check();
+    validateFraming(request.headers, request.body.length);
+    const { subject, key } = await authenticate(request, metadata, options, connection);
+    connection.check();
+    let now;
+    try { now = options.clock(); } catch { reject('INVALID_TIME'); }
+    connection.check();
+    // Reject the SDK-facing wait on close; the already-issued backend may finish.
+    const replay = { claim: (...args) => connection.wait(() => options.replay.claim(...args)) };
+    const result = await verifyRequest(request, metadata.parameters, metadata.signature, { origin: options.origin, app_id: options.app_id, subject, key, now, replay, replayTimeoutMs: options.replayTimeoutMs });
+    connection.check();
+    return { request, result };
+  } finally {
+    connection.dispose();
+  }
 }
 function errorResponse(res, error) {
   const failure = error instanceof VerificationError ? error : new VerificationError('INVALID_REQUEST');
-  if (res.destroyed || res.writableEnded) return;
+  if (res.destroyed || res.writableEnded || res.socket?.destroyed) return;
   res.statusCode = failure.status;
   res.setHeader('Content-Type', 'application/json');
   res.setHeader('Cache-Control', 'no-store');
@@ -146,9 +161,11 @@ function replayRequest(req, body) {
 export function expressMiddleware(options) {
   const config = validateOptions(options);
   return function appguard(req, res, next) {
-    enforce(req, config).then(verified => {
+    enforce(req, res, config).then(verified => {
+      if (connectionClosed(req, res)) return;
       attach(req, verified);
       replayRequest(req, verified.request.body);
+      if (connectionClosed(req, res)) return;
       next();
     }, error => errorResponse(res, error)).catch(error => errorResponse(res, error));
   };
@@ -168,15 +185,20 @@ export function installFastify(fastify, options) {
   const verified = new WeakMap();
   fastify.addHook('onRequest', async (request, reply) => {
     try {
-      const result = await enforce(request.raw, config);
+      const result = await enforce(request.raw, reply.raw, config);
+      if (connectionClosed(request.raw, reply.raw)) { reply.hijack(); return; }
       attach(request, result); attach(request.raw, result);
       verified.set(request, result.request.body);
     } catch (error) {
+      if (connectionClosed(request.raw, reply.raw)) { reply.hijack(); return; }
       const failure = error instanceof VerificationError ? error : new VerificationError('INVALID_REQUEST');
       reply.header('Connection', 'close').header('Cache-Control', 'no-store').code(failure.status).send({ code: failure.code });
     }
   });
   fastify.addHook('preParsing', async (request, reply, payload) => {
+    if (connectionClosed(request.raw, reply.raw)) {
+      verified.delete(request); reply.hijack(); return payload;
+    }
     if (!verified.has(request) || payload !== request.raw) {
       reply.code(400).send({ code: 'INVALID_REQUEST' }); return payload;
     }
