@@ -2,7 +2,7 @@ import { Readable } from 'node:stream';
 import { performance } from 'node:perf_hooks';
 import { validateIdentifier, validateOrigin, validateRequest } from './canonical.js';
 import { parseSignatures, validateFraming } from './wire.js';
-import { verifyRequest } from './verify.js';
+import { verifyRequest, validateReplayTimeoutMs } from './verify.js';
 import { VerificationError, reject } from './errors.js';
 const LIMIT = 1048576;
 const ORIGINAL = new WeakMap();
@@ -14,10 +14,11 @@ export function validateOptions(options) {
   if (!options.replay || typeof options.replay.claim !== 'function' || typeof options.identityResolver !== 'function' || (options.keyResolver !== undefined && typeof options.keyResolver !== 'function') || (options.clock !== undefined && typeof options.clock !== 'function') || (options.allowInsecureTransport !== undefined && typeof options.allowInsecureTransport !== 'boolean')) throw new TypeError('AppGuard trusted callbacks and replay store are required');
   const bodyTimeoutMs = options.bodyTimeoutMs === undefined ? 30000 : options.bodyTimeoutMs;
   const identityTimeoutMs = options.identityTimeoutMs === undefined ? 10000 : options.identityTimeoutMs;
+  const replayTimeoutMs = validateReplayTimeoutMs(options.replayTimeoutMs);
   for (const [name, value] of [['bodyTimeoutMs', bodyTimeoutMs], ['identityTimeoutMs', identityTimeoutMs]]) {
     if (!Number.isSafeInteger(value) || value < 1 || value > 2147483647) throw new TypeError(`${name} must be an integer in 1..2147483647`);
   }
-  return Object.freeze({ ...options, clock: options.clock ?? (() => Math.floor(Date.now() / 1000)), bodyTimeoutMs, identityTimeoutMs });
+  return Object.freeze({ ...options, clock: options.clock ?? (() => Math.floor(Date.now() / 1000)), bodyTimeoutMs, identityTimeoutMs, replayTimeoutMs });
 }
 function snapshot(req, options) {
   const original = ORIGINAL.get(req);
@@ -107,7 +108,7 @@ async function enforce(req, options) {
   const { subject, key } = await authenticate(request, metadata, options);
   let now;
   try { now = options.clock(); } catch { reject('INVALID_TIME'); }
-  const result = await verifyRequest(request, metadata.parameters, metadata.signature, { origin: options.origin, app_id: options.app_id, subject, key, now, replay: options.replay });
+  const result = await verifyRequest(request, metadata.parameters, metadata.signature, { origin: options.origin, app_id: options.app_id, subject, key, now, replay: options.replay, replayTimeoutMs: options.replayTimeoutMs });
   return { request, result };
 }
 function errorResponse(res, error) {

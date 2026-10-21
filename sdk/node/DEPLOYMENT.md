@@ -10,8 +10,11 @@ security-support boundary; no supported production release is established.
 For Express, Nest/Express or Fastify, set `identityTimeoutMs` on the existing
 adapter options when the default 10-second total authentication/key-lookup budget
 does not match the application's service budget. `bodyTimeoutMs` is separately
-30 seconds by default. Both accept integers from 1 through 2147483647; omit an
-option to use its default. Authentication starts after body capture.
+30 seconds by default. `replayTimeoutMs` is a separate 10-second default for
+the verified request's replay claim, including direct `verifyRequest` calls.
+All three accept integers from 1 through 2147483647; omit an option to use its
+default. Authentication starts after body capture; replay starts after signature
+verification. These phases do not establish a single total request deadline.
 
 The authentication budget spans both callbacks and is checked with a monotonic
 clock after asynchronous returns and before continuing SDK work. Expiry returns
@@ -30,9 +33,14 @@ all resource exhaustion. Local deadline tests are not capacity/latency benchmark
 ## Replay failure and recovery
 
 Use a shared replay store for multiple processes/hosts, with explicit client
-connection/command timeouts. The Node authentication budget does not time out a
-replay claim. Python's adapter likewise needs configured synchronous Redis client
-timeouts; its authentication timeout cannot stop a running worker thread.
+connection/command timeouts. Node's separate `replayTimeoutMs` guard rejects hung
+or late claims with `REPLAY_STORE_UNAVAILABLE` and prevents late SDK success.
+It does not cancel the backend command or guard a direct `ReplayStore.claim`
+invocation. A timed-out command may still consume its nonce; do not delete that
+claim or retry with the same signed request. Prepare a fresh request/nonce and
+preserve application-level idempotency/recovery. Python's adapter likewise needs
+configured synchronous Redis client timeouts; its authentication timeout cannot
+stop a running worker thread.
 
 Keep replay storage unavailable failures as failures. Switching to a per-request
 or process-local fallback loses distributed replay protection. Provision no-live-

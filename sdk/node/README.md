@@ -99,7 +99,8 @@ Late callback results never continue SDK key lookup, verification or replay
 claims; late rejections are consumed. Timers are cleared when authentication ends.
 
 This does not cancel application callbacks, preempt synchronous JavaScript or
-provide a total request/replay timeout. A synchronous callback can block the event
+provide a total request timeout. Replay has a separate budget described below.
+A synchronous callback can block the event
 loop; after it returns, an elapsed-deadline check rejects before continuing.
 Configure authentication/database clients with their own deadlines and bounded
 concurrency, and Redis connection/command timeouts separately. See the
@@ -216,7 +217,7 @@ content encoding is accepted. Framing is checked, including duplicate fields,
 canonical Content-Length, exact byte count and conflicting Content-Length/
 Transfer-Encoding. Capture is bounded; overflow is rejected without retaining the
 excess chunk. Incomplete, aborted, previously consumed or timed-out streams fail
-closed. `bodyTimeoutMs` defaults to 30,000. Both timeout options must be integer
+closed. `bodyTimeoutMs` defaults to 30,000. All three timeout options must be integer
 milliseconds in **1..2147483647**; omission/`undefined` selects the default.
 Null, fractional, nonnumeric and overflow values reject at adapter installation.
 Previously a null body timeout selected its default; replace it with omission.
@@ -244,6 +245,28 @@ identity. Fastify exposes the attributes on both its request and raw request.
 `VERIFIED` permits downstream handling and does not grant resource authorization.
 
 ## Replay deployment
+
+`replayTimeoutMs` defaults to **10,000 ms** in both `verifyRequest(..., options)`
+and the Express/Fastify/Nest adapter options. It starts immediately before the
+verified request's `replay.claim` call, independently of body capture and
+authentication. Omission/`undefined` selects the default; integers in
+**1..2147483647** are accepted. Invalid core configuration rejects with `TypeError`
+before any claim; adapters reject it during installation.
+
+A hung claim or a result received after the monotonic deadline rejects with
+`REPLAY_STORE_UNAVAILABLE` (HTTP 503); late success cannot reach downstream code
+and late rejection is consumed. Synchronous work cannot be preempted: once it
+returns, an elapsed-deadline check rejects before success. The SDK clears its
+timer on settlement; a pending direct-core call keeps its deadline timer active
+even when there is no other event-loop work.
+
+This does not cancel a backend command, roll back a nonce claim, or implement
+client-disconnect cancellation. A timed-out command may still claim its nonce.
+Do not delete that nonce or fall back to a local store. A retry needs a fresh
+signed request and nonce, plus application-level idempotency/recovery when an
+operation's outcome is uncertain. Configure replay-client connection/command
+timeouts and concurrency limits independently. Direct `ReplayStore.claim` calls
+do not have the verifier's deadline guard.
 
 `new InMemoryReplayStore({ capacity: 10000 })` is an explicit development/test
 choice: volatile, single process, no restart protection. It never evicts live

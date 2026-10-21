@@ -3,7 +3,7 @@ import {createClient} from 'redis';
 import {createServer} from 'node:http';
 import { buildSignatureBase, verifyRequest, parseSignatures, RedisReplayStore, InMemoryReplayStore, expressMiddleware, nestMiddleware, installFastify, type AdapterOptions, type KeyRecord, type VerificationResult } from '@appguard/server';
 const key: KeyRecord = { app_id:'a', key_id:'k', subject:'u', public_key_pem:'pem', algorithm:'ecdsa-p256-sha256', revoked:false };
-const combined: AdapterOptions = { app_id:'a', origin:'https://api.example.test', replay:new InMemoryReplayStore(), identityTimeoutMs:10000, identityResolver: async context => ({subject:'u', key}) };
+const combined: AdapterOptions = { app_id:'a', origin:'https://api.example.test', replay:new InMemoryReplayStore(), identityTimeoutMs:10000, replayTimeoutMs:10000, identityResolver: async context => ({subject:'u', key}) };
 const separate: AdapterOptions = { app_id:'a', origin:'https://api.example.test', replay:new RedisReplayStore({sendCommand: async args => 'OK'}), identityResolver: async () => 'u', keyResolver: async context => key };
 expressMiddleware(combined); nestMiddleware(separate); installFastify({server:createServer(),addHook: () => {}}, combined);
 // @ts-expect-error deadline milliseconds must be numeric
@@ -17,7 +17,16 @@ expressMiddleware({ app_id:'a', origin:'https://api.example.test', identityResol
 const parsed = parseSignatures([['Signature','value']]);
 const request = {method:'POST',target:'/',headers:[['Content-Type','application/json']] as [string,string][],body:Buffer.from('{}')};
 buildSignatureBase(request, parsed.parameters, {origin:'https://api.example.test'});
-const result: Promise<VerificationResult> = verifyRequest(request, parsed.parameters, parsed.signature, {origin:'https://api.example.test',app_id:'a',subject:'u',key,now:0,replay:new InMemoryReplayStore()});
+const coreOptions = {origin:'https://api.example.test',app_id:'a',subject:'u',key,now:0,replay:new InMemoryReplayStore(),replayTimeoutMs:10000};
+const result: Promise<VerificationResult> = verifyRequest(request, parsed.parameters, parsed.signature, {...coreOptions,replayTimeoutMs:10000});
+// @ts-expect-error replay deadline milliseconds must be numeric
+verifyRequest(request, parsed.parameters, parsed.signature, {...coreOptions,replayTimeoutMs:'slow'});
+// @ts-expect-error adapter replay deadline milliseconds must be numeric
+expressMiddleware({...combined,replayTimeoutMs:'slow'});
+// @ts-expect-error Nest replay deadline milliseconds must be numeric
+nestMiddleware({...combined,replayTimeoutMs:'slow'});
+// @ts-expect-error Fastify replay deadline milliseconds must be numeric
+installFastify(Fastify(), {...combined,replayTimeoutMs:'slow'});
 
 installFastify(Fastify(), combined);
 new RedisReplayStore(createClient());

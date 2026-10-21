@@ -32,7 +32,11 @@ export function serializeParameters(parameters: SignatureParameters): string;
 export function buildSignatureBase(request: RequestInput, parameters: SignatureParameters, options: { origin: string }): Buffer;
 export function parseSignatures(headers: readonly HeaderPair[]): { parameters: SignatureParameters; signature: Buffer };
 export function validateFraming(headers: readonly HeaderPair[], bodyLength?: number): Map<string, string>;
-export interface VerificationOptions { origin: string; app_id: string; subject: string; key: KeyRecord; now: number; replay: ReplayStore; }
+export interface VerificationOptions {
+  origin: string; app_id: string; subject: string; key: KeyRecord; now: number; replay: ReplayStore;
+  /** Replay claim deadline, default 10000; integer 1..2147483647. Does not cancel backend work. */
+  replayTimeoutMs?: number;
+}
 export function verifyRequest(request: RequestInput, parameters: SignatureParameters, signature: Buffer, options: VerificationOptions): Promise<VerificationResult>;
 export interface Identity { subject: string; key: KeyRecord | null; }
 export interface IdentityContext { readonly method: string; readonly target: string; readonly headers: readonly HeaderPair[]; readonly parameters: Readonly<SignatureParameters>; }
@@ -43,6 +47,8 @@ export interface CommonAdapterOptions {
   bodyTimeoutMs?: number;
   /** Total identity/key lookup deadline, default 10000; integer 1..2147483647. Does not cancel host callbacks. */
   identityTimeoutMs?: number;
+  /** Replay claim deadline after signature verification, default 10000; integer 1..2147483647. */
+  replayTimeoutMs?: number;
 }
 export type AdapterOptions = CommonAdapterOptions & (
   { identityResolver(context: IdentityContext): Identity | null | false | Promise<Identity | null | false>; keyResolver?: never } |
