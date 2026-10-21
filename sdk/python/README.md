@@ -48,6 +48,23 @@ application = AppGuardMiddleware(
 
 Resolvers may be synchronous or asynchronous. Synchronous callbacks and verification/Redis claims run off the ASGI event loop. Authentication has a configurable total `identity_timeout` (default 10 seconds); bounded body capture has `body_timeout` (30 seconds). Configure Redis connection and command timeouts on the supplied client as well. A timed-out synchronous callback may continue in its worker thread; the SDK cannot forcibly cancel application code. The clock is read after authentication; optionally pass a trusted `clock` returning integer Unix seconds.
 
+The identity budget uses one monotonic event-loop deadline covering resolver
+completion and trusted identity validation. If it expires, the SDK returns fixed
+503 `IDENTITY_UNAVAILABLE` when the event loop can run, without waiting for a
+resolver to acknowledge cancellation. A late identity, authentication rejection
+or exception cannot sample the clock, claim a nonce or reach the application.
+Pending resolver tasks are retained until completion and their eventual failures
+are consumed. Caller ASGI-task cancellation propagates without an SDK response
+and requests resolver cancellation as well.
+
+Cancellation is best effort. A resolver can suppress it, a worker thread can
+continue, and blocking event-loop work cannot be preempted. After blocking work
+returns, elapsed-budget checks reject late success, including slow identity
+validation. Resolver work may outlive its request and delay process shutdown.
+This budget does not bound outstanding task/thread counts, body or verification/
+replay time, or install HTTP-disconnect monitoring. Configure backend timeouts,
+admission/concurrency limits and shutdown behavior in the hosting application.
+
 All requests reaching the wrapper are protected; install it on the intended application surface. A successful check preserves the exact captured body and existing ASGI state, and stores `VerificationResult` in `scope["state"]["appguard"]`. Application exceptions after verification retain application handling. WebSocket connections reject; lifespan events pass through.
 
 For Django, wrap the result of `get_asgi_application()` with `appguard.django.protect_django(app, **configuration)`. The resolver must authenticate before Django's internal middleware runs, or use trusted authentication state established by an outer ASGI layer. For Flask use `appguard.flask.protect_flask(flask_app, **configuration)` and an ASGI server: verification runs before `asgiref.wsgi.WsgiToAsgi` loses duplicate-header evidence. Plain WSGI middleware is not supported. `appguard.fastapi` also re-exports `AppGuardMiddleware` and `Identity`.

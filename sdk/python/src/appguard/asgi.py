@@ -15,6 +15,14 @@ from .wire import parse_signatures, validate_headers
 _LIMIT = 1024 * 1024
 _CORE_CODES = {"INVALID_REQUEST", "UNSUPPORTED_PROFILE", "INVALID_TIME", "KEY_REJECTED",
                "DIGEST_MISMATCH", "INVALID_SIGNATURE", "REPLAY_DETECTED", "REPLAY_STORE_UNAVAILABLE"}
+_IDENTITY_TASKS = set()
+
+
+def _identity_finished(task):
+    # Keep unfinished tasks alive; retrieve late failures without logging them.
+    _IDENTITY_TASKS.discard(task)
+    if not task.cancelled():
+        task.exception()
 
 
 @dataclass(frozen=True)
@@ -122,17 +130,32 @@ class AppGuardMiddleware:
         return bytes(body)
 
     async def _identity(self, scope, key_id):
+        loop = asyncio.get_running_loop()
+        deadline = loop.time() + self.identity_timeout
+
         async def resolve():
+            if loop.time() >= deadline:
+                raise TimeoutError
             if inspect.iscoroutinefunction(self.identity_resolver):
                 value = self.identity_resolver(scope, key_id)
             else:
                 value = await asyncio.to_thread(self.identity_resolver, scope, key_id)
             return await value if inspect.isawaitable(value) else value
 
+        task = loop.create_task(resolve())
+        _IDENTITY_TASKS.add(task)
+        task.add_done_callback(_identity_finished)
         try:
-            identity = await asyncio.wait_for(resolve(), self.identity_timeout)
+            done, _ = await asyncio.wait({task}, timeout=max(0, deadline - loop.time()))
+            if not done or loop.time() >= deadline:
+                raise TimeoutError
+            identity = task.result()
         except Exception:
             raise _HttpFailure(503, "IDENTITY_UNAVAILABLE") from None
+        finally:
+            # Do not await cancellation: a host resolver can suppress it.
+            if not task.done():
+                task.cancel()
         if identity is None:
             raise _HttpFailure(401, "AUTHENTICATION_REQUIRED")
         if not isinstance(identity, Identity):
@@ -148,6 +171,8 @@ class AppGuardMiddleware:
                     validate_identifier(identifier)
         except (VerificationError, ValueError):
             raise _HttpFailure(503, "IDENTITY_UNAVAILABLE") from None
+        if loop.time() >= deadline:
+            raise _HttpFailure(503, "IDENTITY_UNAVAILABLE")
         return identity
 
     async def __call__(self, scope, receive, send):
