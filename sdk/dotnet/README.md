@@ -72,6 +72,22 @@ Singleton duplicates, extra signature metadata, unsupported encodings, Content-L
 
 HTTP failures are compact `{"code":"FIXED_REASON"}`: 400 invalid input, 413 overflow, 401 missing authentication, 403 rejected proof/key/replay, and 503 dependency failure. Expected unknown keys return 403 `KEY_REJECTED`; thrown key callbacks return 503 `KEY_RESOLVER_UNAVAILABLE`; malformed subject callback results return 503 `IDENTITY_UNAVAILABLE`. Clock is read after authentication and key lookup. No token, body, PEM or backend exception text enters a failure response.
 
+The middleware captures `RequestAborted` at invocation entry and uses that token
+through body capture, authentication, key lookup and verification. Cancellation
+observed after those phases prevents further SDK handoff and verification-feature
+publication; no response body is written on its canceled error path. Configure
+intentional token scopes before AppGuard. Replacing the context property inside
+a callback cannot erase cancellation of the captured token.
+
+The direct verifier checks its supplied token after replay returns, before
+accepting `true` or `false`; observed cancellation throws `OperationCanceledException`
+with that token. Store exceptions keep their fixed `REPLAY_STORE_UNAVAILABLE`
+mapping. No callback is abandoned or forcibly stopped: ignoring cancellation can
+keep the SDK pending until the callback returns. Configure dependency timeouts,
+cancellation-aware clients and concurrency limits in the host. Work already
+dispatched, token-notification/final-check races and HTTP response delivery remain
+host-owned. Source-checkout evidence: [cancellation verification](../../docs/security/dotnet-cancellation.md).
+
 ## Replay deployment boundary
 
 `IReplayStore.ClaimAsync(ReplayScope scope, long expires, long now, CancellationToken ct)` must atomically return true for exactly one live claim and false for a prior live claim. Throw on errors/capacity failure. A deployment-wide store must preserve this property across all instances, restarts and cancellation/timeout outcomes; do not retry an uncertain claim permissively. A backend may have committed before a timeout, so a failed request can conservatively retain its nonce.

@@ -26,6 +26,7 @@ public static class Verifier
         cancellationToken.ThrowIfCancellationRequested();bool claimed;
         try{claimed=await context.Replay.ClaimAsync(new ReplayScope(context.AppId,key.KeyId,parameters.Nonce),parameters.Expires,now,cancellationToken).ConfigureAwait(false);}
         catch(Exception){throw new AppGuardException("REPLAY_STORE_UNAVAILABLE");}
+        cancellationToken.ThrowIfCancellationRequested();
         if(!claimed)throw new AppGuardException("REPLAY_DETECTED");
         return new(context.AppId,key.KeyId,parameters.Expires);
     }

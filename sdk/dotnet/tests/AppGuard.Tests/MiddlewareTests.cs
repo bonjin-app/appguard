@@ -123,6 +123,54 @@ public class MiddlewareTests
         using var s=new SecurityTests.Signed();var store=new SecurityTests.CountingStore();await using var server=await Start(s,store,capture:false);
         var response=await Send(Port(server),s,s.Request.Target,[]);Assert.Contains("400 Bad Request",response);Assert.DoesNotContain("downstream:",response);Assert.Equal(0,store.Count);
     }
+    sealed class DeferredReplay(Func<CancellationToken,ValueTask<bool>> claim):IReplayStore
+    {
+        internal int Calls;
+        public ValueTask<bool> ClaimAsync(ReplayScope scope,long expires,long now,CancellationToken cancellationToken=default)
+        {Interlocked.Increment(ref Calls);return claim(cancellationToken);}
+    }
+    [Theory] [InlineData("identity")] [InlineData("replay")]
+    public async Task ActualKestrelDisconnectCannotDispatchAfterALateCallbackReturn(string phase)
+    {
+        using var s=new SecurityTests.Signed();
+        var entered=new TaskCompletionSource<CancellationToken>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var canceled=new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release=new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var finished=new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        int keys=0,dispatch=0;
+        async ValueTask Pause(CancellationToken token)
+        {
+            using var registration=token.Register(()=>canceled.TrySetResult());
+            entered.TrySetResult(token);await release.Task; // Deliberately ignore cancellation while waiting.
+        }
+        var replay=new DeferredReplay(async token=>{if(phase=="replay")await Pause(token);return true;});
+        var b=WebApplication.CreateBuilder();b.Logging.ClearProviders();
+        b.WebHost.ConfigureKestrel(k=>k.Listen(IPAddress.Loopback,0,l=>l.Use(next=>async connection=>{await CaptureHeaders(connection);await next(connection);})));
+        await using var app=b.Build();
+        app.Use(async(c,next)=>{try{await next();}finally{finished.TrySetResult();}});
+        app.UseAppGuard(Options(s,replay,auth:async(_,token)=>{if(phase=="identity")await Pause(token);return "subject";},
+            key:(_,_,_,_)=>{Interlocked.Increment(ref keys);return ValueTask.FromResult<KeyRecord?>(s.Key);}));
+        app.Run(_=>{Interlocked.Increment(ref dispatch);return Task.CompletedTask;});await app.StartAsync();
+        using var tcp=new TcpClient();
+        try
+        {
+            await tcp.ConnectAsync(IPAddress.Loopback,Port(app));
+            var header="POST "+s.Request.Target+" HTTP/1.1\r\nHost: api.example.test\r\n"+
+                string.Concat(s.WireHeaders.Select(h=>h.Name+": "+h.Value+"\r\n"))+
+                "Content-Length: "+s.Request.Body.Length.ToString(System.Globalization.CultureInfo.InvariantCulture)+"\r\n\r\n";
+            await tcp.GetStream().WriteAsync(Encoding.ASCII.GetBytes(header));await tcp.GetStream().WriteAsync(s.Request.Body);
+            var token=await entered.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            tcp.Client.LingerState=new LingerOption(true,0);tcp.Dispose();
+            await canceled.Task.WaitAsync(TimeSpan.FromSeconds(10));Assert.True(token.IsCancellationRequested);
+            release.TrySetResult();await finished.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            Assert.Equal(0,dispatch);Assert.Equal(phase=="identity"?0:1,keys);Assert.Equal(phase=="replay"?1:0,replay.Calls);
+        }
+        finally
+        {
+            release.TrySetResult();tcp.Dispose();
+            using var shutdown=new CancellationTokenSource(TimeSpan.FromSeconds(10));await app.StopAsync(shutdown.Token);
+        }
+    }
     // Test-only one-request HTTP/1 capture. Keep-alive, TLS and H2 require a real
     // host ingress implementation; this fixture never reconstructs parsed fields.
     static async Task CaptureHeaders(ConnectionContext connection)
