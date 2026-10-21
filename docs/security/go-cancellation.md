@@ -70,3 +70,43 @@ not a production original-header collector and proves no ingress/proxy, TLS,
 HTTP/2/3, Gin/Echo, load, distributed-store failover, hosted CI, external audit,
 release support, provider or physical-device behavior. The core, protocol/corpora,
 public API, dependencies and other server SDKs are unchanged.
+## Local verification and review
+
+The reviewed SDK source is commit
+`5c91d1165764b31f47976e19947cb67922def1f7`. Go 1.27.3 ran with a
+private cache, local toolchain and read-only module mode.
+
+- Baseline: 246 leaf cases in 26 top-level tests.
+- Regression RED: 18 leaf cases, 10 failures and 8 passes. GREEN: all 18 passed.
+- Full source: 264 leaf cases in 32 top-level tests passed both ordinary and
+  race-enabled runs, with zero failures/skips. `go vet` and `go build` passed.
+- A private local module ZIP contains all 19 tracked Go-module files from the
+  reviewed commit. Every entry matches committed source and the downloaded
+  module. A separate consumer uses its exact version without a `replace`
+  directive: 19 leaf cases passed ordinary/race runs, comprising the same 18
+  cancellation cases and one loaded-module origin control. `go mod verify`
+  passed. This is local package integrity evidence, not public publication.
+- Independent security review found no blocking findings. The reviewer freshly
+  reran source ordinary/race (264 each), consumer ordinary/race (19 each), vet,
+  build and module verification. Sixteen independent public-API probes passed
+  ordinary/race runs; these comprise 15 desired-behavior cases and one explicit
+  unsupported host-context boundary observation. Two real localhost disconnect
+  cases passed 20 race-enabled repetitions (40 leaf executions).
+
+These counts overlap and are not added across evidence tiers. The reviewer
+inspected baseline/RED evidence without rerunning it, and reused the downloaded
+consumer cache after fresh byte-for-byte integrity verification. Independent
+checks covered final dispatch, callback precedence/privacy, body deadline reset,
+original scope, nil/expired entry and preservation of an already committed nonce.
+
+Supported contexts obey Go's `Context.Err` contract. A deliberately
+contract-violating host context that panics at the final outer checkpoint can
+propagate that panic; the independent synthetic probe records this nonblocking
+host limitation. It does not establish a remote attacker capability or alter the
+supported callback panic-handling guarantee.
+
+Raw logs, local archive, source hashes and review receipt are preserved under
+`.superpowers/evidence/2026-10-21-go-cancellation/` on local main. The reviewed
+runtime is unchanged by this documentation-only verification record. Other SDK
+runtime suites were not repeated for this Go-only change. Production ingress,
+external audit, hosted CI and physical-device gates remain separate.
