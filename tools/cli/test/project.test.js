@@ -68,3 +68,52 @@ test('doctor checks actual sidecar content; config validation rejects ambiguous 
   for(const value of [{profile:'balanced',requireSignature:false},{profile:'strict',requireSignature:'true'},{profile:'balanced',extra:true},null])
     assert.throws(()=>validatePolicy(value),{code:'INVALID_POLICY'});
 });
+
+test('malformed UTF8 ignore files reject before project or backup writes', async t => {
+  const invalid = [
+    Buffer.from([0xff]), Buffer.from([0xc0, 0xaf]), Buffer.from([0x80]),
+    Buffer.from([0xe2, 0x82]), Buffer.from([0xed, 0xa0, 0x80]),
+    Buffer.from([0xf4, 0x90, 0x80, 0x80]),
+  ];
+  for (const bytes of invalid) {
+    const original = Buffer.concat([Buffer.from('# preserve original\r\n'), bytes]);
+    const root = await fixture(t, {'app/build.gradle': 'plugins {}\r\n', '.gitignore': original});
+    await assert.rejects(initialize(root, {appId: 'demo'}), {code: 'INVALID_FILE'});
+    assert.deepEqual(await fs.readFile(path.join(root, '.gitignore')), original);
+    assert.equal(await fs.readFile(path.join(root, 'app/build.gradle'), 'utf8'), 'plugins {}\r\n');
+    for (const name of ['appguard.json', 'app/appguard-release.gradle', '.appguard', '.appguard-init.lock'])
+      await assert.rejects(fs.lstat(path.join(root, name)), {code: 'ENOENT'});
+  }
+});
+
+test('malformed detected project files reject without silently decoding replacement characters', async t => {
+  for (const [name, prefix] of [
+    ['app/build.gradle', '// app\n'], ['app/build.gradle.kts', '// app\n'],
+    ['package.json', '{"dependencies":{"expo":"57"},"description":"'],
+    ['pubspec.yaml', 'flutter:\n# '],
+  ]) {
+    const original = Buffer.concat([Buffer.from(prefix), Buffer.from([0xff]), Buffer.from(name === 'package.json' ? '"}' : '\n')]);
+    const root = await fixture(t, {[name]: original, '.gitignore': 'keep/\n'});
+    await assert.rejects(initialize(root, {appId: 'demo'}), {code: 'INVALID_FILE'});
+    assert.deepEqual(await fs.readFile(path.join(root, name)), original);
+    assert.equal(await fs.readFile(path.join(root, '.gitignore'), 'utf8'), 'keep/\n');
+    for (const file of ['appguard.json', '.appguard', '.appguard-init.lock'])
+      await assert.rejects(fs.lstat(path.join(root, file)), {code: 'ENOENT'});
+  }
+});
+
+test('valid BOM Unicode replacement characters and CRLF retain byte-identical original backups', async t => {
+  const build = Buffer.from('\uFEFF// 한글 😀 \uFFFD\r\nplugins {}\r\n');
+  const ignore = Buffer.from('\uFEFF# café e\u0301 \uFFFD\r\nbuild/\r\n');
+  const root = await fixture(t, {'app/build.gradle': build, '.gitignore': ignore});
+  const outcome = await initialize(root, {appId: 'demo'});
+  const manifest = JSON.parse(await fs.readFile(path.join(outcome.backupDirectory, 'manifest.json'), 'utf8'));
+  for (const [name, bytes] of [['app/build.gradle', build], ['.gitignore', ignore]]) {
+    const after = await fs.readFile(path.join(root, name));
+    assert.deepEqual(after.subarray(0, bytes.length), bytes);
+    const index = manifest.findIndex(entry => entry.name === name && entry.existed);
+    assert.notEqual(index, -1);
+    assert.deepEqual(await fs.readFile(path.join(outcome.backupDirectory, `${index}.original`)), bytes);
+  }
+  assert.equal((await inspect(root)).protectionConfigured, true);
+});

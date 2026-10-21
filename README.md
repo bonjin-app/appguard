@@ -40,7 +40,7 @@ The core will run without an AI model, paid AI API, or mandatory AppGuard cloud 
 | Shared Redis replay claims | Implemented; deployment durability/eviction guarantees are operator-owned |
 | [Enrollment / policy / audit](docs/security/enrollment-policy.md) | Python SQLite challenge/proof/revocation; all six server languages pass deterministic42-case presets and allowlisted audit output |
 | [Apple/Google provider verification](docs/security/provider-verification.md) | Experimental Python backends;223 offline provider tests and Android acquisition module. Genuine current-device/account verification pending; Apple lifecycle incomplete |
-| [Build / CLI](tools/cli/README.md) | Android R8 setup/build; Flutter obfuscation/Expo minification commands; encrypted mapping archive/restore.19 tests and actual isolated Android release build |
+| [Build / CLI](tools/cli/README.md) | Android R8 setup/build; Flutter obfuscation/Expo minification commands; encrypted mapping archive/restore.23 tests, strict UTF-8 input preservation and actual isolated Android release build |
 | [Local root/hook/jailbreak hints](protocol/local-risk-v0.md) | Experimental Android/iOS typed scanners; host tests and platform builds; physical rooted/hooked-device efficacy unverified |
 | Optional console / AI | Planned, not implemented; core works without either |
 

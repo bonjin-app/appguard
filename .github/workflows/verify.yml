@@ -108,7 +108,7 @@ jobs:
       - name: CLI tests and local package
         run: |
           npm --prefix tools/cli test
-          npm --prefix tools/cli pack --pack-destination "$RUNNER_TEMP"
+          npm pack ./tools/cli --pack-destination "$RUNNER_TEMP"
       - name: Expo frozen install, tests, types and relocated package
         run: |
           npm --prefix sdk/expo ci --ignore-scripts

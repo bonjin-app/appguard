@@ -38,3 +38,20 @@ test('CLI archive and restore work through subprocess with caller-owned key',asy
   const r=run('restore','--archive',a.json.archiveFile,'--destination',destination,'--key-file',key);
   assert.equal(r.status,0);assert.equal(await fs.readFile(path.join(destination,'mapping.txt'),'utf8'),'fixture');
 });
+
+test('CLI malformed project text fails with a fixed error and preserves source bytes', async t => {
+  const root = await fs.mkdtemp(path.join(os.tmpdir(), 'appguard-input-command-'));
+  t.after(() => fs.rm(root, {force: true, recursive: true}));
+  await fs.mkdir(path.join(root, 'app'));
+  await fs.writeFile(path.join(root, 'app/build.gradle'), 'plugins {}\n');
+  const original = Buffer.concat([Buffer.from('PRIVATE_INPUT_MARKER\n'), Buffer.from([0xff])]);
+  await fs.writeFile(path.join(root, '.gitignore'), original);
+  const result = run('init', '--project', root, '--app-id', 'demo');
+  assert.equal(result.status, 1);
+  assert.deepEqual(result.json, {error: {code: 'INVALID_FILE'}});
+  assert.equal(result.stdout, '');
+  assert.equal(result.stderr.includes('PRIVATE_INPUT_MARKER'), false);
+  assert.equal(result.stderr.includes(root), false);
+  assert.deepEqual(await fs.readFile(path.join(root, '.gitignore')), original);
+  await assert.rejects(fs.lstat(path.join(root, 'appguard.json')), {code: 'ENOENT'});
+});

@@ -1,4 +1,5 @@
 import * as fs from 'node:fs/promises';
+import { isUtf8 } from 'node:buffer';
 import path from 'node:path';
 import { fail } from './errors.js';
 
@@ -25,7 +26,10 @@ export async function readOptional(root,relative,max=1048576) {
   try {
     const st=await fs.lstat(file);
     if(!st.isFile() || st.size>max) fail('INVALID_FILE');
-    return await fs.readFile(file,'utf8');
+    const bytes=await fs.readFile(file);
+    // Lossy decoding would silently rewrite input and its supposed backup.
+    if(bytes.length>max || !isUtf8(bytes)) fail('INVALID_FILE');
+    return bytes.toString('utf8');
   } catch(e) { if(e.code==='ENOENT') return null; throw e; }
 }
 export async function privateDirectory(root,relative) {
