@@ -92,13 +92,23 @@ func NewMiddleware(o HTTPOptions, next http.Handler) (http.Handler, error) {
 		o.BodyReadTimeout = 30 * time.Second
 	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		verified, body, err := enforceHTTP(w, r, o)
+		if r == nil {
+			writeFailure(w, invalid())
+			return
+		}
+		// Host callbacks must not replace the cancellation scope of this invocation.
+		ctx := r.Context()
+		verified, body, err := enforceHTTP(ctx, w, r, o)
 		if err != nil {
 			writeFailure(w, err)
 			return
 		}
+		if ctx.Err() != nil {
+			writeFailure(w, failure("VERIFICATION_UNAVAILABLE"))
+			return
+		}
 		r.Body = io.NopCloser(bytes.NewReader(body))
-		r = r.WithContext(context.WithValue(r.Context(), verificationContextKey{}, verified))
+		r = r.WithContext(context.WithValue(ctx, verificationContextKey{}, verified))
 		next.ServeHTTP(w, r)
 	}), nil
 }
@@ -113,7 +123,7 @@ func writeFailure(w http.ResponseWriter, err error) {
 	w.WriteHeader(e.Status)
 	_, _ = io.WriteString(w, `{"code":"`+e.Code+`"}`)
 }
-func enforceHTTP(w http.ResponseWriter, r *http.Request, o HTTPOptions) (result Verification, body []byte, err error) {
+func enforceHTTP(ctx context.Context, w http.ResponseWriter, r *http.Request, o HTTPOptions) (result Verification, body []byte, err error) {
 	defer func() {
 		if recover() != nil {
 			result = Verification{}
@@ -121,11 +131,11 @@ func enforceHTTP(w http.ResponseWriter, r *http.Request, o HTTPOptions) (result 
 			err = failure("VERIFICATION_UNAVAILABLE")
 		}
 	}()
-	if r == nil || r.Context().Err() != nil || (!o.AllowInsecureTransport && r.TLS == nil) || r.RequestURI == "" || r.Body == nil || r.Form != nil || r.PostForm != nil || r.MultipartForm != nil {
+	if r == nil || ctx == nil || ctx.Err() != nil || (!o.AllowInsecureTransport && r.TLS == nil) || r.RequestURI == "" || r.Body == nil || r.Form != nil || r.PostForm != nil || r.MultipartForm != nil {
 		return result, nil, invalid()
 	}
-	e, err := evidence(r.Context(), o.Evidence, r)
-	if err != nil || e == nil || e.Method != r.Method || e.Target != r.RequestURI {
+	e, err := evidence(ctx, o.Evidence, r)
+	if err != nil || ctx.Err() != nil || e == nil || e.Method != r.Method || e.Target != r.RequestURI {
 		return result, nil, invalid()
 	}
 	headers := append([]Header(nil), e.Headers...)
@@ -146,7 +156,7 @@ func enforceHTTP(w http.ResponseWriter, r *http.Request, o HTTPOptions) (result 
 	}
 	body, err = io.ReadAll(io.LimitReader(r.Body, MaxBodyBytes+1))
 	_ = controller.SetReadDeadline(time.Time{})
-	if err != nil || r.Context().Err() != nil {
+	if err != nil || ctx.Err() != nil {
 		return result, nil, invalid()
 	}
 	if len(body) > MaxBodyBytes {
@@ -158,8 +168,8 @@ func enforceHTTP(w http.ResponseWriter, r *http.Request, o HTTPOptions) (result 
 	}
 	req.Body = body
 	authContext := AuthenticationContext{Method: req.Method, Target: req.Target, Headers: append([]Header(nil), headers...), Parameters: p}
-	subject, err := authenticate(r.Context(), o.Authenticator, authContext)
-	if err != nil {
+	subject, err := authenticate(ctx, o.Authenticator, authContext)
+	if err != nil || ctx.Err() != nil {
 		return result, nil, failure("IDENTITY_UNAVAILABLE")
 	}
 	if subject == "" {
@@ -169,8 +179,8 @@ func enforceHTTP(w http.ResponseWriter, r *http.Request, o HTTPOptions) (result 
 		return result, nil, failure("IDENTITY_UNAVAILABLE")
 	}
 	authContext.Headers = append([]Header(nil), headers...)
-	key, err := resolveKey(r.Context(), o.KeyResolver, KeyContext{AuthenticationContext: authContext, AppID: o.AppID, Subject: subject, KeyID: p.KeyID})
-	if err != nil {
+	key, err := resolveKey(ctx, o.KeyResolver, KeyContext{AuthenticationContext: authContext, AppID: o.AppID, Subject: subject, KeyID: p.KeyID})
+	if err != nil || ctx.Err() != nil {
 		return result, nil, failure("KEY_RESOLVER_UNAVAILABLE")
 	}
 	if key != nil {
@@ -184,7 +194,10 @@ func enforceHTTP(w http.ResponseWriter, r *http.Request, o HTTPOptions) (result 
 	if err != nil {
 		return result, nil, failure("INVALID_TIME")
 	}
-	result, err = VerifyRequest(r.Context(), req, p, sig, VerifyOptions{Origin: o.Origin, AppID: o.AppID, Subject: subject, Key: key, Now: now, Replay: o.Replay})
+	if ctx.Err() != nil {
+		return result, nil, failure("VERIFICATION_UNAVAILABLE")
+	}
+	result, err = VerifyRequest(ctx, req, p, sig, VerifyOptions{Origin: o.Origin, AppID: o.AppID, Subject: subject, Key: key, Now: now, Replay: o.Replay})
 	return result, body, err
 }
 func evidence(ctx context.Context, f EvidenceSource, r *http.Request) (e *RawEvidence, err error) {

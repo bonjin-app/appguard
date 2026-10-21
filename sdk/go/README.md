@@ -85,6 +85,21 @@ verification rejects as unavailable. The request context and existing authentica
 identity remain intact. `VerificationFromContext` reads separate verification
 metadata; downstream authorization is still required.
 
+The middleware captures the entry request context and uses that same scope across
+host callbacks and downstream proof attachment. Cancellation observed after
+evidence, authentication, key lookup, the clock or verification prevents the next
+SDK handoff. Install intentional context scopes before AppGuard; a callback
+replacing the request context cannot mask cancellation of the captured scope.
+Core pre/post replay cancellation checks remain unchanged. Callback errors/panics
+and cancellation use fixed phase errors without private cause data. See the
+source-checkout [cancellation verification](../../docs/security/go-cancellation.md).
+
+These checks do not terminate or abandon a callback. An uncooperative callback
+can remain pending until it returns. Supply dependency timeouts, cooperative
+clients and concurrency limits in the host. Network notification/final-check
+races, work already dispatched and response delivery remain host-owned; no
+atomic promise to stop all activity at the instant a client disconnects is made.
+
 TLS is required by default (`r.TLS != nil`); forwarding headers never enable it.
 `AllowInsecureTransport: true` is only an explicit local-testing or externally
 verified TLS-termination boundary. Actual local integration tests cover HTTP/1.1

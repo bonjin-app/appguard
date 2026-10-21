@@ -17,6 +17,8 @@ For preservation of directly reported callback interruption and host lifecycle
 limits, see [Spring interruption verification](../security/spring-interruption.md).
 For ASP.NET Core's captured request token, late-callback handoff checks and the
 direct verifier's post-replay cancellation check, see [.NET cancellation verification](../security/dotnet-cancellation.md).
+For Go HTTP's original request context and cancellation checks before subsequent
+dependency work, see [Go cancellation verification](../security/go-cancellation.md).
 
 The guide separates local SDK behavior from deployed ingress/load/failover,
 supported-release, hosted CI, external audit, provider and physical-device
