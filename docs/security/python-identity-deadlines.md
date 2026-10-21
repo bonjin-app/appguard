@@ -43,3 +43,34 @@ documentation alone does not establish additional runtime support.
 Deployed ingress/load/failover, hosted CI, external audit, a supported production
 release, genuine provider and physical-device validation remain separate work.
 The Unity physical candidate and its historical receipts are preserved separately.
+
+## Local verification and independent review
+
+The runtime change was built and tested at
+`a4b2cd39757bed710a497896cdbb543ac53e2e89`. An independent local security
+review approved `00184c39f20ca8b3c8b5ababdcb640b05b5a5a14` with no unresolved
+findings. Review found a Django test-order dependency; the follow-up scopes each
+existing Django ASGI test's URL settings. Both 84-test orders pass. This was a
+test-only fix; packaged runtime and README bytes stayed unchanged.
+
+The recorded CPython 3.11.15 checks include:
+
+- 27 new deadline regressions: 22 failed before the runtime fix; all 27 pass after.
+- Common server runner: reference Python 209, Python SDK 582, Node SDK 561 and
+  Java SDK 211 (1,563 total), with zero skipped tests. Packaging/type smoke and
+  cross-SDK Redis sequential/concurrent replay checks also passed.
+- Isolated, offline-installed wheel: 27 regressions pass; all 21 packaged
+  source/assets match the reviewed source and installed files.
+- Independent review: full Python 582, targeted tests/probes 104 and reverse
+  order 84 pass with zero failures, errors or skips. These counts overlap.
+
+Framework requests use in-process ASGI transports, not a deployed server or
+TLS endpoint. Review also confirmed a preexisting limitation: if a synchronous
+resolver returns a coroutine after its thread await was canceled, that coroutine
+can remain unawaited. This patch does not add thread-result disposal or force
+termination; host callback/backend lifecycle controls remain necessary.
+
+Raw logs, test-order failures and fixes, package/source hashes and the independent
+review receipt are retained under
+`.superpowers/evidence/2026-10-21-python-identity-deadlines/` in the primary
+checkout. They are local evidence, not hosted CI, external audit or device proof.
