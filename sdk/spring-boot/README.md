@@ -96,6 +96,16 @@ An optional application `Clock` bean controls trusted verification time; otherwi
 
 ## Body and wire boundaries
 
+On the initial `REQUEST`, upstream wrappers must preserve method, URI/query,
+context/servlet/path-info routing, content type, character encoding, and all
+header views (including direct lookups). Divergence rejects with fixed HTTP 400
+before identity lookup or nonce claim. Header names/order may differ; their
+ordered values must match. Principal/role wrappers remain supported. Trusted
+internal redispatch can change routes using the original proof; applications own
+its authorization. Post-capture mutations, custom mapping/parameter APIs and
+downstream wrappers remain trusted host code. See the
+[wrapper consistency boundary](../../docs/security/spring-wrapper-boundary.md).
+
 The filter retains every enumerated header value, preserves duplicate evidence, verifies the original servlet `requestURI + queryString` (including empty query), and captures no more than 1 MiB plus one byte. Content-Length must match captured bytes; conflicting framing, invalid fields, duplicate singletons, unsupported content encoding, aborted/truncated streams, absent raw target/header/body evidence and oversized bodies fail closed. Downstream code receives the captured bytes only after successful verification.
 
 `application/x-www-form-urlencoded` and every `multipart/*` content type are explicitly rejected with HTTP 400 `INVALID_REQUEST`, before nonce consumption. This avoids changing servlet form/multipart parameter semantics after raw capture. Query parameters remain available, including duplicates. Nonblocking `ServletInputStream.setReadListener` is unsupported; blocking input/reader access and MVC async processing are supported. Use another integration for nonblocking servlet content consumption.

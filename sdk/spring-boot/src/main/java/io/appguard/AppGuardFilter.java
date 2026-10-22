@@ -31,11 +31,12 @@ public final class AppGuardFilter implements Filter {
         }
         HttpServletRequest raw=original(request);
         if(!allowInsecureTransport && !raw.isSecure()){failure(response,400,"INVALID_REQUEST");return;}
-        List<Header> headers;ParsedSignature parsed;String target;byte[] body;
+        List<Header> headers;ParsedSignature parsed;String method,target;byte[] body;
         try{
             headers=captureHeaders(raw);parsed=Wire.parse(headers);
-            String uri=raw.getRequestURI(), query=raw.getQueryString();
+            method=raw.getMethod();String uri=raw.getRequestURI(), query=raw.getQueryString();
             Canonical.require(uri!=null && !uri.isEmpty(),"INVALID_REQUEST");target=uri+(query==null?"":"?"+query);Canonical.validateTarget(target);
+            validateInitialView(request,raw,method,uri,query,headers);
             Map<String,String> values=Canonical.headers(headers,true);
             String media=values.get("content-type").split(";",2)[0].toLowerCase(Locale.ROOT).trim();
             Canonical.require(!media.equals("application/x-www-form-urlencoded") && !media.startsWith("multipart/"),"INVALID_REQUEST");
@@ -56,11 +57,35 @@ public final class AppGuardFilter implements Filter {
         try{
             // Time is sampled exactly once, only after authentication completes.
             long now=clock.instant().getEpochSecond();
-            result=Verifier.verify(new RequestInput(raw.getMethod(),target,headers,body),parsed.parameters(),parsed.signature(),origin,appId,identity.subject(),identity.key(),now,replay);
+            result=Verifier.verify(new RequestInput(method,target,headers,body),parsed.parameters(),parsed.signature(),origin,appId,identity.subject(),identity.key(),now,replay);
         }catch(VerificationException e){failure(response,status(e.code()),e.code());return;}
         catch(RuntimeException e){failure(response,503,"IDENTITY_UNAVAILABLE");return;}
         request.setAttribute(stateAttribute,new State(body,result));request.setAttribute(VERIFICATION_ATTRIBUTE,result);
         chain.doFilter(new BufferedRequest(request,response,body),response);
+    }
+    /** Reject initial wrapper rewrites instead of approving raw bytes for a different application view. */
+    private static void validateInitialView(HttpServletRequest request,HttpServletRequest raw,String method,String uri,String query,List<Header> headers){
+        if(request==raw)return;
+        Canonical.require(Objects.equals(method,request.getMethod()) && Objects.equals(uri,request.getRequestURI())
+            && Objects.equals(query,request.getQueryString()) && Objects.equals(raw.getContextPath(),request.getContextPath())
+            && Objects.equals(raw.getServletPath(),request.getServletPath()) && Objects.equals(raw.getPathInfo(),request.getPathInfo())
+            && Objects.equals(raw.getContentType(),request.getContentType()) && Objects.equals(raw.getCharacterEncoding(),request.getCharacterEncoding()),"INVALID_REQUEST");
+        Map<String,List<String>> expected=headerValues(headers);
+        Canonical.require(expected.equals(headerValues(captureHeaders(request))),"INVALID_REQUEST");
+        for(Header header:headers){
+            String name=header.name(),lower=name.toLowerCase(Locale.ROOT);List<String> values=expected.get(lower);
+            // Some wrappers override only the single-value getter, or only lowercase lookups.
+            Canonical.require(Objects.equals(values.get(0),request.getHeader(name))
+                && Objects.equals(values.get(0),request.getHeader(lower)),"INVALID_REQUEST");
+            Enumeration<String> actual=request.getHeaders(lower);Canonical.require(actual!=null,"INVALID_REQUEST");
+            for(String value:values)Canonical.require(actual.hasMoreElements() && Objects.equals(value,actual.nextElement()),"INVALID_REQUEST");
+            Canonical.require(!actual.hasMoreElements(),"INVALID_REQUEST");
+        }
+    }
+    private static Map<String,List<String>> headerValues(List<Header> headers){
+        Map<String,List<String>> values=new HashMap<>();
+        for(Header header:headers)values.computeIfAbsent(header.name().toLowerCase(Locale.ROOT),name->new ArrayList<>()).add(header.value());
+        return values;
     }
     private static HttpServletRequest original(HttpServletRequest request){
         while(request instanceof HttpServletRequestWrapper wrapper && wrapper.getRequest() instanceof HttpServletRequest next) request=next;

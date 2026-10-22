@@ -52,7 +52,13 @@ class EmbeddedHttpTest {
             return http.csrf(c->c.disable()).sessionManagement(s->s.sessionCreationPolicy(SessionCreationPolicy.STATELESS)).authorizeHttpRequests(a->a.anyRequest().permitAll())
                 .addFilterBefore((request,response,chain)->{
                     if("Bearer TEST_ONLY_TOKEN".equals(((HttpServletRequest)request).getHeader("Authorization")))SecurityContextHolder.getContext().setAuthentication(UsernamePasswordAuthenticationToken.authenticated("test-user",null,List.of()));
-                    chain.doFilter(request,response);
+                    // Test-only upstream rewrite: never installed by the SDK.
+                    if("route".equals(((HttpServletRequest)request).getHeader("X-Test-Wrapper"))) {
+                        chain.doFilter(new HttpServletRequestWrapper((HttpServletRequest)request){
+                            @Override public String getRequestURI(){return "/echo";}
+                            @Override public String getServletPath(){return "/echo";}
+                        },response);
+                    } else chain.doFilter(request,response);
                 },AnonymousAuthenticationFilter.class).build();
         }
     }
@@ -102,6 +108,18 @@ class EmbeddedHttpTest {
         HttpResponse<byte[]> valid=post(target,body,"application/json",headers);
         assertThat(valid.statusCode()).isEqualTo(200);assertThat(valid.body()).isEqualTo(body);assertThat(valid.headers().firstValue("X-Subject")).contains("test-user");assertThat(valid.headers().firstValue("X-Query")).contains("2,1");
         HttpResponse<byte[]> repeat=post(target,body,"application/json",headers);assertThat(repeat.statusCode()).isEqualTo(403);assertThat(new String(repeat.body(),StandardCharsets.UTF_8)).isEqualTo("{\"code\":\"REPLAY_DETECTED\"}");
+    }
+    @Test void realUpstreamRouteRewriteRejectsWithoutConsumingNonce() throws Exception {
+        byte[] body="{}".getBytes(StandardCharsets.UTF_8);String target="/async";
+        List<Header> signed=SignedRequests.signed("POST",target,body,"application/json");
+        List<Header> altered=new ArrayList<>(signed);altered.add(new Header("X-Test-Wrapper","route"));
+        CountingReplayStore replay=context.getBean(CountingReplayStore.class);int before=replay.attempts.get();
+        HttpResponse<byte[]> rejected=post(target,body,"application/json",altered);
+        assertThat(rejected.statusCode()).isEqualTo(400);assertThat(new String(rejected.body(),StandardCharsets.UTF_8)).isEqualTo("{\"code\":\"INVALID_REQUEST\"}");assertThat(replay.attempts).hasValue(before);
+        HttpResponse<byte[]> healthy=post(target,body,"application/json",signed);
+        assertThat(healthy.statusCode()).isEqualTo(200);assertThat(healthy.body()).isEqualTo(body);assertThat(replay.attempts).hasValue(before+1);
+        HttpResponse<byte[]> duplicate=post(target,body,"application/json",signed);
+        assertThat(duplicate.statusCode()).isEqualTo(403);assertThat(new String(duplicate.body(),StandardCharsets.UTF_8)).isEqualTo("{\"code\":\"REPLAY_DETECTED\"}");
     }
     @Test void invalidBearerCannotBecomeAuthenticatedFromSignedData() throws Exception {
         byte[] body="{}".getBytes();List<Header> headers=SignedRequests.signed("POST","/echo",body,"application/json");headers.removeIf(h->h.name().equals("Authorization"));headers.add(new Header("Authorization","Bearer invalid"));
