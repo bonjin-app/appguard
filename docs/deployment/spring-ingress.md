@@ -80,7 +80,7 @@ and response caps; this example is not a general streaming proxy.
 
 ## Reproduce local qualification
 
-Select a trusted Redis7.2.10 executable. The runner starts its own Redis, verifies
+Select a trusted Redis7.2.16 executable. The runner starts its own Redis, verifies
 its child PID before using it, and stops only its owned processes. Use a new
 canonical output directory; on macOS resolve `/private/var/...` rather than its
 `/var/...` symlink alias.

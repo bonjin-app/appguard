@@ -33,7 +33,7 @@ jobs:
       - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: '17.0.20.1+1'
       - name: Frozen tooling and focused container safety tests
         run: |
           uv sync --locked --project sdk/python
@@ -44,7 +44,7 @@ jobs:
           uv run --frozen --project sdk/python python .github/diagnostics/encrypted_startup.py --docker-context default --java-home "$JAVA_HOME" --output "$RUNNER_TEMP/appguard-spring-containers"
       - name: Scan the exact runtime images without suppressions
         run: |
-          python3 scripts/qualification/scan_container_images.py --receipt "$RUNNER_TEMP/appguard-spring-containers/receipt.json" --docker-context default --output "$RUNNER_TEMP/appguard-container-image-scans"
+          uv run --frozen --project sdk/python python .github/diagnostics/encrypted_image_scan.py --receipt "$RUNNER_TEMP/appguard-spring-containers/receipt.json" --docker-context default --output "$RUNNER_TEMP/appguard-container-image-scans"
       - name: Retain fixed-schema operating and image status only
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -56,11 +56,13 @@ jobs:
           if-no-files-found: warn
           retention-days: 7
 
-      - name: Retain encrypted temporary startup diagnostics
+      - name: Retain encrypted temporary container diagnostics
         if: failure()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
-          name: encrypted-startup-${{ github.sha }}
-          path: ${{ runner.temp }}/appguard-startup.encrypted.json
+          name: encrypted-container-diagnostics-${{ github.sha }}
+          path: |
+            ${{ runner.temp }}/appguard-startup.encrypted.json
+            ${{ runner.temp }}/appguard-image-scan.encrypted.json
           if-no-files-found: ignore
           retention-days: 1

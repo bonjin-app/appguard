@@ -1,4 +1,4 @@
-FROM maven:3.9.12-eclipse-temurin-17@sha256:a0603aab698040d9c94259f379ec0487da1678560748d6c7508483034033c53d AS build
+FROM maven:3.9.16-eclipse-temurin-17@sha256:1a352420f7aba21f5ad08df31bab55f74c013fb491f1ae8ab1dd7ff9ed698584 AS build
 WORKDIR /src
 COPY sdk/spring-boot/ sdk/spring-boot/
 COPY examples/spring-ingress/backend/ examples/spring-ingress/backend/

@@ -185,3 +185,25 @@ copied into the final gateway image. Historical verification records retain
 the version actually used; they are not evidence for the corrected build.
 A fresh source/image scan is required to verify remediation, and the two
 unfixed Expo tool findings remain separate. No finding is suppressed.
+
+## Native runtime and build baseline
+
+The first real container probe passed all 12 operating checks, but the image
+scan observed 319 gateway and 42 backend vulnerability records before the Redis
+scan became unverified. These are partial counts, not a complete image result.
+Native executable coverage remains incomplete.
+
+Official security releases additionally showed that the initial Python 3.11.16
+and Redis 7.2.10 baselines preceded available fixes. The updated profile pins
+[Python 3.11.17](https://www.python.org/downloads/release/python-31117/) and
+[Redis 7.2.16](https://github.com/redis/redis/releases/tag/7.2.16). The maintained
+Maven 3.9.16 build image and existing Temurin 17 JRE declare 17.0.20.1+1. Official
+registry index, child-manifest and config digests are recorded in
+[base-images.json](../../deploy/spring-ingress/base-images.json).
+
+CI also pins that exact Java build and the Redis service image digest, and
+verifies the Redis 7.2.16 source archive SHA256
+`960a8ec15e34ff40e57ff16837b26b33bd81f2da6d24497bb63de532a323a18e`
+against the [official Redis hash registry](https://github.com/redis/redis-hashes).
+Rebuilds, actual operating tests and fresh image scans are required; updated
+versions alone do not establish zero findings or complete native coverage.

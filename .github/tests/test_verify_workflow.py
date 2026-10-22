@@ -44,7 +44,7 @@ class WorkflowShellTests(unittest.TestCase):
             self.executable(bin_path / 'curl', 'while [[ $# -gt 0 ]]; do if [[ "$1" == --output ]]; then printf tampered > "$2"; exit 0; fi; shift; done\nexit 2\n')
             for name in ['tar', 'make']:
                 self.executable(bin_path / name, 'echo unexpected >> "$STEP_MARKER"\n')
-        result, marker, exported = self.run_step('Build owned Redis 7.2.10 from checksum-pinned source', setup)
+        result, marker, exported = self.run_step('Build owned Redis 7.2.16 from checksum-pinned source', setup)
         self.assertNotEqual(result.returncode, 0)
         self.assertEqual(marker, '')
         self.assertFalse(exported)

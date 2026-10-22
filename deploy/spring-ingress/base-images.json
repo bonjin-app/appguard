@@ -1,26 +1,50 @@
 {
   "schema": 1,
   "reviewed_at": "2026-10-22",
-  "verification": "Registry response digest header and SHA-256 of exact index bytes matched; linux amd64 and arm64 child manifests present. Image suitability and vulnerability approval are separate.",
+  "verification": "Registry index response digest header and SHA-256 of exact bytes matched. Linux amd64/arm64 child manifest and OCI config blob SHA-256 values matched their descriptors; declared versions were read from those hash-bound configs. Metadata is not runtime execution, native dependency closure or vulnerability approval.",
   "images": [
     {
-      "image": "docker.io/library/python:3.11.16-slim-bookworm@sha256:a36c24f9cbdf4fd0f52d67f0823eeac19c2028c637cecc392d97f980d4fec56b",
-      "registry_url": "https://registry-1.docker.io/v2/library/python/manifests/3.11.16-slim-bookworm",
+      "image": "docker.io/library/python:3.11.17-slim-bookworm@sha256:f06d01d4ba3f8ad5af45a3ec87df19c1d317d8e8961edc0fabda61811af6f7cf",
+      "registry_url": "https://registry-1.docker.io/v2/library/python/manifests/3.11.17-slim-bookworm",
       "official_image": "https://hub.docker.com/_/python",
-      "manifest_sha256": "a36c24f9cbdf4fd0f52d67f0823eeac19c2028c637cecc392d97f980d4fec56b",
+      "manifest_sha256": "f06d01d4ba3f8ad5af45a3ec87df19c1d317d8e8961edc0fabda61811af6f7cf",
       "platform_manifests": {
-        "amd64": "sha256:4b4c524dc3dce996864e030c7bd9c6b0e517597189fee48f48e05b499442444b",
-        "arm64": "sha256:bbc491ed39611eede47b1058ad4afb9ea957fb3bf4a7f1b442c6a5628ab93bdc"
+        "amd64": "sha256:8fb0b110b022c70cbe09d3ff1fb313654f31f9c814abb0d48180af56d906a199",
+        "arm64": "sha256:8f51ccb8569b75cf967ffe3e1638b9953042bf36142d7032cbb6f0696c9cd2c6"
+      },
+      "platform_configs": {
+        "amd64": "sha256:c8bff6acecbf3f8b9f87bc3193032b39ead42bcc39fb76a4875ebd89975874ee",
+        "arm64": "sha256:210294d6efde2595a5c75a057f33168eca775f5bdcba0ce761cd17593e1724d7"
+      },
+      "platform_declared_versions": {
+        "amd64": {
+          "PYTHON_VERSION": "3.11.17"
+        },
+        "arm64": {
+          "PYTHON_VERSION": "3.11.17"
+        }
       }
     },
     {
-      "image": "docker.io/library/maven:3.9.12-eclipse-temurin-17@sha256:a0603aab698040d9c94259f379ec0487da1678560748d6c7508483034033c53d",
-      "registry_url": "https://registry-1.docker.io/v2/library/maven/manifests/3.9.12-eclipse-temurin-17",
+      "image": "docker.io/library/maven:3.9.16-eclipse-temurin-17@sha256:1a352420f7aba21f5ad08df31bab55f74c013fb491f1ae8ab1dd7ff9ed698584",
+      "registry_url": "https://registry-1.docker.io/v2/library/maven/manifests/3.9.16-eclipse-temurin-17",
       "official_image": "https://hub.docker.com/_/maven",
-      "manifest_sha256": "a0603aab698040d9c94259f379ec0487da1678560748d6c7508483034033c53d",
+      "manifest_sha256": "1a352420f7aba21f5ad08df31bab55f74c013fb491f1ae8ab1dd7ff9ed698584",
       "platform_manifests": {
-        "amd64": "sha256:22e5056a4cd1e09d0373044e1a8f5f47711878cb5803b11c97729b856571a52e",
-        "arm64": "sha256:e5070a6d02d64e87af7b52c21f682ae6f24c92948819b8eb9cf7e0953ada82c4"
+        "amd64": "sha256:c97d0fa42bed8c381518d76d7ca541ff5c6427b21fa93ac6fc4bd68ffb9a258d",
+        "arm64": "sha256:a9f2cf869775553ae002e9d64b35679b9e810b335f58035031b39bf5c6429886"
+      },
+      "platform_configs": {
+        "amd64": "sha256:caa1c99435b94bae143279df3c73652ef32fb1bae6a4f21ea544da05c85c16ee",
+        "arm64": "sha256:b43cbf70bce1159bccab710baa1d56609597cb4683c65809f07889ee35dbe728"
+      },
+      "platform_declared_versions": {
+        "amd64": {
+          "JAVA_VERSION": "jdk-17.0.20.1+1"
+        },
+        "arm64": {
+          "JAVA_VERSION": "jdk-17.0.20.1+1"
+        }
       }
     },
     {
@@ -31,18 +55,48 @@
       "platform_manifests": {
         "amd64": "sha256:30a8176ab22afd141ad9cd1948ad23bdb9fb7ddae666bad4a1d188d9f479d585",
         "arm64": "sha256:2b7abd9a571c7ffc981914a91139946bd856ee57d2912d5cb339731e6009db6e"
+      },
+      "platform_configs": {
+        "amd64": "sha256:92dcf304e14bd6d156e68c5f8870ac66e0357fe57b42cfe8074e58bcfa24328b",
+        "arm64": "sha256:3144202e2ee0dd8e012e65c00df8fba71a0e71d0d8ee4d536c6ebe906656bdd2"
+      },
+      "platform_declared_versions": {
+        "amd64": {
+          "JAVA_VERSION": "jdk-17.0.20.1+1"
+        },
+        "arm64": {
+          "JAVA_VERSION": "jdk-17.0.20.1+1"
+        }
       }
     },
     {
-      "image": "docker.io/library/redis:7.2.10-alpine@sha256:395ccd7ee4db0867de0d0410f4712a9e0331cff9fdbd864f71ec0f7982d3ffe6",
-      "registry_url": "https://registry-1.docker.io/v2/library/redis/manifests/7.2.10-alpine",
+      "image": "docker.io/library/redis:7.2.16-alpine@sha256:35011bb2d34be3185c72935a847f25da61094c8a0a207ee17db6a7f8c3de9eb1",
+      "registry_url": "https://registry-1.docker.io/v2/library/redis/manifests/7.2.16-alpine",
       "official_image": "https://hub.docker.com/_/redis",
-      "manifest_sha256": "395ccd7ee4db0867de0d0410f4712a9e0331cff9fdbd864f71ec0f7982d3ffe6",
+      "manifest_sha256": "35011bb2d34be3185c72935a847f25da61094c8a0a207ee17db6a7f8c3de9eb1",
       "platform_manifests": {
-        "amd64": "sha256:292bcb7d082cefea764db04c8f795fa728881ae202772532eb83a9082166b023",
-        "arm64": "sha256:9ccb221663b4e85f99b0c47ba93af680df5a79033cccd8c7b870ea3cf99ae24e"
+        "amd64": "sha256:f2c5eb3d970536f4bd6538875f650cc8482284fc828d7de20fd25a5f16fa7fdc",
+        "arm64": "sha256:87951fbe0048663f8dbfc00b771f13f9a2081ca7564f63c26e0aa150aa79b67e"
+      },
+      "platform_configs": {
+        "amd64": "sha256:cbee660890b1f0597249a86a16410b4227b04bcfe7faeb2451809dce5a925e19",
+        "arm64": "sha256:52ea13de09db383694ab95b33a0a2aa62eee699325ff9cec345853bf697c954b"
+      },
+      "platform_declared_versions": {
+        "amd64": {
+          "REDIS_VERSION": "7.2.16"
+        },
+        "arm64": {
+          "REDIS_VERSION": "7.2.16"
+        }
       }
     }
   ],
-  "uv_wheels_source": "https://pypi.org/pypi/uv/0.13.4/json"
+  "uv_wheels_source": "https://pypi.org/pypi/uv/0.13.4/json",
+  "release_sources": {
+    "python": "https://www.python.org/downloads/release/python-31117/",
+    "redis": "https://github.com/redis/redis/releases/tag/7.2.16",
+    "maven": "https://maven.apache.org/docs/history.html",
+    "temurin": "https://github.com/adoptium/temurin17-binaries/releases/tag/jdk-17.0.20.1%2B1"
+  }
 }

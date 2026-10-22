@@ -19,6 +19,10 @@ SDK tree. No secret is supplied as a build argument or copied into an image.
 and their amd64/arm64 child manifests reviewed on 2026-10-22. The exact registry
 response bytes and `Docker-Content-Digest` header matched each SHA-256. These
 immutable pins identify content; they do not certify vulnerability status.
+The current pins use Python 3.11.17 and Redis 7.2.16. The Maven 3.9.16
+builder and Temurin 17 JRE both declare `jdk-17.0.20.1+1` on amd64 and arm64
+in their hash-bound OCI configuration metadata. Runtime execution and image
+vulnerability checks remain separate verification steps.
 Upstream sources are the official [Python](https://hub.docker.com/_/python),
 [Maven](https://hub.docker.com/_/maven),
 [Temurin](https://hub.docker.com/_/eclipse-temurin) and

@@ -72,7 +72,7 @@ suite. Go uses the locally selected toolchain and readonly module resolution.
 
 ## Owned Redis fault, recovery and load checks
 
-Build or select a trusted local Redis7.2.10 binary. The hosted workflow verifies
+Build or select a trusted local Redis7.2.16 binary. The hosted workflow verifies
 the official source archive SHA-256 before compiling it. The following command
 accepts a binary path, **not a Redis URL**:
 

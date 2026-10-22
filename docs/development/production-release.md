@@ -22,7 +22,7 @@ unresolved. Passing an increment's tests does not complete this product goal.
 
 The existing Spring qualifier now accepts `--soak-seconds` from 0 (disabled) to 3600
 and `--soak-concurrency` from 1 to 32. A clean committed checkout, Java 17, Maven,
-the locked Python environment and a trusted Redis 7.2.10 executable are required:
+the locked Python environment and a trusted Redis 7.2.16 executable are required:
 
 ```sh
 uv sync --locked --project sdk/python

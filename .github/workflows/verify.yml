@@ -23,7 +23,7 @@ jobs:
     timeout-minutes: 20
     services:
       redis:
-        image: redis:7.2.10
+        image: redis:7.2.16-alpine@sha256:35011bb2d34be3185c72935a847f25da61094c8a0a207ee17db6a7f8c3de9eb1
         ports:
           - 127.0.0.1:6379:6379
         options: >-
@@ -48,7 +48,7 @@ jobs:
       - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: '17.0.20.1+1'
       - name: Disable persistence on the fresh test Redis
         env:
           REDIS_CONTAINER: ${{ job.services.redis.id }}
@@ -66,7 +66,7 @@ jobs:
     timeout-minutes: 20
     services:
       redis:
-        image: redis:7.2.10
+        image: redis:7.2.16-alpine@sha256:35011bb2d34be3185c72935a847f25da61094c8a0a207ee17db6a7f8c3de9eb1
         ports:
           - 127.0.0.1:6379:6379
         options: >-
@@ -160,30 +160,30 @@ jobs:
       - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: '17.0.20.1+1'
       - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
           version: 0.13.4
           enable-cache: false
       - name: Frozen qualification dependencies
         run: uv sync --locked --project sdk/python
-      - name: Build owned Redis 7.2.10 from checksum-pinned source
+      - name: Build owned Redis 7.2.16 from checksum-pinned source
         run: |
           redis_state="$(mktemp -d "$RUNNER_TEMP/appguard-redis-source.XXXXXX")"
           trap 'rm -rf -- "$redis_state"' EXIT
-          redis_archive="$redis_state/redis-7.2.10.tar.gz"
-          curl --fail --silent --show-error --location --proto '=https' --tlsv1.2 --output "$redis_archive" https://download.redis.io/releases/redis-7.2.10.tar.gz
+          redis_archive="$redis_state/redis-7.2.16.tar.gz"
+          curl --fail --silent --show-error --location --proto '=https' --tlsv1.2 --output "$redis_archive" https://download.redis.io/releases/redis-7.2.16.tar.gz
           python3 - "$redis_archive" <<'PYTHON'
           import hashlib, pathlib, sys
-          expected = 'e576ad54bc53770649c556933ecd555b975e3dac422e46356102436a437b43c7'
+          expected = '960a8ec15e34ff40e57ff16837b26b33bd81f2da6d24497bb63de532a323a18e'
           if hashlib.sha256(pathlib.Path(sys.argv[1]).read_bytes()).hexdigest() != expected:
               sys.exit('Redis source checksum mismatch')
           PYTHON
           tar -xzf "$redis_archive" -C "$redis_state"
-          make -C "$redis_state/redis-7.2.10" -j2 MALLOC=libc redis-server
+          make -C "$redis_state/redis-7.2.16" -j2 MALLOC=libc redis-server
           owned_runtime="$RUNNER_TEMP/appguard-redis-owned"
           mkdir "$owned_runtime"
-          install -m 755 "$redis_state/redis-7.2.10/src/redis-server" "$owned_runtime/redis-server"
+          install -m 755 "$redis_state/redis-7.2.16/src/redis-server" "$owned_runtime/redis-server"
           printf 'APPGUARD_REDIS_SERVER=%s/redis-server\n' "$owned_runtime" >> "$GITHUB_ENV"
       - name: Qualification regressions and release tooling safety
         run: |
