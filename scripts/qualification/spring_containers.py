@@ -51,6 +51,7 @@ CAUSE_SNIPPETS = (
     ('mount_failure', (b'error mounting', b'failed to mount', b'mount callback failed')),
     ('namespace_failure', (b'failed to create namespace', b'failed to setns', b'failed to unshare')),
     ('security_profile_failure', (b'seccomp', b'apparmor')),
+    ('logging_configuration_invalid', (b'compression cannot be enabled when max file count is 1',)),
     ('container_runtime_failure', (b'oci runtime create failed', b'failed to create task')),
     ('memory_allocation_failed', (b'could not reserve enough space', b'cannot allocate memory')),
     ('native_thread_unavailable', (b'unable to create native thread',)),
@@ -359,11 +360,12 @@ def cleanup_owned(docker, project, owner):
 def validate_runtime(records, project, owner):
     require(set(records) == {'gateway', 'backend', 'redis'})
     gateway = inspect_owned(records['gateway'], project, owner, 'gateway')
-    result = {'container_ids': {}, 'image_ids': {}}
+    result = {'container_ids': {}, 'image_ids': {}, 'logging': {}}
     for name, record in records.items():
         identifier = inspect_owned(record, project, owner, name)
         require(record['State']['Running'] is True and IMAGE_ID.fullmatch(record['Image']) is not None)
         host, config = record['HostConfig'], record['Config']
+        require(log_policy_bounded(host))
         require(re.fullmatch(r'[1-9][0-9]{0,8}:[1-9][0-9]{0,8}', config['User']) is not None)
         require(host.get('Privileged') is False and host.get('ReadonlyRootfs') is True
                 and set(host.get('CapDrop') or []) == {'ALL'} and not host.get('CapAdd')
@@ -415,7 +417,15 @@ def validate_runtime(records, project, owner):
             require(host['NetworkMode'] == 'container:' + gateway and not bindings
                     and not any(published.values()))
         result['container_ids'][name], result['image_ids'][name] = identifier, record['Image']
+        result['logging'][name] = {'driver':'local','max_size_bytes':1048576,'max_files':1,'compress':False}
     return result
+
+
+def log_policy_bounded(host):
+    config = host.get('LogConfig') or {}
+    options = config.get('Config') or {}
+    return (config.get('Type') == 'local' and options.get('max-size') == '1m'
+            and options.get('max-file') == '1' and options.get('compress') == 'false')
 
 
 def source_hashes():
@@ -555,6 +565,7 @@ def diagnostic_constraints(record, name, project, gateway):
         'swap_bounded': memory is not None and swap == memory,
         'pids_bounded': pids is not None and 1 <= pids <= 256,
         'cpu_bounded': cpus is not None and 0 < cpus <= 2000000000,
+        'logging_bounded': log_policy_bounded(host),
         'tmpfs_bounded': False, 'expected_mounts': False,
         'network_namespace_expected': False, 'publication_expected': False,
     }
@@ -604,7 +615,7 @@ def diagnostic_constraints(record, name, project, gateway):
 def empty_startup_diagnostics(error):
     constraint_names = ('image_id_valid','nonroot_user','root_readonly','not_privileged','all_capabilities_dropped',
         'no_added_capabilities','no_new_privileges','private_pid_ipc','no_device_passthrough','memory_bounded',
-        'swap_bounded','pids_bounded','cpu_bounded','tmpfs_bounded','expected_mounts',
+        'swap_bounded','pids_bounded','cpu_bounded','logging_bounded','tmpfs_bounded','expected_mounts',
         'network_namespace_expected','publication_expected')
     return {'schema':1,'complete':False,'budget_exhausted':False,'discovered_containers':0,
         'ownership_rejections':0,'metadata_errors':0,'failure':failure_summary(error),
@@ -780,7 +791,7 @@ def qualification_override(private, uid, gid, project, owner):
         'volumes': [mount('server-ca.pem', '/run/secrets/server-ca.pem'),
             mount('wrong-client.pem', '/run/secrets/wrong-client.pem'),
             mount('wrong-client.key', '/run/secrets/wrong-client.key'), mount('request.bin', '/run/probe/request.bin')],
-        'logging': {'driver': 'local', 'options': {'max-size': '1m', 'max-file': '1'}}}
+        'logging': {'driver': 'local', 'options': {'max-size': '1m', 'max-file': '1', 'compress':'false'}}}
     return {'services': {'backend': {'environment': {'APPGUARD_BACKEND_COUNTER_FILE': '/run/appguard/counters.json'},
         'volumes': [mount('counters.json', '/run/appguard/counters.json', False)]}, 'probe': probe}}
 

@@ -95,6 +95,12 @@ gateway/backend/Redis deployment together. Never publish 8444 or 6379.
 Every service has a read-only root, all capabilities dropped,
 `no-new-privileges`, a private IPC namespace, bounded noexec/nosuid/nodev `/tmp`
 and bounded memory, swap, PIDs, file descriptors, CPU and log rotation. Defaults
+use Docker's `local` log driver with one file capped at 1 MiB per service,
+including the qualification probe. Rotated-file compression is explicitly
+disabled with the string option `"compress": "false"`, because the local driver
+rejects compression when only one file is retained. See the
+[local driver options](https://docs.docker.com/engine/logging/drivers/local/#options).
+Resource defaults
 are 256 MiB / 64 PIDs / 1 CPU for the gateway, 512 MiB / 128 PIDs / 1 CPU for the backend and
 128 MiB / 32 PIDs / 0.5 CPU for Redis. Tune and requalify for the actual workload.
 These configured limits are separate from measured production resource usage.

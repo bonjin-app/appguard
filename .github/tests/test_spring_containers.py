@@ -43,6 +43,7 @@ def container(name):
             'MemorySwap': 134217728, 'PidsLimit': 32, 'NanoCpus': 500000000,
             'NetworkMode': 'bridge' if name == 'gateway' else 'container:' + IDS['gateway'],
             'PortBindings': {'8443/tcp': [{'HostIp': '127.0.0.1', 'HostPort': '43123'}]} if name == 'gateway' else {},
+            'LogConfig': {'Type':'local','Config':{'max-size':'1m','max-file':'1','compress':'false'}},
             'Tmpfs': {'/tmp': 'rw,noexec,nosuid,nodev,size=16777216,mode=1777'}},
         'NetworkSettings': {'Ports': {'8443/tcp': [{'HostIp': '127.0.0.1', 'HostPort': '43123'}]} if name == 'gateway' else {'6379/tcp': None}},
         'Mounts': [{'Type': 'volume', 'Destination': '/data', 'Name': PROJECT + '_redis-data', 'Driver': 'local', 'RW': True}]
@@ -95,6 +96,34 @@ class FakeDocker:
 class ContainerQualificationTests(unittest.TestCase):
     def setUp(self):
         self.module = load_module()
+
+    def test_configured_local_log_driver_is_valid_with_one_bounded_file(self):
+        services = json.loads((ROOT / 'deploy/spring-ingress/compose.json').read_text())['services']
+        services['probe'] = self.module.qualification_override(Path('/private/owned'),10001,10001,PROJECT,OWNER)['services']['probe']
+        for name,service in services.items():
+            with self.subTest(service=name):
+                logging = service['logging']; options = logging['options']
+                self.assertEqual(logging['driver'],'local')
+                self.assertTrue(all(type(value) is str for value in options.values()))
+                files = int(options['max-file'])
+                self.assertTrue(options.get('compress','true') == 'false' or files > 1,
+                    'local driver compression requires more than one log file')
+                self.assertEqual(files,1)
+                self.assertEqual(options['max-size'],'1m')
+
+    def test_runtime_rejects_effective_log_configuration_that_exceeds_profile_or_fails_driver(self):
+        for options in ({'max-size':'1m','max-file':'1'},
+                {'max-size':'1m','max-file':'1','compress':'true'},
+                {'max-size':'2m','max-file':'1','compress':'false'}):
+            records = {name:container(name) for name in IDS}
+            records['gateway']['HostConfig']['LogConfig']['Config'] = options
+            with self.subTest(options=options),self.assertRaises(ValueError):
+                self.module.validate_runtime(records,PROJECT,OWNER)
+
+    def test_confirmed_logging_initialization_error_has_only_fixed_public_cause(self):
+        error = ('PRIVATE_PATH/PRIVATE_TOKEN: failed to create task: '
+            'compression cannot be enabled when max file count is 1')
+        self.assertEqual(self.module.safe_causes(error),['logging_configuration_invalid','container_runtime_failure'])
 
     def test_context_rejects_tcp_ssh_and_malformed_endpoints(self):
         self.module.validate_local_context({'Endpoints': {'docker': {'Host': 'unix:///var/run/docker.sock'}}})
@@ -329,6 +358,8 @@ class ContainerQualificationTests(unittest.TestCase):
         result = self.module.validate_runtime(records, PROJECT, OWNER)
         self.assertEqual(result['gateway_port'], 43123)
         self.assertEqual(result['container_ids'], IDS)
+        self.assertEqual(result['logging']['gateway'],
+            {'driver':'local','max_size_bytes':1048576,'max_files':1,'compress':False})
         self.assertNotIn('Config', result)
 
     def test_runtime_rejects_escape_root_unbounded_limits_or_writable_secret(self):

@@ -31,7 +31,8 @@
         "driver": "local",
         "options": {
           "max-size": "1m",
-          "max-file": "1"
+          "max-file": "1",
+          "compress": "false"
         }
       },
       "networks": [
@@ -148,7 +149,8 @@
         "driver": "local",
         "options": {
           "max-size": "1m",
-          "max-file": "1"
+          "max-file": "1",
+          "compress": "false"
         }
       },
       "network_mode": "service:gateway",
@@ -232,7 +234,8 @@
         "driver": "local",
         "options": {
           "max-size": "1m",
-          "max-file": "1"
+          "max-file": "1",
+          "compress": "false"
         }
       },
       "network_mode": "service:gateway",
