@@ -196,6 +196,67 @@ class ContainerSoakTests(unittest.TestCase):
             with self.subTest(change=key), self.assertRaises(ValueError):
                 self.module.sample_container_resources(docker, original, PROJECT, OWNER)
 
+    def test_mount_entry_order_is_unordered_but_every_member_and_value_remains_bound(self):
+        original = records()['backend']
+        for index, mount in enumerate(original['Mounts']):
+            mount.update(Source='/owned/PRIVATE-source-' + str(index), Propagation='rprivate', Mode='ro')
+        original['Mounts'][0]['Additional'] = {'Options': ['first', 'second']}
+        reordered = copy.deepcopy(original)
+        reordered['Mounts'].reverse()
+        self.assertEqual(self.module.restriction_fingerprint(original), self.module.restriction_fingerprint(reordered))
+        for change in ('Source', 'Destination', 'RW', 'Propagation', 'Mode', 'Type', 'Driver', 'Name',
+                'new_field', 'missing_field', 'extra_entry', 'duplicate_entry', 'missing_entry', 'nested_order'):
+            current = copy.deepcopy(original)
+            mount = current['Mounts'][0]
+            if change in ('Source', 'Destination', 'Propagation', 'Mode', 'Type', 'Driver', 'Name'):
+                mount[change] = 'changed-PRIVATE'
+            elif change == 'RW': mount['RW'] = True
+            elif change == 'new_field': mount['PRIVATE-field'] = 'PRIVATE-value'
+            elif change == 'missing_field': del mount['Source']
+            elif change == 'extra_entry': current['Mounts'].append({'Type': 'bind', 'Destination': '/unexpected', 'RW': False})
+            elif change == 'duplicate_entry': current['Mounts'].append(copy.deepcopy(mount))
+            elif change == 'missing_entry': current['Mounts'].pop()
+            else: mount['Additional']['Options'].reverse()
+            with self.subTest(change=change):
+                self.assertNotEqual(self.module.restriction_fingerprint(original), self.module.restriction_fingerprint(current))
+        for invalid in (None, {}, ['PRIVATE'], [None]):
+            current = copy.deepcopy(original); current['Mounts'] = invalid
+            with self.subTest(invalid=invalid), self.assertRaises(ValueError):
+                self.module.restriction_fingerprint(current)
+
+    def test_mount_canonicalization_does_not_reorder_config_or_host_command_lists(self):
+        original = records()['backend']
+        original['Config'].update(Cmd=['first', 'second'], Env=['A=first', 'B=second'])
+        original['HostConfig']['Binds'] = ['first', 'second']
+        for section, field in (('Config', 'Cmd'), ('Config', 'Env'), ('HostConfig', 'Binds')):
+            current = copy.deepcopy(original); current[section][field].reverse()
+            with self.subTest(section=section, field=field):
+                self.assertNotEqual(self.module.restriction_fingerprint(original), self.module.restriction_fingerprint(current))
+
+    def test_resource_inspection_accepts_reordered_mounts_but_diagnoses_changed_source_privately(self):
+        for changed in (False, True):
+            original = records(); engine = copy.deepcopy(original)
+            engine['backend']['Mounts'].reverse()
+            if changed: engine['backend']['Mounts'][0]['Source'] = '/PRIVATE-new-source'
+            class ResourceDocker(FakeDocker):
+                def call(self, args, **kwargs):
+                    if args[0] == 'stats': return stats_rows()
+                    if args[0] == 'exec': return cgroup_text()
+                    return super().call(args, **kwargs)
+            docker = ResourceDocker({row['Id']: row for row in engine.values()})
+            diagnostic = {}
+            if changed:
+                with self.assertRaises(ValueError):
+                    self.module.sample_container_resources(docker, original, PROJECT, OWNER, diagnostic)
+                self.assertFalse(diagnostic['checks']['mounts_unchanged'])
+                self.assertFalse(diagnostic['checks']['mount_source_unchanged'])
+                self.assertTrue(diagnostic['checks']['mount_destination_unchanged'])
+                self.assertFalse(diagnostic['checks']['mount_order_only_changed'])
+            else:
+                observed = self.module.sample_container_resources(docker, original, PROJECT, OWNER, diagnostic)
+                self.assertEqual(observed['backend']['restriction_sha256'], self.module.restriction_fingerprint(original['backend']))
+            self.assertNotIn('PRIVATE', json.dumps(diagnostic))
+
     def test_sustained_result_requires_exact_outcomes_zero_errors_and_bounded_time(self):
         local = self.module.helpers(); result = successful_result(local)
         self.module.normalize_soak_result(result, 1, 8, local)

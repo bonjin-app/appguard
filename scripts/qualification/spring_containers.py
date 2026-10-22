@@ -1012,8 +1012,35 @@ def normalize_cgroup(text, host, diagnostic=None):
     return result
 
 
+def canonical_mounts(mounts):
+    """Only the outer inspect array is unordered; retain all fields and duplicates.
+
+    Docker 28.0.4 container/container_unix.go GetMountPoints ranges over a map.
+    Nested lists retain their order, as do Config and HostConfig lists elsewhere.
+    """
+    require(type(mounts) is list and len(mounts) <= 64 and all(type(row) is dict for row in mounts))
+    return sorted(json.dumps(row, sort_keys=True, separators=(',', ':'), allow_nan=False) for row in mounts)
+
+
+def mount_observations(before, after):
+    same = canonical_mounts(before) == canonical_mounts(after)
+    result = {'mounts_unchanged': same, 'mount_order_only_changed': same and before != after,
+        'mount_count_unchanged': len(before) == len(after)}
+    fields = ('Type', 'Name', 'Source', 'Destination', 'Driver', 'Mode', 'RW', 'Propagation')
+    for field in fields:
+        def projection(rows):
+            return canonical_mounts([{key: row[key] for key in ('Destination', field) if key in row} for row in rows])
+        result['mount_' + field.lower() + '_unchanged'] = projection(before) == projection(after)
+    def other_fields(rows):
+        return canonical_mounts([{key: value for key, value in row.items() if key == 'Destination' or key not in fields}
+            for row in rows])
+    result['mount_other_fields_unchanged'] = other_fields(before) == other_fields(after)
+    return result
+
+
 def restriction_fingerprint(record):
-    values = {name: record[name] for name in ('Id', 'Image', 'Config', 'HostConfig', 'Mounts')}
+    values = {name: record[name] for name in ('Id', 'Image', 'Config', 'HostConfig')}
+    values['Mounts'] = canonical_mounts(record['Mounts'])
     values['ports'] = record['NetworkSettings'].get('Ports')
     return hashlib.sha256(json.dumps(values, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
 
@@ -1058,7 +1085,8 @@ def sample_container_resources(docker, original, project, owner, diagnostic=None
             diagnostic['code'] = 'restriction_changed'
             diagnostic['checks'] = {key: current[name][field] == original[name][field]
                 for field, key in (('Id', 'container_id_unchanged'), ('Image', 'image_unchanged'),
-                    ('Config', 'config_unchanged'), ('HostConfig', 'host_config_unchanged'), ('Mounts', 'mounts_unchanged'))}
+                    ('Config', 'config_unchanged'), ('HostConfig', 'host_config_unchanged'))}
+            diagnostic['checks'].update(mount_observations(original[name]['Mounts'], current[name]['Mounts']))
             diagnostic['checks']['ports_unchanged'] = current[name]['NetworkSettings'].get('Ports') == original[name]['NetworkSettings'].get('Ports')
         require(restriction_fingerprint(current[name]) == restriction_fingerprint(original[name]))
     identifiers = {name: current[name]['Id'] for name in current}
