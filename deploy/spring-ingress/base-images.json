@@ -48,17 +48,17 @@
       }
     },
     {
-      "image": "docker.io/library/eclipse-temurin:17-jre-noble@sha256:07fa0356cf354c5252947575f42ed42aa6fd921f36438b7bc77ad81c31c537dd",
-      "registry_url": "https://registry-1.docker.io/v2/library/eclipse-temurin/manifests/17-jre-noble",
+      "image": "docker.io/library/eclipse-temurin:17.0.20.1_1-jre-resolute@sha256:aa78671e02c465ed264807a33fb2b2edc9fd853d05237de270e468cf84c7b412",
+      "registry_url": "https://registry-1.docker.io/v2/library/eclipse-temurin/manifests/17.0.20.1_1-jre-resolute",
       "official_image": "https://hub.docker.com/_/eclipse-temurin",
-      "manifest_sha256": "07fa0356cf354c5252947575f42ed42aa6fd921f36438b7bc77ad81c31c537dd",
+      "manifest_sha256": "aa78671e02c465ed264807a33fb2b2edc9fd853d05237de270e468cf84c7b412",
       "platform_manifests": {
-        "amd64": "sha256:e7ee15413d334217ca732978500b310e1a0bb8a5e54d9b6dd12509f636cda99e",
-        "arm64": "sha256:475beaab016aa5f762b2230af4d7f0d8f94daad0ea858a60179296d46696931d"
+        "amd64": "sha256:3f28040954c30a9deb5cdd1116f806029c435ac6dca8c228f5b6f1d96f82b827",
+        "arm64": "sha256:705e3dfd5d950fc8a7e9e9ed9a86b465f55485eb274d0556d9c94c1dda526109"
       },
       "platform_configs": {
-        "amd64": "sha256:5eb339fa0dc333ecdb302fbacc8292df0d5bb12b13b22c74a493b0ff2b476852",
-        "arm64": "sha256:1ed5b0424242ca03d63cebc7d4578ded7cdba15cbd68cf2fe385eadd0750d5fa"
+        "amd64": "sha256:c4ab0048f2a29d911c2e3e3c4ed7d9a3fc27b2823d0049d1cded1321950578d6",
+        "arm64": "sha256:fbdfc880311bcf7c9c8d04ed854c90000632ca9c78ce391ed6829c5b198aafdf"
       },
       "platform_declared_versions": {
         "amd64": {
@@ -67,7 +67,8 @@
         "arm64": {
           "JAVA_VERSION": "jdk-17.0.20.1+1"
         }
-      }
+      },
+      "reviewed_at": "2026-10-23"
     },
     {
       "image": "docker.io/library/redis:7.2.16-alpine@sha256:35011bb2d34be3185c72935a847f25da61094c8a0a207ee17db6a7f8c3de9eb1",

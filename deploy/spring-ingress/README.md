@@ -1,7 +1,7 @@
 # Constrained Spring mTLS container profile
 
 This Compose profile packages the existing Python TLS ingress, the actual
-Maven-built Spring starter/backend and Redis. It supports Linux amd64 and arm64.
+Maven-built Spring starter/backend and Redis. It targets Linux amd64 and arm64.
 Only gateway TCP 8443 is published, on host 127.0.0.1 by default. The backend fixes
 its listener to 127.0.0.1:8444; Redis binds 127.0.0.1:6379. Both use
 `network_mode: service:gateway`, preserving their loopback transport boundary.
@@ -16,17 +16,29 @@ builds, caches, environments, keys and certificates without excluding an entire
 SDK tree. No secret is supplied as a build argument or copied into an image.
 
 [base-images.json](base-images.json) records the official registry index digests
-and their amd64/arm64 child manifests reviewed on 2026-10-22. The exact registry
-response bytes and `Docker-Content-Digest` header matched each SHA-256. These
+and their amd64/arm64 child manifests. The backend runtime row was reviewed on
+2026-10-23; the unchanged Python, Maven and Redis rows retain their 2026-10-22
+review. The exact registry response bytes and `Docker-Content-Digest` header
+matched each SHA-256. These
 immutable pins identify content; they do not certify vulnerability status.
 The current pins use Python 3.11.17 and Redis 7.2.16. The Maven 3.9.16
 builder and Temurin 17 JRE both declare `jdk-17.0.20.1+1` on amd64 and arm64
 in their hash-bound OCI configuration metadata. Runtime execution and image
 vulnerability checks remain separate verification steps.
-The gateway deliberately uses Alpine 3.24 (musl) and the backend uses Ubuntu
-24.04 Noble as their runtime OS baselines. Exact-image scans must reassess these
-contents; a newer baseline does not imply zero vulnerabilities or native binary
-dependency closure.
+The gateway uses Alpine 3.24 (musl); the backend uses the official
+`17.0.20.1_1-jre-resolute` image based on Ubuntu 26.04 Resolute.
+Ubuntu documents [generic amd64 and arm64 architecture baselines](https://ubuntu.com/project/docs/how-ubuntu-is-made/concepts/supported-architectures/#architecture-baselines)
+without optional CPU extensions; `amd64v3` is a separate opt-in variant.
+The backend keeps the same Java release and vendor JRE archive hashes recorded
+in the pinned Adoptium Dockerfiles for
+[Resolute](https://raw.githubusercontent.com/adoptium/containers/511f9356dc4d50932a0a5f8cfb0f87ed1aef4f07/17/jre/ubuntu/resolute/Dockerfile)
+and [Noble](https://raw.githubusercontent.com/adoptium/containers/511f9356dc4d50932a0a5f8cfb0f87ed1aef4f07/17/jre/ubuntu/noble/Dockerfile).
+The recorded arm64 manifest and declared Java version identify build inputs;
+they do not establish ARM execution evidence. The changed runtime requires fresh
+Docker qualification and exact-image scans. OS/dpkg and JAR metadata remain
+intact; no package deletion or scan suppression is used. This baseline change
+does not establish zero vulnerabilities, reduced image size, native dependency
+closure or production readiness.
 Upstream sources are the official [Python](https://hub.docker.com/_/python),
 [Maven](https://hub.docker.com/_/maven),
 [Temurin](https://hub.docker.com/_/eclipse-temurin) and

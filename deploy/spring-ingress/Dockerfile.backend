@@ -10,7 +10,7 @@ RUN mvn -B -ntp -Dmaven.test.skip=true -f sdk/spring-boot/pom.xml package \
        package org.apache.maven.plugins:maven-dependency-plugin:3.8.1:copy-dependencies \
        -DincludeScope=runtime -DoutputDirectory=/opt/appguard/lib
 
-FROM eclipse-temurin:17-jre-noble@sha256:07fa0356cf354c5252947575f42ed42aa6fd921f36438b7bc77ad81c31c537dd
+FROM eclipse-temurin:17.0.20.1_1-jre-resolute@sha256:aa78671e02c465ed264807a33fb2b2edc9fd853d05237de270e468cf84c7b412
 WORKDIR /opt/appguard
 COPY --from=build /src/examples/spring-ingress/backend/target/spring-ingress-backend-0.1.0-SNAPSHOT.jar /opt/appguard/backend.jar
 COPY --from=build /opt/appguard/lib/ /opt/appguard/lib/
