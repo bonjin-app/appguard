@@ -39,7 +39,7 @@
 
 ### Task 2: Native CI comparison and documented limits
 
-**Files:** Create `.github/workflows/java-native-runtime.yml`; create `deploy/spring-ingress/Dockerfile.java-runtime-probe`; modify `docs/development/production-release.md`.
+**Files:** Create `.github/workflows/java-native-runtime.yml`; create `scripts/qualification/java-runtime-probe.Dockerfile`; modify `docs/development/production-release.md`.
 
 **Interface:** Native `ubuntu-24.04` and `ubuntu-24.04-arm` jobs build/inspect immutable official baseline and experimental image. Experimental Debian digest is `sha256:62bd423aeee912639ca8ee681c2b762cb3e25137e0a92b20be455898a9f034ad`; JRE remains original Noble digest `sha256:07fa0356cf354c5252947575f42ed42aa6fd921f36438b7bc77ad81c31c537dd`. Recreate loader configuration against final OS; preserve original JRE legal/CA bytes. No apt package selection is approved by metadata alone.
 

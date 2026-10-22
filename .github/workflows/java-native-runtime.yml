@@ -7,14 +7,14 @@ on:
       - '.github/tests/test_java_runtime_inventory.py'
       - 'scripts/qualification/inspect_java_runtime.py'
       - 'scripts/qualification/spring_containers.py'
-      - 'deploy/spring-ingress/Dockerfile.java-runtime-probe'
+      - 'scripts/qualification/java-runtime-probe.Dockerfile'
   pull_request:
     paths:
       - '.github/workflows/java-native-runtime.yml'
       - '.github/tests/test_java_runtime_inventory.py'
       - 'scripts/qualification/inspect_java_runtime.py'
       - 'scripts/qualification/spring_containers.py'
-      - 'deploy/spring-ingress/Dockerfile.java-runtime-probe'
+      - 'scripts/qualification/java-runtime-probe.Dockerfile'
   workflow_dispatch:
 
 permissions:
@@ -61,7 +61,7 @@ jobs:
           elif [[ "$APPGUARD_RUNTIME" == debian-probe ]]; then
             image='appguard-java-native-probe:owned'
             docker --context default build --platform "linux/$APPGUARD_ARCH" \
-              --file deploy/spring-ingress/Dockerfile.java-runtime-probe --tag "$image" .
+              --file scripts/qualification/java-runtime-probe.Dockerfile --tag "$image" .
           else
             exit 2
           fi

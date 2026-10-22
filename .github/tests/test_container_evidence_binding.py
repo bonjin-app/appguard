@@ -69,6 +69,19 @@ class BindingTests(unittest.TestCase):
             workflow_path='.github/workflows/container-readiness.yml')
     def stage(self):
         return module.stage(self.receipt,self.status,self.output,**self.metadata)
+    def test_current_qualifier_source_tree_can_be_staged_without_widening_privacy_allowlist(self):
+        spec = importlib.util.spec_from_file_location('current_container_qualifier',
+            ROOT / 'scripts/qualification/spring_containers.py')
+        qualifier = importlib.util.module_from_spec(spec); spec.loader.exec_module(qualifier)
+        receipt = json.loads(self.receipt.read_bytes())
+        receipt['source_sha256'] = qualifier.source_hashes()
+        self.assertTrue(receipt['source_sha256'])
+        self.receipt.write_text(json.dumps(receipt))
+        status = json.loads(self.status.read_bytes())
+        status['qualification_sha256'] = hashlib.sha256(self.receipt.read_bytes()).hexdigest()
+        self.status.write_text(json.dumps(status))
+        self.assertTrue(self.stage()['staged'])
+
     def test_findings_are_staged_without_mutating_evidence(self):
         result=self.stage()
         self.assertEqual(set(p.name for p in self.output.iterdir()),{'receipt.json','image-status.json','binding.json'})
