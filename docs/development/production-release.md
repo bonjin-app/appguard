@@ -18,6 +18,41 @@ unresolved. Passing an increment's tests does not complete this product goal.
 | Mobile-attested claims | Real Apple/Google app/account evidence and supported failure cases | Provider configuration remains deployment-specific; no device proof inferred |
 | Publication and support | Approved version, registry identity, signing/provenance, support policy and release approval | No registry publication or security support commitment is implied |
 
+## Native Java runtime inventory
+
+The separate `Java native runtime inventory` workflow measures the complete
+vendor JRE on native Linux amd64 and arm64 runners. It compares the pinned
+Temurin Noble image with a diagnostic Debian 13.7-slim image containing the same
+whole JRE directory. The production backend image is unchanged. No packages,
+license records or unresolved libraries are removed to improve scan counts.
+The diagnostic image rebuilds its own OS loader cache instead of copying Noble
+system libraries or the loader cache.
+
+The inventory CLI requires Python 3.11+ and accepts an exact **local image ID**,
+not a tag or pull URL:
+
+```sh
+python3 scripts/qualification/inspect_java_runtime.py \
+  --docker-context default --image sha256:<local-image-id> \
+  --platform linux/amd64 --output /absolute/new/java-native
+```
+
+Only the bounded sanitized `java-runtime.json` report is retained. Probes use a
+fresh owned container without network, secrets or host mounts, with a numeric
+user, read-only filesystem and finite resource/time/output limits. Exit 0 means
+the implemented inventory checks passed; exit 1 retains a complete measurement
+with unresolved checks; exit 2 means setup or inventory completeness failed.
+The diagnostic workflow accepts exit 1 so missing dependencies remain available
+as failure evidence. A green collection job is **not** a native compatibility,
+vulnerability, complete dependency closure or release approval.
+
+A replacement runtime requires inspection of both architectures, explicit native
+provider packages with frozen provenance, application compatibility checks and
+unsuppressed image scans. Linker resolution does not exercise Java feature
+behavior, dynamically loaded plugins, TLS trust, DNS/NSS, timezone handling,
+font rendering or a real operator environment. Existing native-coverage and
+production-release flags remain false.
+
 ## Python build dependency verification
 
 Both Python projects record the same reviewed build-tool versions and wheel

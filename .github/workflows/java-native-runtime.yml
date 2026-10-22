@@ -1,0 +1,90 @@
+name: Java native runtime inventory
+
+on:
+  push:
+    paths:
+      - '.github/workflows/java-native-runtime.yml'
+      - '.github/tests/test_java_runtime_inventory.py'
+      - 'scripts/qualification/inspect_java_runtime.py'
+      - 'scripts/qualification/spring_containers.py'
+      - 'deploy/spring-ingress/Dockerfile.java-runtime-probe'
+  pull_request:
+    paths:
+      - '.github/workflows/java-native-runtime.yml'
+      - '.github/tests/test_java_runtime_inventory.py'
+      - 'scripts/qualification/inspect_java_runtime.py'
+      - 'scripts/qualification/spring_containers.py'
+      - 'deploy/spring-ingress/Dockerfile.java-runtime-probe'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: java-native-runtime-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  collect-native-linkage:
+    name: Collect ${{ matrix.arch }} ${{ matrix.runtime }} linkage
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        arch: [amd64, arm64]
+        runtime: [baseline, debian-probe]
+        include:
+          - arch: amd64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout exact candidate
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Test strict inventory handling
+        run: python3 .github/tests/test_java_runtime_inventory.py -v
+      - name: Build or pull fixed diagnostic input
+        env:
+          APPGUARD_ARCH: ${{ matrix.arch }}
+          APPGUARD_RUNTIME: ${{ matrix.runtime }}
+        run: |
+          case "$APPGUARD_ARCH" in amd64|arm64) ;; *) exit 2 ;; esac
+          if [[ "$APPGUARD_RUNTIME" == baseline ]]; then
+            image='eclipse-temurin:17-jre-noble@sha256:07fa0356cf354c5252947575f42ed42aa6fd921f36438b7bc77ad81c31c537dd'
+            docker --context default pull --platform "linux/$APPGUARD_ARCH" "$image"
+          elif [[ "$APPGUARD_RUNTIME" == debian-probe ]]; then
+            image='appguard-java-native-probe:owned'
+            docker --context default build --platform "linux/$APPGUARD_ARCH" \
+              --file deploy/spring-ingress/Dockerfile.java-runtime-probe --tag "$image" .
+          else
+            exit 2
+          fi
+          docker --context default image inspect --format '{{.Id}}' "$image" > "$RUNNER_TEMP/appguard-java-image-id"
+      - name: Collect complete inventory and retain unresolved dependencies
+        env:
+          APPGUARD_ARCH: ${{ matrix.arch }}
+        run: |
+          image_id="$(cat "$RUNNER_TEMP/appguard-java-image-id")"
+          set +e
+          python3 scripts/qualification/inspect_java_runtime.py \
+            --image "$image_id" --platform "linux/$APPGUARD_ARCH" --docker-context default \
+            --output "$RUNNER_TEMP/appguard-java-native"
+          result=$?
+          set -e
+          # Exit 1 is a complete measurement containing unresolved native checks.
+          # This diagnostic workflow never approves a replacement production image.
+          if (( result > 1 )); then exit "$result"; fi
+      - name: Retain sanitized native inventory only
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: java-native-${{ matrix.arch }}-${{ matrix.runtime }}-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: ${{ runner.temp }}/appguard-java-native/java-runtime.json
+          if-no-files-found: error
+          retention-days: 7
