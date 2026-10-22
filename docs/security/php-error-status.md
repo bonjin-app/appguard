@@ -22,6 +22,14 @@ remain unchanged; arbitrary status overrides are intentionally no longer an
 extension point. Application response policy and manually constructed response
 objects remain outside this exception contract.
 
+The adapter also reconstructs a normalized base error at failure publication.
+On PHP 8.4+ an ordinary subclass can initialize inherited readonly fields without
+calling the parent constructor, so constructor checks alone cannot enforce this
+boundary. Caught subclass reasons/statuses are revalidated; absent fields default
+to `INVALID_REQUEST` and its 400 status instead of escaping as an uninitialized
+property error. Unknown subclass reason text is never copied into the response.
+Downstream application exceptions still propagate outside this failure mapping.
+
 This corrects a trusted-callback integration failure, not an authentication or
 authorization bypass. Failed capture already prevents trusted identity/key/clock,
 replay and downstream execution. The change preserves that ordering and does not
@@ -36,6 +44,12 @@ must return the exact fixed status/body without mutating the native request or
 calling identity/key/clock/replay/downstream dependencies. A genuine signed
 corpus request succeeds with the same store after these failures, and its next
 duplicate is rejected by the real in-memory replay store.
+
+Four more scenarios cover ordinary subclass status/reason initialization and a
+subclass with no initialized fields. The inherited-field fixtures use parent
+construction on PHP 8.2/8.3, where the tested subclass initialization capability
+is unavailable. Execution here covers PHP 8.5.11 only, including the actual
+inherited-field bypass; it is not a fresh compatibility run on older PHP.
 
 Standalone execution can load an installed Composer autoloader with copied
 public conformance fixtures, so the same scenarios can check a standalone package

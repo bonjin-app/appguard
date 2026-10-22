@@ -46,7 +46,12 @@ final class HttpAdapter {
             if($key!==null&&(!$key instanceof KeyRecord||!$key->validContract()))throw new VerificationError('KEY_RESOLVER_UNAVAILABLE');
             try{$now=($this->clock)();}catch(\Throwable){throw new VerificationError('VERIFICATION_UNAVAILABLE');}
             $result=Verifier::verify($request,$parsed->parameters,$parsed->signature,$this->origin,$this->app_id,$subject,$now,$key,$this->replay);
-        }catch(VerificationError $error){return new HttpFailure($error->status,$error->reason);}catch(\Throwable){return new HttpFailure(503,'VERIFICATION_UNAVAILABLE');}
+        }catch(VerificationError $error){
+            // A subclass can omit parent construction or initialize its own fields.
+            // Normalize again at publication, without trusting exception metadata.
+            $failure=new VerificationError($error->reason??'INVALID_REQUEST',$error->status??null);
+            return new HttpFailure($failure->status,$failure->reason);
+        }catch(\Throwable){return new HttpFailure(503,'VERIFICATION_UNAVAILABLE');}
         // Deliberately outside the verification error handler: downstream behavior belongs to the app.
         return $next($nativeRequest,new VerifiedRequest($request,$result));
     }

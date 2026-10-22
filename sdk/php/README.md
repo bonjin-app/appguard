@@ -15,6 +15,9 @@ Install this local package through a Composer path repository or copy the versio
 failures, and 403 for the remaining verification failures. Its optional status
 argument permits only 413 with normalized `INVALID_REQUEST`, for content overflow.
 Other overrides are ignored, including success, redirect and out-of-range values.
+The adapter normalizes caught SDK errors again before publishing a failure,
+including subclass fields and missing initialization. An uninitialized error
+falls back to 400 `INVALID_REQUEST`; subclass reason text is never copied raw.
 The constructor signature is unchanged; callers that previously used arbitrary
 overrides must implement unrelated response policy in their application. See the
 [error-status verification](../../docs/security/php-error-status.md).

@@ -31,7 +31,8 @@ return (static function():int{
             $verified->request->target===$vector['request']['target']];
     };
     $failure=static function(string $label,callable $capture,string $reason,int $status)use($adapter,$native,$next,$check,&$counts,$zero):void{
-        $out=$adapter->handle($native,$capture,$next);
+        try{$out=$adapter->handle($native,$capture,$next);}
+        catch(Throwable $error){$check(false,$label.'/escaped/'.get_class($error));return;}
         $check($out instanceof HttpFailure&&$out->status===$status&&$out->body===json_encode(['code'=>$reason])&&
             $counts===$zero&&get_object_vars($native)===['existing'=>'preserved'],$label);
     };
@@ -52,6 +53,20 @@ return (static function():int{
             'INVALID_REQUEST',$override===413?413:400);
     $failure('generic-exception',static fn()=>throw new RuntimeException('TEST_ONLY_SECRET'),'INVALID_REQUEST',400);
     $failure('type-error',static fn()=>throw new TypeError('TEST_ONLY_SECRET'),'INVALID_REQUEST',400);
+    // PHP 8.4+ lets ordinary subclasses initialize inherited readonly properties.
+    // Older supported runtimes use parent construction for these same responses.
+    foreach([['INVALID_REQUEST',200,400],['TEST_ONLY_SECRET',302,400],['REPLAY_DETECTED',413,403]] as [$reason,$override,$status]){
+        $capture=static fn()=>throw new class($reason,$override) extends VerificationError{
+            public function __construct(string $reason,int $status){
+                if(PHP_VERSION_ID>=80400){$this->reason=$reason;$this->status=$status;}
+                else parent::__construct($reason,$status);
+            }
+        };
+        $failure('subclass/'.$reason,$capture,$reason==='TEST_ONLY_SECRET'?'INVALID_REQUEST':$reason,$status);
+    }
+    $failure('uninitialized-subclass',static fn()=>throw new class extends VerificationError{
+        public function __construct(){}
+    },'INVALID_REQUEST',400);
     $failure('real-header-overflow',static fn()=>Wire::framing([['Content-Length','1048577']]),'INVALID_REQUEST',413);
     $failure('real-captured-overflow',static fn()=>new HttpEvidence(new RequestInput('POST','/',[],str_repeat('x',1048577)),true),'INVALID_REQUEST',413);
     $stream=fopen('php://temp','w+b');fwrite($stream,str_repeat('x',1048577));rewind($stream);
