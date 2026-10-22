@@ -51,3 +51,58 @@ The original stream can have been consumed to EOF; remaining readable does not
 mean its position was restored. Local framework/fixture/package evidence does not
 establish remote CI, production performance, external audit, live provider/device
 verification, package publication or deployment.
+
+## Local verification and independent review (2026-10-22)
+
+The reviewed runtime commit is
+`f7dd5f1687e2f73b0c589f662f2399aac9f04c06`, on the independent local-main base
+`7983d9aea57cdd8b805a64a81e098102a7f6b227`. SDK 10.0.402 ran locked restores
+from a private copy of already cached NuGet dependencies, excluding older local
+AppGuard packages. Development certificate generation and telemetry were disabled;
+no runtime installer or external package service was invoked. Local restores
+disabled NuGet audit network access; these checks are not a vulnerability-feed audit.
+
+The baseline passed all 216 SDK tests. Seven new cases first produced five
+expected failures because authentication ran once instead of zero times, with
+two valid-body controls passing. The same seven cases passed after the checkpoint
+was added. The complete Release suite passed 223 tests with zero failures, errors
+or skips, and the solution build completed without warnings or errors. After the
+runtime commit, the tested Release assembly was packed without rebuilding.
+
+The local NuGet SHA-256 is
+`bf01c3ae62002315f5819f2fa3b8a786a9583a13d4cb8e4f8dae475a1e91d99b`; its library DLL SHA-256 is
+`2c3ff5e67ba35d97fc0ea411ffb957061f79bd1e1af3e6dba2883b3988d5c6f7`. All seven archive entries and retained unpacked snapshots were
+verified. README/LICENSE match the source, and the package DLL equals the reviewed
+source build, installed-cache DLL and actual loaded consumer DLL. The consumer
+lock's SHA-512 content hash matches the complete NuGet archive.
+
+The locked NuGet consumer has no source project reference and passed 224 tests:
+the same 223 behavioral tests plus one actual assembly-origin/hash control. These
+counts overlap and must not be summed as independent security scenarios. Existing
+Kestrel loopback cases run in both suites; the new seven cases specifically prove
+the deterministic host-feature handoff, rather than a new physical disconnect
+or deployed ingress guarantee.
+
+Raw logs, TRX results, locked consumer sources, package/DLL/lock hashes and the
+independent review receipt are retained under
+`.superpowers/evidence/2026-10-22-dotnet-body-handoff/` in the primary checkout.
+The final verification-record commit changes only this document; reviewed runtime,
+SDK README and the retained NuGet artifact remain unchanged. Assembly byte identity
+is checked for the reviewed build/package/consumer. Builds in other checkouts or
+a later Git revision can have different metadata or source paths.
+
+An independent security reviewer found no actionable findings. Fresh review runs
+passed 223 source tests, 224 installed-consumer tests and five independently
+written installed-package controls, with no failures, skips or harness errors.
+The Release solution build had zero warnings/errors. Independent controls covered
+after-EOF cancellation with a replaced context token and throwing dependencies,
+exact empty and maximum 1 MiB signed bodies with the live captured token,
+downstream-exception stream ownership, and installed assembly provenance.
+The reviewer also verified all seven NuGet entries, dependency-lock hashes and
+source-build/cache/consumer/probe DLL identity.
+
+The independent receipt SHA-256 is
+`a1098b51130ed8481ed001060117d364bf86043825ce62e19ccfeb8d316b4cea`.
+Cancellation remains cooperative, including the documented check-and-dispatch
+race. No remote CI, deployment, provider, physical-device or external audit
+evidence was collected in this stage.
