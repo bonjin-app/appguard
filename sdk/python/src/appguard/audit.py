@@ -1,7 +1,10 @@
 """Allowlisted v0 audit events; no subject, token, body, nonce, key, or IP fields."""
+import inspect
 import json
 import re
 from collections.abc import Callable
+from concurrent.futures import Future
+from types import CoroutineType
 
 from .policy import PolicyContext, PolicyDecision, PolicyError, _time, _valid_decision
 
@@ -53,8 +56,11 @@ def audit_event(decision: PolicyDecision, *, event_id: str, app_id: str, now: in
 class JsonAuditSink:
     """Send one compact JSON string to an injected callback; owns no I/O or state.
 
-    Callback failures raise a fixed redacted error. The host application decides
-    how audit availability affects request processing and manages storage/retention.
+    The callback must complete synchronously. Awaitable/Future results and callback
+    failures raise a fixed redacted error; this sink never schedules async work.
+    The host application decides how audit availability affects request processing
+    and manages storage/retention. Returned unstarted native coroutines transfer
+    ownership to the sink; all other async objects remain host-owned.
     """
 
     def __init__(self, callback: Callable[[str], object]):
@@ -67,7 +73,13 @@ class JsonAuditSink:
         event = audit_event(decision, event_id=event_id, app_id=app_id, now=now, context=context)
         failed = False
         try:
-            self._callback(json.dumps(event, separators=(",", ":"), sort_keys=True))
+            result = self._callback(json.dumps(event, separators=(",", ":"), sort_keys=True))
+            if inspect.isawaitable(result) or isinstance(result, Future):
+                failed = True
+                # Close only a native coroutine that has never run. Never invoke
+                # arbitrary host cleanup, cancel Futures, or resume async work.
+                if type(result) is CoroutineType and inspect.getcoroutinestate(result) == inspect.CORO_CREATED:
+                    result.close()
         except Exception:
             failed = True
         # Raise outside the handler so the exception does not retain secret data

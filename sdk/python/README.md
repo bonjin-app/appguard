@@ -133,6 +133,13 @@ Locally tested on Python 3.11.15 with cryptography 50.0.2, FastAPI 0.150.0 / Sta
 The explicit experimental SQLite-backed enrollment service, deterministic policy
 presets and allowlisted audit API are documented in
 [enrollment/policy integration](../../docs/security/enrollment-policy.md).
+`JsonAuditSink` requires a synchronous callback. Returning an awaitable or
+`concurrent.futures.Future` raises fixed `AUDIT_UNAVAILABLE` instead of silently
+reporting delivery. The sink never schedules/awaits async work; it closes only an
+exact unstarted native coroutine. Other async results remain host-owned. Normal
+return does not prove durable storage, and failure does not imply rollback or
+safe retry. See the [audit callback boundary](../../docs/security/python-audit-callback.md).
+
 Completion rechecks the trusted clock after acquiring the final SQLite write
 transaction, so a challenge or provider verdict that expired while waiting for
 that lock cannot create a credential. Expiry or clock failure leaves the pending

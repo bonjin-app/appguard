@@ -94,6 +94,13 @@ else:
 
 `audit` is an explicitly configured `JsonAuditSink(callback)` whose lifecycle/retention the application owns. The example's trusted state must not be populated from submitted JSON/header labels. Default `PolicyContext()` has missing authentication and verification, so it cannot permit a request. Only explicit Basic signature opt-out supports an existing authenticated server without a Client SDK; it still requires actual authentication and resource authorization.
 
+The audit callback must finish synchronously. An awaitable or
+`concurrent.futures.Future` return raises fixed `AUDIT_UNAVAILABLE`; the sink
+never schedules or waits for async delivery. Only an unstarted native coroutine
+is closed; other async work remains host-owned. The application decides how to
+handle audit failure and uncertain writes. See the
+[Python callback contract](python-audit-callback.md).
+
 The policy's `rate_limited` field consumes an existing limiter's verdict; it does not install a limiter. Local root/debugger/hook hints can cause observation/step-up/denial but cannot create trusted identity or attestation. All six server SDKs now pass the same42 portable policy cases. Their explicit APIs remain independent of signature middleware and do not silently select these presets.
 
 ## Verification boundary
