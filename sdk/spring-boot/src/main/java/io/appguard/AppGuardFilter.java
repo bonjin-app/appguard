@@ -77,9 +77,11 @@ public final class AppGuardFilter implements Filter {
             // Some wrappers override only the single-value getter, or only lowercase lookups.
             Canonical.require(Objects.equals(values.get(0),request.getHeader(name))
                 && Objects.equals(values.get(0),request.getHeader(lower)),"INVALID_REQUEST");
-            Enumeration<String> actual=request.getHeaders(lower);Canonical.require(actual!=null,"INVALID_REQUEST");
-            for(String value:values)Canonical.require(actual.hasMoreElements() && Objects.equals(value,actual.nextElement()),"INVALID_REQUEST");
-            Canonical.require(!actual.hasMoreElements(),"INVALID_REQUEST");
+            for(String lookup:List.of(name,lower)){
+                Enumeration<String> actual=request.getHeaders(lookup);Canonical.require(actual!=null,"INVALID_REQUEST");
+                for(String value:values)Canonical.require(actual.hasMoreElements() && Objects.equals(value,actual.nextElement()),"INVALID_REQUEST");
+                Canonical.require(!actual.hasMoreElements(),"INVALID_REQUEST");
+            }
         }
     }
     private static Map<String,List<String>> headerValues(List<Header> headers){

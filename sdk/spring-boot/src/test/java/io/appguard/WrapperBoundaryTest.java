@@ -17,7 +17,7 @@ class WrapperBoundaryTest {
     static final byte[] BODY="{\"role\":\"reader\"}".getBytes(StandardCharsets.UTF_8);
     static final Clock CLOCK=Clock.fixed(Instant.ofEpochSecond(SignedRequests.NOW),ZoneOffset.UTC);
 
-    @ParameterizedTest @ValueSource(strings={"method","uri","query","context","servlet","pathInfo","headers","header","lowerHeader","missingHeader","extraHeader","valueOrder","contentType","encoding"})
+    @ParameterizedTest @ValueSource(strings={"method","uri","query","context","servlet","pathInfo","headers","originalHeaders","header","lowerHeader","missingHeader","extraHeader","valueOrder","contentType","encoding"})
     void divergentInitialWrapperRejectsBeforeTrustedWorkAndPreservesNonce(String change) throws Exception {
         MockHttpServletRequest raw=SignedRequests.request(BODY,"/public?x=1&x=2","application/json");
         raw.addHeader("X-Trace","one");raw.addHeader("X-Trace","two");
@@ -32,8 +32,8 @@ class WrapperBoundaryTest {
             @Override public String getContextPath(){return change.equals("context")?"/admin":super.getContextPath();}
             @Override public String getServletPath(){return change.equals("servlet")?"/admin":super.getServletPath();}
             @Override public String getPathInfo(){return change.equals("pathInfo")?"/admin":super.getPathInfo();}
-            @Override public Enumeration<String> getHeaderNames(){List<String> names=Collections.list(super.getHeaderNames());if(change.equals("missingHeader"))names.removeIf(n->n.equalsIgnoreCase("Authorization"));if(change.equals("extraHeader"))names.add("X-Added");return Collections.enumeration(names);}
-            @Override public Enumeration<String> getHeaders(String name){if(change.equals("extraHeader")&&name.equalsIgnoreCase("X-Added"))return Collections.enumeration(List.of("changed"));if(change.equals("valueOrder")&&name.equalsIgnoreCase("X-Trace"))return Collections.enumeration(List.of("two","one"));return change.equals("headers")&&name.equalsIgnoreCase("Authorization")?Collections.enumeration(List.of("Bearer OTHER_SECRET")):super.getHeaders(name);}
+            @Override public Enumeration<String> getHeaderNames(){List<String> names=Collections.list(super.getHeaderNames());if(change.equals("originalHeaders"))names=names.stream().map(n->n.toLowerCase(Locale.ROOT)).toList();if(change.equals("missingHeader"))names.removeIf(n->n.equalsIgnoreCase("Authorization"));if(change.equals("extraHeader"))names.add("X-Added");return Collections.enumeration(names);}
+            @Override public Enumeration<String> getHeaders(String name){if(change.equals("originalHeaders")&&name.equals("Authorization"))return Collections.enumeration(List.of("Bearer OTHER_SECRET"));if(change.equals("extraHeader")&&name.equalsIgnoreCase("X-Added"))return Collections.enumeration(List.of("changed"));if(change.equals("valueOrder")&&name.equalsIgnoreCase("X-Trace"))return Collections.enumeration(List.of("two","one"));return change.equals("headers")&&name.equalsIgnoreCase("Authorization")?Collections.enumeration(List.of("Bearer OTHER_SECRET")):super.getHeaders(name);}
             @Override public String getHeader(String name){return (change.equals("header")&&name.equalsIgnoreCase("Authorization")||change.equals("lowerHeader")&&name.equals("authorization"))?"Bearer OTHER_SECRET":super.getHeader(name);}
             @Override public String getContentType(){return change.equals("contentType")?"text/plain":super.getContentType();}
             @Override public String getCharacterEncoding(){return change.equals("encoding")?"UTF-16":super.getCharacterEncoding();}

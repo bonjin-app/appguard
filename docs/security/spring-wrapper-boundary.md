@@ -20,7 +20,7 @@ is captured alongside URI/query/headers and used by the verifier.
 
 Complete header name/value maps must agree: names are case-insensitive and name
 ordering is irrelevant; value ordering, multiplicity and bytes remain exact.
-Direct `getHeader` and lowercase `getHeaders` lookups must also agree with the
+Direct `getHeader` and `getHeaders` lookups (original and lowercase names) must also agree with the
 captured values. Outer enumeration uses the existing 64-value/16-KiB budget.
 Missing evidence and ordinary getter exceptions use the same fixed failure.
 This conservative rule also rejects rewriting/hiding unsigned headers.
