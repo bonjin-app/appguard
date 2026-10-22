@@ -96,6 +96,51 @@ class ContainerSoakTests(unittest.TestCase):
             with self.subTest(broken=broken[:40]), self.assertRaises(ValueError):
                 self.module.normalize_cgroup(broken, host)
 
+    def test_valid_kernel_cpu_stat_extensions_are_numeric_bounded_and_not_retained(self):
+        # Linux kernel/cgroup/rstat.c emits the dotted core-scheduling metric.
+        # https://lkml.iu.edu/2607.2/04935.html documents both additional fields.
+        host = records()['redis']['HostConfig']
+        extended = cgroup_text().replace('[cpu.max]', 'nice_usec 12\ncore_sched.force_idle_usec 34\n[cpu.max]')
+        self.assertEqual(self.module.normalize_cgroup(extended, host), self.module.normalize_cgroup(cgroup_text(), host))
+        for line in ('core_sched.force_idle_usec PRIVATE', 'core_sched..force_idle_usec 1',
+                '.core_sched 1', 'core_sched/force_idle_usec 1', 'x' * 65 + ' 1',
+                'core_sched.force_idle_usec 1\ncore_sched.force_idle_usec 2'):
+            broken = cgroup_text().replace('[cpu.max]', line + '\n[cpu.max]')
+            with self.subTest(line=line), self.assertRaises(ValueError):
+                self.module.normalize_cgroup(broken, host)
+
+    def test_resource_failure_retains_only_fixed_stage_role_and_validated_observations(self):
+        for failure in ('cgroup', 'fingerprint', 'stats'):
+            original = records(); engine = copy.deepcopy(original)
+            if failure == 'fingerprint':
+                engine['redis']['HostConfig']['Dns'] = ['PRIVATE-config-value']
+            class ResourceDocker(FakeDocker):
+                def call(self, args, **kwargs):
+                    if args[0] == 'stats':
+                        return stats_rows().replace(IDS['backend'], 'PRIVATE-ID') if failure == 'stats' else stats_rows()
+                    if args[0] == 'exec':
+                        return cgroup_text().replace('[pids.max]\n32', '[pids.max]\n64')
+                    return super().call(args, **kwargs)
+            docker = ResourceDocker({record['Id']: record for record in engine.values()})
+            local = self.module.helpers(); report = self.module.new_operational(1, 8)
+            with tempfile.TemporaryDirectory() as directory, self.assertRaises(ValueError):
+                self.module.run_operational(report, 1, 8, docker, original, PROJECT, OWNER, 1, None,
+                    None, local, Path(directory))
+            observed = report['resources']['sampling_diagnostic']
+            self.assertEqual(observed['stage'], {'cgroup': 'cgroup_normalization',
+                'fingerprint': 'restriction_comparison', 'stats': 'stats_normalization'}[failure])
+            if failure == 'cgroup':
+                self.assertEqual(observed['role'], 'gateway')
+                self.assertEqual(observed['code'], 'cgroup_limits')
+                self.assertEqual(observed['numbers']['pids_limit'], 64)
+                self.assertFalse(observed['checks']['pids_limit_matches'])
+            elif failure == 'fingerprint':
+                self.assertEqual(observed['role'], 'redis')
+                self.assertFalse(observed['checks']['host_config_unchanged'])
+            else:
+                self.assertEqual(observed['code'], 'stats_identity')
+            self.assertNotIn('PRIVATE', json.dumps(report))
+
     def test_effective_cgroup_swap_requires_present_numeric_zero_limit_and_usage(self):
         host = records()['redis']['HostConfig']
         result = self.module.normalize_cgroup(cgroup_text(), host)

@@ -900,24 +900,36 @@ def byte_quantity(value):
     return result
 
 
-def normalize_stats(text, identifiers):
+def normalize_stats(text, identifiers, diagnostic=None):
     """CLI memory excludes inactive file cache on Linux; quantities are rounded."""
+    def mark(code, field=None):
+        if diagnostic is not None: diagnostic.update(code=code, field=field)
+    mark('stats_schema')
     require(type(text) is str and len(text) <= 32768 and set(identifiers) == {'gateway', 'backend', 'redis'})
     roles = {identifier: role for role, identifier in identifiers.items()}
     require(len(roles) == 3 and all(ID.fullmatch(value) is not None for value in roles))
     result = {}
     for line in text.splitlines():
+        mark('stats_json')
         row = json.loads(line)
+        mark('stats_identity', 'ID')
+        if diagnostic is not None: diagnostic['role'] = None
         require(type(row) is dict and row.get('ID') in roles and roles[row['ID']] not in result)
+        if diagnostic is not None: diagnostic['role'] = roles[row['ID']]
+        mark('stats_cpu', 'CPUPerc')
         cpu = row.get('CPUPerc')
         require(type(cpu) is str and re.fullmatch(r'[0-9]{1,6}(?:\.[0-9]{1,6})?%', cpu) is not None)
         cpu = float(cpu[:-1]); require(cpu <= 100000)
+        mark('stats_memory', 'MemUsage')
         memory = row['MemUsage'].split(' / '); require(len(memory) == 2)
         used, limit = map(byte_quantity, memory)
         require(0 < limit and used <= limit)
+        mark('stats_pids', 'PIDs')
         result[roles[row['ID']]] = {'cpu_percent': cpu, 'memory_bytes': used,
             'memory_limit_bytes': limit, 'pids': integer(row['PIDs'])}
+    mark('stats_roles')
     require(set(result) == set(identifiers))
+    mark(None)
     return result
 
 
@@ -928,11 +940,15 @@ CGROUP_READBACK = ('test -f /sys/fs/cgroup/cgroup.controllers || exit 1; '
     'printf "[%s]\\n" "$name"; cat "/sys/fs/cgroup/$name" || exit 1; done')
 
 
-def normalize_cgroup(text, host):
+def normalize_cgroup(text, host, diagnostic=None):
+    def mark(code, field=None):
+        if diagnostic is not None: diagnostic.update(code=code, field=field)
+    mark('cgroup_schema')
     require(type(text) is str and len(text) <= 8192)
     sections = {}; current = None
     for line in text.splitlines():
         if line.startswith('[') and line.endswith(']'):
+            mark('cgroup_sections')
             current = line[1:-1]
             require(current in CGROUP_FILES and current not in sections)
             sections[current] = []
@@ -941,22 +957,43 @@ def normalize_cgroup(text, host):
             sections[current].append(line)
     require(set(sections) == set(CGROUP_FILES))
     def single(name):
+        mark('cgroup_scalar', name)
         require(len(sections[name]) == 1)
         return integer(sections[name][0])
-    def fields(name):
+    def fields(name, required):
         result = {}
         for line in sections[name]:
             parts = line.split()
-            require(len(parts) == 2 and re.fullmatch(r'[a-z_]+', parts[0]) is not None and parts[0] not in result)
+            mark('cgroup_metric_key', name)
+            # cpu.stat may contain core_sched.force_idle_usec. Kernel fields
+            # are extensible; unknown numeric fields are validated then dropped.
+            require(len(parts) == 2 and len(parts[0]) <= 64
+                and re.fullmatch(r'[a-z_][a-z0-9_]*(?:\.[a-z_][a-z0-9_]*)*', parts[0]) is not None
+                and parts[0] not in result)
+            mark('cgroup_metric_value', parts[0] if parts[0] in required else 'additional_metric')
             result[parts[0]] = integer(parts[1])
+        mark('cgroup_required_fields', name)
+        require(required <= result.keys())
         return result
+    mark('cgroup_cpu_quota', 'cpu.max')
     require(len(sections['cpu.max']) == 1)
     quota = sections['cpu.max'][0].split(); require(len(quota) == 2)
     quota, period = map(integer, quota)
     limit, pids = single('memory.max'), single('pids.max')
+    if diagnostic is not None:
+        diagnostic['numbers'] = {'memory_limit_bytes': limit, 'expected_memory_limit_bytes': host['Memory'],
+            'pids_limit': pids, 'expected_pids_limit': host['PidsLimit'], 'cpu_quota_usec': quota,
+            'cpu_period_usec': period, 'expected_nano_cpus': host['NanoCpus']}
+        diagnostic['checks'] = {'memory_limit_matches': limit == host['Memory'],
+            'pids_limit_matches': pids == host['PidsLimit'],
+            'cpu_limit_matches': period > 0 and quota * 1000000000 == host['NanoCpus'] * period}
+    mark('cgroup_limits')
     require(limit == host['Memory'] and pids == host['PidsLimit'] and period > 0
             and quota * 1000000000 == host['NanoCpus'] * period)
-    events, cpu = fields('memory.events'), fields('cpu.stat')
+    events = fields('memory.events', {'oom', 'oom_kill', 'max'})
+    cpu = fields('cpu.stat', {'usage_usec', 'throttled_usec', 'nr_throttled', 'nr_periods'})
+    if diagnostic is not None:
+        diagnostic['checks']['core_scheduling_metric_present'] = 'core_sched.force_idle_usec' in cpu
     result = {'version': 2, 'memory_bytes': single('memory.current'), 'memory_limit_bytes': limit,
         'swap_limit_bytes': single('memory.swap.max'), 'swap_bytes': single('memory.swap.current'),
         'memory_oom_events': events['oom'], 'memory_oom_kills': events['oom_kill'],
@@ -964,8 +1001,14 @@ def normalize_cgroup(text, host):
         'cpu_throttled_usec': cpu['throttled_usec'], 'cpu_throttled_periods': cpu['nr_throttled'],
         'cpu_periods': cpu['nr_periods'], 'cpu_quota_usec': quota, 'cpu_period_usec': period,
         'pids': single('pids.current'), 'pids_limit': pids}
+    if diagnostic is not None:
+        diagnostic['numbers'].update({key: result[key] for key in ('memory_bytes', 'pids', 'swap_limit_bytes', 'swap_bytes')})
+        diagnostic['checks'].update(memory_usage_bounded=result['memory_bytes'] <= limit,
+            pids_usage_bounded=result['pids'] <= pids, swap_disabled=result['swap_limit_bytes'] == result['swap_bytes'] == 0)
+    mark('cgroup_usage_and_swap')
     require(result['memory_bytes'] <= limit and result['pids'] <= pids
             and result['swap_limit_bytes'] == result['swap_bytes'] == 0)
+    mark(None)
     return result
 
 
@@ -986,7 +1029,7 @@ def container_state(record):
         'restart_count': record['RestartCount'], 'started_at': started}
 
 
-def sample_container_resources(docker, original, project, owner):
+def sample_container_resources(docker, original, project, owner, diagnostic=None):
     """Twelve-second budget; exact owned IDs only, no host process/env/log reads."""
     deadline = time.monotonic() + 12
     class Reader:
@@ -995,21 +1038,51 @@ def sample_container_resources(docker, original, project, owner):
             require(remaining > 0)
             return docker.call(args, timeout=min(timeout, remaining), limit=limit)
     reader = Reader()
-    current = {name: inspect_container(reader, record['Id'], project, owner, name)
-        for name, record in original.items()}
+    def stage(name, role=None):
+        if diagnostic is not None:
+            diagnostic.clear()
+            diagnostic.update(stage=name, role=role, code=None, field=None, numbers={}, checks={})
+    require(set(original) == {'gateway', 'backend', 'redis'})
+    current = {}
+    for name, record in original.items():
+        stage('ownership_inspection', name)
+        current[name] = inspect_container(reader, record['Id'], project, owner, name)
+    stage('runtime_validation')
+    if diagnostic is not None:
+        diagnostic['constraints'] = {name: diagnostic_constraints(record, name, project, original['gateway']['Id'])[0]
+            for name, record in current.items()}
     validate_runtime(current, project, owner)
-    require(all(restriction_fingerprint(current[name]) == restriction_fingerprint(original[name]) for name in original))
+    for name in original:
+        stage('restriction_comparison', name)
+        if diagnostic is not None:
+            diagnostic['code'] = 'restriction_changed'
+            diagnostic['checks'] = {key: current[name][field] == original[name][field]
+                for field, key in (('Id', 'container_id_unchanged'), ('Image', 'image_unchanged'),
+                    ('Config', 'config_unchanged'), ('HostConfig', 'host_config_unchanged'), ('Mounts', 'mounts_unchanged'))}
+            diagnostic['checks']['ports_unchanged'] = current[name]['NetworkSettings'].get('Ports') == original[name]['NetworkSettings'].get('Ports')
+        require(restriction_fingerprint(current[name]) == restriction_fingerprint(original[name]))
     identifiers = {name: current[name]['Id'] for name in current}
-    stats = normalize_stats(reader.call(['stats', '--no-stream', '--no-trunc', '--format', '{{json .}}',
-        *identifiers.values()], timeout=5, limit=32768), identifiers)
+    stage('stats_readback')
+    text = reader.call(['stats', '--no-stream', '--no-trunc', '--format', '{{json .}}',
+        *identifiers.values()], timeout=5, limit=32768)
+    stage('stats_normalization')
+    stats = normalize_stats(text, identifiers, diagnostic)
     result = {}
     for name, record in current.items():
-        group = normalize_cgroup(reader.call(['exec', record['Id'], '/bin/sh', '-c', CGROUP_READBACK], limit=8192), record['HostConfig'])
+        stage('cgroup_readback', name)
+        text = reader.call(['exec', record['Id'], '/bin/sh', '-c', CGROUP_READBACK], limit=8192)
+        stage('cgroup_normalization', name)
+        group = normalize_cgroup(text, record['HostConfig'], diagnostic)
         # Docker's rounded display is descriptive; exact limits come from cgroup v2.
+        if diagnostic is not None:
+            diagnostic.update(stage='stats_cgroup_comparison', code='stats_cgroup_limits', field=None)
+            diagnostic['numbers'].update(docker_memory_limit_bytes=stats[name]['memory_limit_bytes'], docker_pids=stats[name]['pids'])
         require(abs(stats[name]['memory_limit_bytes'] - group['memory_limit_bytes']) <= 1048576
                 and stats[name]['pids'] <= group['pids_limit'])
+        if diagnostic is not None: diagnostic.update(stage='state_normalization', code='container_state')
         result[name] = {'state': container_state(record), 'docker': stats[name], 'cgroup': group,
             'restriction_sha256': restriction_fingerprint(record)}
+    if diagnostic is not None: diagnostic.update(stage='completed', code=None, field=None)
     return result
 
 
@@ -1173,7 +1246,8 @@ def run_operational(report, seconds, concurrency, docker, records, project, owne
     resources['scope'] = 'sampled Docker CLI and exact cgroup-v2 readbacks; observer exec processes contribute to usage; no leak proof'
     report['resources'] = resources
     def sample():
-        value = sample_container_resources(docker, records, project, owner)
+        diagnostic = resources.setdefault('sampling_diagnostic', {})
+        value = sample_container_resources(docker, records, project, owner, diagnostic)
         resources['samples'] += 1
         if 'before' not in resources: resources['before'] = value
         resources['after'] = value
