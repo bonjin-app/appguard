@@ -353,7 +353,7 @@ APPGUARD_TEST_REDIS_URL=redis://127.0.0.1:DISPOSABLE_PORT/0 \
 
 Adapters require unmodified raw target/header/body evidence and explicit identity/replay dependencies. Python needs a trusted exact-target extension when the query string is empty. Spring's servlet adapter rejects form/multipart content and nonblocking input access. Express/Nest must be installed first at application root; Fastify requires native HTTP request capture. TLS/proxy boundaries must preserve trusted evidence. These restrictions are described in each SDK's integration guide; the package alone does not configure a deployment.
 
-For the Go/.NET/PHP runner and the locally validated, unexecuted remote CI configuration, see [continuous integration](docs/development/continuous-integration.md). Extended SDK in-memory replay stores are process-local; multi-worker deployments require a real tested shared store.
+For the Go/.NET/PHP runner, GitHub Actions workflow and verification boundaries, see [continuous integration](docs/development/continuous-integration.md). Extended SDK in-memory replay stores are process-local; multi-worker deployments require a real tested shared store.
 
 ## Native client and enrollment development
 

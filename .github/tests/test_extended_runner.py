@@ -25,6 +25,25 @@ if kind == "dotnet":
 if kind == "php":
     assert sys.argv[1] == "-n"
     assert os.environ["COMPOSER_DISABLE_NETWORK"] == "1"
+    if "-r" in sys.argv:
+        code = sys.argv[sys.argv.index("-r") + 1]
+        if "PHP_SHLIB_SUFFIX" in code:
+            print(str(Path(os.environ["STUB_EXTENSION_DIR"]) / (sys.argv[-1] + ".so")))
+            sys.exit(0)
+        if os.environ.get("STUB_PHP_SHARED_MODULES"):
+            if 'extension_loaded("phar")' in code:
+                sys.exit(1)
+            if 'extension_loaded("iconv")' in code:
+                sys.exit(0 if os.environ.get("STUB_BUILTIN_MBSTRING") else 1)
+    if os.environ.get("STUB_PHP_SHARED_MODULES") and os.environ["APPGUARD_COMPOSER_PHAR"] in sys.argv:
+        encoding = "iconv" if (Path(os.environ["STUB_EXTENSION_DIR"]) / "iconv.so").is_file() else "mbstring"
+        required = ["phar"] if os.environ.get("STUB_BUILTIN_MBSTRING") else ["phar", encoding]
+        if any("extension=" + str(Path(os.environ["STUB_EXTENSION_DIR"]) / (name + ".so")) not in sys.argv for name in required):
+            sys.stderr.write("Composer needs the installed shared Phar/iconv modules\n")
+            sys.exit(1)
+        if os.environ.get("STUB_PHP_LOAD_FAILURE"):
+            sys.stderr.write("Composer could not load the required extension\n")
+            sys.exit(23)
 if kind == "go":
     assert os.environ["GOTOOLCHAIN"] == "local"
     assert os.environ["GOFLAGS"] == "-mod=readonly"
@@ -52,6 +71,11 @@ class RunnerTests(unittest.TestCase):
         composer = self.base / "composer package.phar"
         composer.touch()
         self.env["APPGUARD_COMPOSER_PHAR"] = str(composer)
+        self.modules = self.base / "PHP shared extensions"
+        self.modules.mkdir()
+        for name in ["phar", "iconv"]:
+            (self.modules / (name + ".so")).touch()
+        self.env["STUB_EXTENSION_DIR"] = str(self.modules)
 
     def run_runner(self, *args):
         return subprocess.run(["bash", str(RUNNER), *args], env=self.env,
@@ -64,7 +88,7 @@ class RunnerTests(unittest.TestCase):
         result = self.run_runner("--check")
         self.assertEqual(result.returncode, 0, result.stderr)
         calls = self.calls()
-        self.assertEqual(len(calls), 5)
+        self.assertEqual(len(calls), 7)
         self.assertFalse(any(c["args"][0] in ["test", "restore", "install"] for c in calls))
         self.assertFalse(Path(calls[0]["home"]).parent.exists())
 
@@ -81,6 +105,9 @@ class RunnerTests(unittest.TestCase):
         self.assertIn("--locked-mode", dotnet_calls[1])
         php_calls = [c["args"] for c in calls if c["kind"] == "php"]
         self.assertIn(["-n", "tests/run-all.php"], php_calls)
+        for args in php_calls:
+            if self.env["APPGUARD_COMPOSER_PHAR"] in args:
+                self.assertEqual(args[:2], ["-n", self.env["APPGUARD_COMPOSER_PHAR"]])
         install = next(a for a in php_calls if "install" in a)
         self.assertIn("--no-plugins", install)
         self.assertIn("--no-scripts", install)
@@ -92,6 +119,66 @@ class RunnerTests(unittest.TestCase):
         self.assertEqual(result.returncode, 23, result.stderr)
         calls = self.calls()
         self.assertFalse(any("restore" in c["args"] or "install" in c["args"] for c in calls))
+        self.assertFalse(Path(calls[0]["home"]).parent.exists())
+
+    def test_composer_shared_modules_do_not_change_sdk_php_invocations(self):
+        # Ubuntu packages Phar/iconv separately; a static local PHP hid this failure.
+        # Catch losing the Composer-only extension options or leaking them to SDK tests.
+        self.env["STUB_PHP_SHARED_MODULES"] = "1"
+        result = self.run_runner()
+        self.assertEqual(result.returncode, 0, result.stderr)
+        calls = self.calls()
+        composer_calls = [c["args"] for c in calls
+                          if c["kind"] == "php" and self.env["APPGUARD_COMPOSER_PHAR"] in c["args"]]
+        self.assertEqual(len(composer_calls), 3)
+        for args in composer_calls:
+            self.assertEqual(args[:5], ["-n", "-d", "extension=" + str(self.modules / "phar.so"),
+                                       "-d", "extension=" + str(self.modules / "iconv.so")])
+        self.assertIn(["-n", "tests/run-all.php"], [c["args"] for c in calls if c["kind"] == "php"])
+        self.assertFalse(Path(calls[0]["home"]).parent.exists())
+
+    def test_builtin_mbstring_needs_only_shared_phar_for_composer(self):
+        self.env.update(STUB_PHP_SHARED_MODULES="1", STUB_BUILTIN_MBSTRING="1")
+        result = self.run_runner("--check")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        args = self.calls()[-1]["args"]
+        self.assertEqual(args, ["-n", "-d", "extension=" + str(self.modules / "phar.so"),
+                                self.env["APPGUARD_COMPOSER_PHAR"], "--version"])
+
+    def test_shared_mbstring_can_satisfy_composer_without_iconv(self):
+        self.env["STUB_PHP_SHARED_MODULES"] = "1"
+        (self.modules / "iconv.so").unlink()
+        (self.modules / "mbstring.so").touch()
+        result = self.run_runner("--check")
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(self.calls()[-1]["args"],
+                         ["-n", "-d", "extension=" + str(self.modules / "phar.so"),
+                          "-d", "extension=" + str(self.modules / "mbstring.so"),
+                          self.env["APPGUARD_COMPOSER_PHAR"], "--version"])
+
+    def test_missing_or_relative_shared_module_fails_before_composer_and_suites(self):
+        self.env["STUB_PHP_SHARED_MODULES"] = "1"
+        relative_modules = self.base / "relative modules"
+        relative_modules.mkdir()
+        for name in ["phar", "iconv"]:
+            (relative_modules / (name + ".so")).touch()
+        for extension_dir in [str(self.base / "missing modules"), "relative modules"]:
+            with self.subTest(extension_dir=extension_dir):
+                self.log.unlink(missing_ok=True)
+                self.env["STUB_EXTENSION_DIR"] = extension_dir
+                result = self.run_runner()
+                self.assertNotEqual(result.returncode, 0)
+                calls = self.calls()
+                self.assertFalse(any(self.env["APPGUARD_COMPOSER_PHAR"] in c["args"] for c in calls))
+                self.assertFalse(any("test" in c["args"] or "restore" in c["args"] for c in calls))
+                self.assertFalse(Path(calls[0]["home"]).parent.exists())
+
+    def test_shared_module_load_failure_stops_suites_and_cleans_state(self):
+        self.env.update(STUB_PHP_SHARED_MODULES="1", STUB_PHP_LOAD_FAILURE="1")
+        result = self.run_runner()
+        self.assertEqual(result.returncode, 23, result.stderr)
+        calls = self.calls()
+        self.assertFalse(any("test" in c["args"] or "restore" in c["args"] for c in calls))
         self.assertFalse(Path(calls[0]["home"]).parent.exists())
 
     def test_bad_arguments_and_missing_runtime_fail_before_execution(self):

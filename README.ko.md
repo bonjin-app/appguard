@@ -353,7 +353,7 @@ APPGUARD_TEST_REDIS_URL=redis://127.0.0.1:DISPOSABLE_PORT/0 \
 
 어댑터에는 수정되지 않은 원시 target/header/body 증거와 명시적인 식별/재전송 방지 의존성이 필요합니다. Python은 쿼리 문자열이 비어 있을 때 신뢰할 수 있는 exact-target 확장이 필요합니다. Spring의 servlet 어댑터는 form/multipart 콘텐츠와 비차단 입력 접근을 거부합니다. Express/Nest는 애플리케이션 루트에서 가장 먼저 설치해야 하며, Fastify에는 네이티브 HTTP 요청 캡처가 필요합니다. TLS/프록시 경계에서는 신뢰할 수 있는 증거를 보존해야 합니다. 이러한 제한은 각 SDK의 연동 안내에 설명되어 있습니다. 패키지만으로 배포 환경이 구성되지는 않습니다.
 
-Go/.NET/PHP 실행기와 로컬에서 검증했지만 원격 실행은 하지 않은 CI 구성은 [지속적 통합](docs/development/continuous-integration.md)을 참조하세요. 확장 SDK의 메모리 내 재전송 방지 저장소는 프로세스별로 동작하므로, 여러 워커를 사용하는 배포에는 실제로 테스트한 공유 저장소가 필요합니다.
+Go/.NET/PHP 실행기, GitHub Actions 워크플로와 검증 범위는 [지속적 통합](docs/development/continuous-integration.md)을 참조하세요. 확장 SDK의 메모리 내 재전송 방지 저장소는 프로세스별로 동작하므로, 여러 워커를 사용하는 배포에는 실제로 테스트한 공유 저장소가 필요합니다.
 
 ## 네이티브 클라이언트 및 등록 개발
 

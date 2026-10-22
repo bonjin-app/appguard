@@ -50,7 +50,29 @@ export COMPOSER_NO_INTERACTION=1
 (cd "$root/sdk/dotnet" && "$dotnet_cmd" --version)
 "$php_cmd" -n --version
 "$php_cmd" -n -r 'if (PHP_INT_SIZE !== 8 || !extension_loaded("openssl") || !extension_loaded("hash") || !extension_loaded("json")) { fwrite(STDERR, "64-bit PHP with OpenSSL/hash/JSON required without php.ini\n"); exit(1); }'
-"$php_cmd" -n "$composer_phar" --version
+# Composer itself needs Phar and an encoding extension. Some distributions ship
+# these as shared modules, while our SDK needs neither. Keep php.ini disabled
+# and load only fixed module names from the selected runtime for Composer calls.
+composer_php_args=(-n)
+add_composer_extension() {
+  local extension module_path
+  for extension in "$@"; do
+    module_path="$("$php_cmd" -n -r 'echo ini_get("extension_dir"), "/", $argv[1], ".", PHP_SHLIB_SUFFIX;' -- "$extension")"
+    if [[ "$module_path" = /* && -f "$module_path" && -r "$module_path" ]]; then
+      composer_php_args+=(-d "extension=$module_path")
+      return
+    fi
+  done
+  echo "Composer requires an installed $* module in an absolute PHP extension_dir" >&2
+  exit 1
+}
+if ! "$php_cmd" -n -r 'exit(extension_loaded("phar") ? 0 : 1);'; then
+  add_composer_extension phar
+fi
+if ! "$php_cmd" -n -r 'exit(extension_loaded("iconv") || extension_loaded("mbstring") ? 0 : 1);'; then
+  add_composer_extension iconv mbstring
+fi
+"$php_cmd" "${composer_php_args[@]}" "$composer_phar" --version
 [[ "${1:-}" != --check ]] || exit 0
 (
   cd "$root/sdk/go"
@@ -62,7 +84,7 @@ export COMPOSER_NO_INTERACTION=1
 bash "$root/sdk/dotnet/scripts/verify.sh"
 (
   cd "$root/sdk/php"
-  "$php_cmd" -n "$composer_phar" validate --strict --no-plugins
-  "$php_cmd" -n "$composer_phar" install --no-interaction --no-plugins --no-scripts --no-progress
+  "$php_cmd" "${composer_php_args[@]}" "$composer_phar" validate --strict --no-plugins
+  "$php_cmd" "${composer_php_args[@]}" "$composer_phar" install --no-interaction --no-plugins --no-scripts --no-progress
   "$php_cmd" -n tests/run-all.php
 )

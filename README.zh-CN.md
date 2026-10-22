@@ -293,7 +293,7 @@ APPGUARD_TEST_REDIS_URL=redis://127.0.0.1:DISPOSABLE_PORT/0 \
 
 适配器要求未经修改的原始目标/请求头/请求体证据，以及显式的身份和重放依赖。查询字符串为空时，Python 需要可信的精确目标扩展。Spring servlet 适配器拒绝 form/multipart 内容及非阻塞输入访问。Express/Nest 必须优先安装在应用根级；Fastify 需要捕获原生 HTTP 请求。TLS/代理边界必须保留可信证据。这些限制在各 SDK 的集成指南中有详细说明；软件包本身不会配置部署环境。
 
-有关 Go/.NET/PHP 测试运行器，以及已在本地验证但尚未远程执行的 CI 配置，请参阅[持续集成](docs/development/continuous-integration.md)。扩展 SDK 的内存重放存储仅限当前进程；多 worker 部署需要经过实际测试的共享存储。
+有关 Go/.NET/PHP 测试运行器、GitHub Actions 工作流及验证范围，请参阅[持续集成](docs/development/continuous-integration.md)。扩展 SDK 的内存重放存储仅限当前进程；多 worker 部署需要经过实际测试的共享存储。
 
 ## 原生客户端和注册开发
 
