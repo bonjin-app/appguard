@@ -70,6 +70,20 @@ class CandidateTests(unittest.TestCase):
         self.assertEqual(project['resolution_coverage'], 'no_recorded_lockfile')
         self.assertEqual(project['recorded_lockfiles'], [])
 
+    def test_deployment_sources_included_and_deployment_credentials_excluded(self):
+        self.write('deploy/spring-ingress/Dockerfile.gateway', 'FROM example@sha256:fixed\n')
+        self.write('deploy/spring-ingress/compose.json', '{"services":{}}\n')
+        self.write('deploy/spring-ingress/.env', 'PRIVATE_TEST_VALUE\n')
+        self.write('deploy/spring-ingress/server.key', 'PRIVATE_TEST_VALUE\n')
+        self.commit()
+        run = self.run_candidate()
+        self.assertEqual(run.returncode, 0, run.stderr)
+        source = self.base / 'candidate/source/deploy/spring-ingress'
+        self.assertTrue((source / 'Dockerfile.gateway').is_file())
+        self.assertTrue((source / 'compose.json').is_file())
+        self.assertFalse((source / '.env').exists())
+        self.assertFalse((source / 'server.key').exists())
+
     def test_normative_protocol_and_runnable_examples_included_without_private_outputs(self):
         self.write('protocol/request-v0.md', '# Normative protocol\n')
         self.write('examples/python-ingress/server.py', 'print("ingress example")\n')

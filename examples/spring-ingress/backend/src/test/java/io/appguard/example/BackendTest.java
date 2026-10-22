@@ -1,6 +1,8 @@
 package io.appguard.example;
 
 import io.appguard.VerificationResult;
+import io.lettuce.core.ClientOptions;
+import java.time.Duration;
 import jakarta.servlet.http.HttpServlet;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.*;
@@ -44,6 +46,17 @@ class BackendTest {
         for(String url:List.of("redis://localhost:6379/0","redis://127.0.0.1/0","redis://127.0.0.1:6379/16","redis://user:secret@127.0.0.1:6379/0","redis://127.0.0.1:6379/0?x=1","rediss://127.0.0.1:6379/0","redis://127.0.0.1:6379/%30")){
             env.put("APPGUARD_REDIS_URL",url);assertThatThrownBy(()->new BackendSettings(env)).as(url).isInstanceOf(IllegalArgumentException.class);
         }
+    }
+    @Test void redisReconnectsButRejectsDisconnectedCommandsAndBoundsQueueAndTimeouts()throws Exception {
+        var factory=new BackendMain().redisConnection(new BackendSettings(environment()));
+        var configuration=factory.getClientConfiguration();
+        ClientOptions options=configuration.getClientOptions().orElseThrow();
+        assertThat(options.isAutoReconnect()).isTrue();
+        assertThat(options.getDisconnectedBehavior()).isEqualTo(ClientOptions.DisconnectedBehavior.REJECT_COMMANDS);
+        assertThat(options.getRequestQueueSize()).isEqualTo(128);
+        assertThat(options.getSocketOptions().getConnectTimeout()).isEqualTo(Duration.ofSeconds(1));
+        assertThat(configuration.getCommandTimeout()).isEqualTo(Duration.ofSeconds(1));
+        assertThat(configuration.getShutdownTimeout()).isEqualTo(Duration.ofMillis(100));
     }
     @Test void invalidKeysHashesPortsAndOriginsFailBeforeStartup()throws Exception {
         Map<String,String> env=environment();env.put("APPGUARD_PUBLIC_KEY_FILE",writeKey("secp384r1").toString());assertThatThrownBy(()->new BackendSettings(env)).isInstanceOf(InvalidKeyException.class);

@@ -1,5 +1,13 @@
 # Dependency advisories checked 2026-10-22
 
+The production-goal recheck on the same date still found no published fixed
+version for either remaining HIGH finding. Expo58.0.17/CLI58.1.14 retain the
+affected dependency ranges, so that parent update is not presented as a fix.
+For node-forge, [upstream PR1159](https://github.com/digitalbazaar/forge/pull/1159)
+reports additional DER/NULL validation cases beyond the earlier proposal;
+[PR1161](https://github.com/digitalbazaar/forge/pull/1161) remains an unmerged
+proposal. No unreviewed cryptographic patch or scanner exclusion was adopted.
+
 The source dependency gate remains **blocked by two unfixed HIGH findings** in
 the Expo development/tooling dependency graph. A compatible upstream patch
 removed the third finding, CVE-2026-41907 (`uuid`). No suppression, ignored

@@ -1,0 +1,21 @@
+FROM maven:3.9.12-eclipse-temurin-17@sha256:a0603aab698040d9c94259f379ec0487da1678560748d6c7508483034033c53d AS build
+WORKDIR /src
+COPY sdk/spring-boot/ sdk/spring-boot/
+COPY examples/spring-ingress/backend/ examples/spring-ingress/backend/
+RUN mvn -B -ntp -Dmaven.test.skip=true -f sdk/spring-boot/pom.xml package \
+    && mvn -B -ntp org.apache.maven.plugins:maven-install-plugin:3.1.4:install-file \
+       -Dfile=/src/sdk/spring-boot/target/appguard-spring-boot-starter-0.1.0-SNAPSHOT.jar \
+       -DpomFile=/src/sdk/spring-boot/pom.xml \
+    && mvn -B -ntp -Dmaven.test.skip=true -f examples/spring-ingress/backend/pom.xml \
+       package org.apache.maven.plugins:maven-dependency-plugin:3.8.1:copy-dependencies \
+       -DincludeScope=runtime -DoutputDirectory=/opt/appguard/lib
+
+FROM eclipse-temurin:17-jre-jammy@sha256:b3054a20e1a851574cdb1692dd0db5310c647e62214a2a7abecbec1b9e3ae8f1
+WORKDIR /opt/appguard
+COPY --from=build /src/examples/spring-ingress/backend/target/spring-ingress-backend-0.1.0-SNAPSHOT.jar /opt/appguard/backend.jar
+COPY --from=build /opt/appguard/lib/ /opt/appguard/lib/
+COPY deploy/spring-ingress/backend-entrypoint.sh /opt/appguard/backend-entrypoint.sh
+COPY LICENSE /usr/share/licenses/appguard/LICENSE
+ENV JAVA_TOOL_OPTIONS="-Xms32m -Xmx256m -XX:ActiveProcessorCount=2 -XX:+ExitOnOutOfMemoryError -Djava.io.tmpdir=/tmp"
+USER 10001:10001
+ENTRYPOINT ["/bin/sh", "/opt/appguard/backend-entrypoint.sh"]

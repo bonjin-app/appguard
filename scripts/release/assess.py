@@ -39,7 +39,7 @@ QUALIFICATION_ARTIFACTS = frozenset(('sdk_jar', 'example_pom', 'ingress_source')
 # Bounded opaque extensions from the local runner are never approval evidence.
 QUALIFICATION_EXTENSIONS = frozenset((
     'metrics', 'sources', 'release_ready', 'limitations', 'owned_process_cleanup',
-    'exampleclasses_sha256', 'provenance_unchanged', 'source_matches_commit', 'source_sha256',
+    'exampleclasses_sha256', 'provenance_unchanged', 'source_matches_commit', 'source_sha256', 'operational',
 ))
 _SCAN_REASONS = frozenset((
     'candidate_unverified', 'scan_evidence_unverified', 'source_coverage_unverified',
@@ -256,11 +256,12 @@ def _gate(name, state, evidence_class, reason, requirements):
             'reason': reason, 'requirements': list(requirements)}
 
 
-def _ledger(expected_commit, profile, passed, reason, qualification_state, qualification_reason, hashes, count):
+def _ledger(expected_commit, profile, passed, reason, qualification_state, qualification_reason, hashes, count,
+            hosted_state='pending_external', hosted_reason='hosted_result_not_verified'):
     gates = [
         _gate('source_and_runtime_scans', 'pass' if passed else 'blocked', 'local_scan', reason,
               ('exact_candidate_hashes', 'complete_raw_reports', 'zero_security_findings', 'recorded_lock_and_runtime_coverage')),
-        _gate('hosted_ci', 'pending_external', 'hosted_ci', 'hosted_result_not_verified',
+        _gate('hosted_ci', hosted_state, 'hosted_ci', hosted_reason,
               ('exact_candidate_commit', 'trusted_workflow_identity', 'all_required_jobs_completed_successfully')),
         _gate('consumer_container_graph', 'pending_external', 'consumer_runtime', 'consumer_graph_not_verified',
               ('exact_deployed_artifact_hashes', 'provided_and_container_dependencies', 'complete_runtime_scan')),
@@ -280,7 +281,7 @@ def _ledger(expected_commit, profile, passed, reason, qualification_state, quali
                            ('actual_app_and_account_identity', 'trusted_provider_live_verification', 'failure_and_replay_cases')))
     return {'schema': 1, 'profile': profile, 'candidate_commit': expected_commit,
             'generated_at': datetime.now(timezone.utc).isoformat(timespec='seconds').replace('+00:00', 'Z'),
-            'release_ready': False, 'automated_scan_checks_passed': passed,
+            'release_ready': all(gate['state'] == 'pass' for gate in gates), 'automated_scan_checks_passed': passed,
             'assessment_policy': 'unverified_references_cannot_approve_release_v1',
             'scope': ['server_signature_verification', 'source_and_exported_maven_runtime_only',
                       'physical_devices_excluded', 'external_approval_validators_not_implemented'],
@@ -320,7 +321,7 @@ def _publish(output, report, workspace):
             os.close(directory)
 
 
-def _assess(candidate, scans, output, expected_commit, *, qualification=None, profile='server-signature'):
+def _assess(candidate, scans, output, expected_commit, *, qualification=None, profile='server-signature', hosted_run_id=None):
     """Create a redacted assessment. Even a perfect local scan cannot approve release.
 
     Input trees must be stable, private local evidence directories. Original
@@ -328,7 +329,8 @@ def _assess(candidate, scans, output, expected_commit, *, qualification=None, pr
     This detects changed evidence; it does not authenticate scanners, establish
     hosted workflow trust or defend against a compromised account/operating system.
     """
-    if not isinstance(expected_commit, str) or not _COMMIT.fullmatch(expected_commit) or profile not in _PROFILES:
+    if (not isinstance(expected_commit, str) or not _COMMIT.fullmatch(expected_commit) or profile not in _PROFILES
+            or (hosted_run_id is not None and (type(hosted_run_id) is not int or not 0 < hosted_run_id < 2**63))):
         raise AssessmentError()
     try:
         candidate, scans = _path(candidate, directory=True), _path(scans, directory=True)
@@ -345,6 +347,7 @@ def _assess(candidate, scans, output, expected_commit, *, qualification=None, pr
         raise AssessmentError() from None
     passed, reason, hashes, count = False, 'scan_evidence_unverified', {}, 0
     qual_state, qual_reason = 'pending_external', 'local_qualification_not_provided'
+    hosted_state, hosted_reason = 'pending_external', 'hosted_result_not_verified'
     with tempfile.TemporaryDirectory(prefix='.assessment-', dir=output.parent) as temporary:
         workspace = Path(temporary)
         candidate_pins, scan_pins, qual_pin = {}, {}, None
@@ -374,6 +377,24 @@ def _assess(candidate, scans, output, expected_commit, *, qualification=None, pr
             reason = 'verified_checks_passed' if passed else result.get('reason')
             if reason not in _SCAN_REASONS | {'verified_checks_passed'}:
                 reason = 'scan_evidence_unverified'
+            if hosted_run_id is not None:
+                hosted_state, hosted_reason = 'blocked', 'hosted_result_unverified'
+                try:
+                    # Runtime import avoids a cycle: the verifier reuses the
+                    # bounded filesystem helpers defined in this module.
+                    from verify_hosted import verify_hosted
+                    # It snapshots/pins the original itself, including Git file
+                    # modes. Our privacy snapshot intentionally chmods to0600.
+                    hosted = verify_hosted(candidate, expected_commit,
+                                           'bonjin-app/appguard', hosted_run_id, workspace / 'hosted')
+                    if (hosted.get('technical_gate_verified') is True
+                            and hosted.get('candidate_commit') == expected_commit
+                            and hosted.get('sha256', {}).get('candidate_manifest') == hashes.get('candidate_manifest')
+                            and hosted.get('sha256', {}).get('source_archive') == hashes.get('source_archive')):
+                        hosted_state, hosted_reason = 'pass', 'hosted_result_verified'
+                    hashes['hosted_verification'] = _read(workspace / 'hosted/hosted.json')['sha256']
+                except (OSError, ValueError, TypeError, KeyError):
+                    pass
             unchanged = _unchanged(candidate, candidate_pins) and _unchanged(scans, scan_pins)
             if qual_pin is not None:
                 latest = _read(qualification)
@@ -383,20 +404,26 @@ def _assess(candidate, scans, output, expected_commit, *, qualification=None, pr
                 passed, reason = False, 'inputs_changed'
                 if qualification is not None:
                     qual_state, qual_reason = 'blocked', 'qualification_unverified'
+                if hosted_run_id is not None:
+                    hosted_state, hosted_reason = 'blocked', 'hosted_result_unverified'
         except (OSError, ValueError, KeyError, TypeError, RecursionError, OverflowError):
             passed = False
             reason = 'scan_evidence_unverified'
             if qualification is not None and qual_state != 'referenced_unverified':
                 qual_state, qual_reason = 'blocked', 'qualification_unverified'
-        report = _ledger(expected_commit, profile, passed, reason, qual_state, qual_reason, hashes, count)
+            if hosted_run_id is not None:
+                hosted_state, hosted_reason = 'blocked', 'hosted_result_unverified'
+        report = _ledger(expected_commit, profile, passed, reason, qual_state, qual_reason, hashes, count,
+                         hosted_state, hosted_reason)
         _publish(output, report, workspace)
     return report
 
 
-def assess(candidate, scans, output, expected_commit, *, qualification=None, profile='server-signature'):
+def assess(candidate, scans, output, expected_commit, *, qualification=None, profile='server-signature', hosted_run_id=None):
     """Write one fixed-schema assessment; filesystem/input failures stay redacted."""
     try:
-        return _assess(candidate, scans, output, expected_commit, qualification=qualification, profile=profile)
+        return _assess(candidate, scans, output, expected_commit, qualification=qualification, profile=profile,
+                       hosted_run_id=hosted_run_id)
     except (OSError, ValueError, TypeError):
         raise AssessmentError() from None
 
@@ -412,12 +439,13 @@ def main(argv=None):
         parser.add_argument('--' + name, type=Path, required=True)
     parser.add_argument('--expected-commit', required=True)
     parser.add_argument('--qualification', type=Path)
+    parser.add_argument('--hosted-run-id', type=int, help='Verify this exact main push run from the fixed GitHub HTTPS API')
     parser.add_argument('--profile', choices=_PROFILES, default='server-signature')
     parser.add_argument('--check', action='store_true', help='Exit 2 unless all required gates pass; v1 always retains external gates')
     args = parser.parse_args(argv)
     try:
         report = assess(args.candidate, args.scans, args.output, args.expected_commit,
-                        qualification=args.qualification, profile=args.profile)
+                        qualification=args.qualification, profile=args.profile, hosted_run_id=args.hosted_run_id)
     except (OSError, ValueError, TypeError):
         parser.exit(1, _ERROR)
     if args.check and not report['release_ready']:

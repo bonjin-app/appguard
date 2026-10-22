@@ -1,0 +1,319 @@
+{
+  "services": {
+    "gateway": {
+      "image": "appguard-spring-gateway:${APPGUARD_IMAGE_TAG:?Set a unique local image tag}",
+      "build": {
+        "context": "../..",
+        "dockerfile": "deploy/spring-ingress/Dockerfile.gateway"
+      },
+      "user": "${APPGUARD_UID:-10001}:${APPGUARD_GID:-10001}",
+      "read_only": true,
+      "cap_drop": [
+        "ALL"
+      ],
+      "security_opt": [
+        "no-new-privileges:true"
+      ],
+      "mem_limit": "256m",
+      "memswap_limit": "256m",
+      "pids_limit": 64,
+      "cpus": 1.0,
+      "tmpfs": [
+        "/tmp:rw,noexec,nosuid,nodev,size=16777216,mode=1777"
+      ],
+      "labels": {
+        "io.appguard.scope": "spring-ingress-v1",
+        "io.appguard.owner": "${APPGUARD_OWNER:?Set a unique owner token}"
+      },
+      "restart": "no",
+      "stop_grace_period": "10s",
+      "logging": {
+        "driver": "local",
+        "options": {
+          "max-size": "1m",
+          "max-file": "1"
+        }
+      },
+      "networks": [
+        "frontend"
+      ],
+      "ports": [
+        {
+          "target": 8443,
+          "published": "${APPGUARD_PUBLISHED_PORT:-8443}",
+          "host_ip": "127.0.0.1",
+          "protocol": "tcp"
+        }
+      ],
+      "environment": {
+        "APPGUARD_ORIGIN": "${APPGUARD_ORIGIN:?Exact external HTTPS origin required}",
+        "APPGUARD_BACKEND_PORT": "8444",
+        "APPGUARD_BACKEND_HOSTNAME": "${APPGUARD_BACKEND_HOSTNAME:?Backend certificate DNS name required}",
+        "APPGUARD_BACKEND_CA": "/run/secrets/server-ca.pem",
+        "APPGUARD_BACKEND_CLIENT_CERT": "/run/secrets/ingress-client.pem",
+        "APPGUARD_BACKEND_CLIENT_KEY": "/run/secrets/ingress-client.key",
+        "APPGUARD_TLS_CERT": "/run/secrets/frontend.pem",
+        "APPGUARD_TLS_KEY": "/run/secrets/frontend.key",
+        "APPGUARD_LISTEN_HOST": "0.0.0.0",
+        "APPGUARD_LISTEN_PORT": "8443",
+        "APPGUARD_BODY_TIMEOUT": "${APPGUARD_BODY_TIMEOUT:-10}",
+        "APPGUARD_BACKEND_TIMEOUT": "${APPGUARD_BACKEND_TIMEOUT:-5}",
+        "APPGUARD_TOTAL_TIMEOUT": "${APPGUARD_TOTAL_TIMEOUT:-20}",
+        "APPGUARD_MAX_CONNECTIONS": "128",
+        "APPGUARD_MAX_INFLIGHT": "64"
+      },
+      "volumes": [
+        {
+          "type": "bind",
+          "source": "${APPGUARD_FRONTEND_CERT_FILE:?Explicit absolute operator file required}",
+          "target": "/run/secrets/frontend.pem",
+          "read_only": true,
+          "bind": {
+            "create_host_path": false
+          }
+        },
+        {
+          "type": "bind",
+          "source": "${APPGUARD_FRONTEND_KEY_FILE:?Explicit absolute operator file required}",
+          "target": "/run/secrets/frontend.key",
+          "read_only": true,
+          "bind": {
+            "create_host_path": false
+          }
+        },
+        {
+          "type": "bind",
+          "source": "${APPGUARD_SERVER_CA_FILE:?Explicit absolute operator file required}",
+          "target": "/run/secrets/server-ca.pem",
+          "read_only": true,
+          "bind": {
+            "create_host_path": false
+          }
+        },
+        {
+          "type": "bind",
+          "source": "${APPGUARD_INGRESS_CERT_FILE:?Explicit absolute operator file required}",
+          "target": "/run/secrets/ingress-client.pem",
+          "read_only": true,
+          "bind": {
+            "create_host_path": false
+          }
+        },
+        {
+          "type": "bind",
+          "source": "${APPGUARD_INGRESS_KEY_FILE:?Explicit absolute operator file required}",
+          "target": "/run/secrets/ingress-client.key",
+          "read_only": true,
+          "bind": {
+            "create_host_path": false
+          }
+        }
+      ],
+      "ipc": "private",
+      "ulimits": {
+        "nofile": {
+          "soft": 1024,
+          "hard": 1024
+        }
+      }
+    },
+    "redis": {
+      "image": "appguard-spring-redis:${APPGUARD_IMAGE_TAG:?Set a unique local image tag}",
+      "build": {
+        "context": "../..",
+        "dockerfile": "deploy/spring-ingress/Dockerfile.redis"
+      },
+      "user": "10001:10001",
+      "read_only": true,
+      "cap_drop": [
+        "ALL"
+      ],
+      "security_opt": [
+        "no-new-privileges:true"
+      ],
+      "mem_limit": "128m",
+      "memswap_limit": "128m",
+      "pids_limit": 32,
+      "cpus": 0.5,
+      "tmpfs": [
+        "/tmp:rw,noexec,nosuid,nodev,size=16777216,mode=1777"
+      ],
+      "labels": {
+        "io.appguard.scope": "spring-ingress-v1",
+        "io.appguard.owner": "${APPGUARD_OWNER:?Set a unique owner token}"
+      },
+      "restart": "no",
+      "stop_grace_period": "10s",
+      "logging": {
+        "driver": "local",
+        "options": {
+          "max-size": "1m",
+          "max-file": "1"
+        }
+      },
+      "network_mode": "service:gateway",
+      "command": [
+        "--bind",
+        "127.0.0.1",
+        "--port",
+        "6379",
+        "--protected-mode",
+        "yes",
+        "--save",
+        "",
+        "--appendonly",
+        "yes",
+        "--appendfsync",
+        "always",
+        "--dir",
+        "/data",
+        "--maxmemory",
+        "64mb",
+        "--maxmemory-policy",
+        "noeviction"
+      ],
+      "healthcheck": {
+        "test": [
+          "CMD",
+          "redis-cli",
+          "-h",
+          "127.0.0.1",
+          "ping"
+        ],
+        "interval": "1s",
+        "timeout": "1s",
+        "retries": 30,
+        "start_period": "1s"
+      },
+      "ipc": "private",
+      "ulimits": {
+        "nofile": {
+          "soft": 1024,
+          "hard": 1024
+        }
+      },
+      "volumes": [
+        {
+          "type": "volume",
+          "source": "redis-data",
+          "target": "/data",
+          "read_only": false
+        }
+      ]
+    },
+    "backend": {
+      "image": "appguard-spring-backend:${APPGUARD_IMAGE_TAG:?Set a unique local image tag}",
+      "build": {
+        "context": "../..",
+        "dockerfile": "deploy/spring-ingress/Dockerfile.backend"
+      },
+      "user": "${APPGUARD_UID:-10001}:${APPGUARD_GID:-10001}",
+      "read_only": true,
+      "cap_drop": [
+        "ALL"
+      ],
+      "security_opt": [
+        "no-new-privileges:true"
+      ],
+      "mem_limit": "512m",
+      "memswap_limit": "512m",
+      "pids_limit": 128,
+      "cpus": 1.0,
+      "tmpfs": [
+        "/tmp:rw,noexec,nosuid,nodev,size=16777216,mode=1777"
+      ],
+      "labels": {
+        "io.appguard.scope": "spring-ingress-v1",
+        "io.appguard.owner": "${APPGUARD_OWNER:?Set a unique owner token}"
+      },
+      "restart": "no",
+      "stop_grace_period": "10s",
+      "logging": {
+        "driver": "local",
+        "options": {
+          "max-size": "1m",
+          "max-file": "1"
+        }
+      },
+      "network_mode": "service:gateway",
+      "depends_on": {
+        "redis": {
+          "condition": "service_healthy"
+        }
+      },
+      "environment": {
+        "APPGUARD_BACKEND_PORT": "8444",
+        "APPGUARD_BACKEND_KEYSTORE": "/run/secrets/backend.p12",
+        "APPGUARD_BACKEND_TRUSTSTORE": "/run/secrets/trust.p12",
+        "APPGUARD_REDIS_URL": "redis://127.0.0.1:6379/0",
+        "APPGUARD_APP_ID": "${APPGUARD_APP_ID:?Application identifier required}",
+        "APPGUARD_ORIGIN": "${APPGUARD_ORIGIN:?Exact external HTTPS origin required}",
+        "APPGUARD_SUBJECT": "${APPGUARD_SUBJECT:?Enrolled subject required}",
+        "APPGUARD_KEY_ID": "${APPGUARD_KEY_ID:?Enrolled key identifier required}",
+        "APPGUARD_PUBLIC_KEY_FILE": "/run/secrets/enrolled.pem",
+        "APPGUARD_BEARER_SHA256": "${APPGUARD_BEARER_SHA256:?SHA256 of bearer required}"
+      },
+      "volumes": [
+        {
+          "type": "bind",
+          "source": "${APPGUARD_BACKEND_KEYSTORE_FILE:?Explicit absolute operator file required}",
+          "target": "/run/secrets/backend.p12",
+          "read_only": true,
+          "bind": {
+            "create_host_path": false
+          }
+        },
+        {
+          "type": "bind",
+          "source": "${APPGUARD_BACKEND_TRUSTSTORE_FILE:?Explicit absolute operator file required}",
+          "target": "/run/secrets/trust.p12",
+          "read_only": true,
+          "bind": {
+            "create_host_path": false
+          }
+        },
+        {
+          "type": "bind",
+          "source": "${APPGUARD_BACKEND_PASSWORD_FILE:?Explicit absolute operator file required}",
+          "target": "/run/secrets/backend-password",
+          "read_only": true,
+          "bind": {
+            "create_host_path": false
+          }
+        },
+        {
+          "type": "bind",
+          "source": "${APPGUARD_ENROLLED_KEY_FILE:?Explicit absolute operator file required}",
+          "target": "/run/secrets/enrolled.pem",
+          "read_only": true,
+          "bind": {
+            "create_host_path": false
+          }
+        }
+      ],
+      "ipc": "private",
+      "ulimits": {
+        "nofile": {
+          "soft": 1024,
+          "hard": 1024
+        }
+      }
+    }
+  },
+  "networks": {
+    "frontend": {
+      "labels": {
+        "io.appguard.scope": "spring-ingress-v1",
+        "io.appguard.owner": "${APPGUARD_OWNER:?Set a unique owner token}"
+      }
+    }
+  },
+  "volumes": {
+    "redis-data": {
+      "labels": {
+        "io.appguard.scope": "spring-ingress-v1",
+        "io.appguard.owner": "${APPGUARD_OWNER:?Set a unique owner token}"
+      }
+    }
+  }
+}

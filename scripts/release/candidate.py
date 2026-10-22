@@ -12,7 +12,7 @@ import tarfile
 import tempfile
 
 ROOT_FILES = {'LICENSE', 'NOTICE', 'SECURITY.md', 'CONTRIBUTING.md', '.gitignore'}
-ROOT_DIRS = {'sdk', 'reference', 'scripts', 'tools', 'docs', 'conformance', 'protocol', 'examples', '.github'}
+ROOT_DIRS = {'sdk', 'reference', 'scripts', 'tools', 'docs', 'conformance', 'protocol', 'examples', 'deploy', '.github'}
 EXCLUDED_PARTS = {'.git', '.tools', '.evidence', '.artifacts', '.venv', 'venv', 'node_modules', '__pycache__',
                   '.pytest_cache', '.gradle', '.build', 'build', 'dist', 'target',
                   'bin', 'obj', 'vendor', 'private', 'artifacts', '.idea', '.vscode'}

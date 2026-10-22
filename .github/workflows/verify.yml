@@ -199,8 +199,9 @@ jobs:
           uv run --frozen --project sdk/python python scripts/qualification/adversarial_profile.py --iterations 10000 > "$RUNNER_TEMP/appguard-adversarial-qualification.json"
       - name: Packaged Spring mTLS ingress qualification and actual container graph scan
         run: |
-          uv run --frozen --project sdk/python python scripts/qualification/spring_ingress.py --redis-server "$APPGUARD_REDIS_SERVER" --output "$RUNNER_TEMP/appguard-spring-qualification"
+          uv run --frozen --project sdk/python python scripts/qualification/spring_ingress.py --redis-server "$APPGUARD_REDIS_SERVER" --soak-seconds 30 --soak-concurrency 8 --output "$RUNNER_TEMP/appguard-spring-qualification"
           python3 scripts/qualification/scan_spring_runtime.py --qualification "$RUNNER_TEMP/appguard-spring-qualification" --output "$RUNNER_TEMP/appguard-spring-runtime-scan"
+          python3 scripts/release/license_materials.py --artifacts "$RUNNER_TEMP/appguard-spring-qualification/maven-runtime" --manifest "$RUNNER_TEMP/appguard-spring-qualification/maven-runtime-manifest.json" --output "$RUNNER_TEMP/appguard-spring-license-materials" > "$RUNNER_TEMP/appguard-spring-license-summary.json"
       - name: Retain synthetic qualification evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -211,6 +212,7 @@ jobs:
             ${{ runner.temp }}/appguard-adversarial-qualification.json
             ${{ runner.temp }}/appguard-spring-qualification/receipt.json
             ${{ runner.temp }}/appguard-spring-runtime-scan/status.json
+            ${{ runner.temp }}/appguard-spring-license-summary.json
           if-no-files-found: warn
           retention-days: 7
 

@@ -1,0 +1,48 @@
+{
+  "schema": 1,
+  "reviewed_at": "2026-10-22",
+  "verification": "Registry response digest header and SHA-256 of exact index bytes matched; linux amd64 and arm64 child manifests present. Image suitability and vulnerability approval are separate.",
+  "images": [
+    {
+      "image": "docker.io/library/python:3.11.16-slim-bookworm@sha256:a36c24f9cbdf4fd0f52d67f0823eeac19c2028c637cecc392d97f980d4fec56b",
+      "registry_url": "https://registry-1.docker.io/v2/library/python/manifests/3.11.16-slim-bookworm",
+      "official_image": "https://hub.docker.com/_/python",
+      "manifest_sha256": "a36c24f9cbdf4fd0f52d67f0823eeac19c2028c637cecc392d97f980d4fec56b",
+      "platform_manifests": {
+        "amd64": "sha256:4b4c524dc3dce996864e030c7bd9c6b0e517597189fee48f48e05b499442444b",
+        "arm64": "sha256:bbc491ed39611eede47b1058ad4afb9ea957fb3bf4a7f1b442c6a5628ab93bdc"
+      }
+    },
+    {
+      "image": "docker.io/library/maven:3.9.12-eclipse-temurin-17@sha256:a0603aab698040d9c94259f379ec0487da1678560748d6c7508483034033c53d",
+      "registry_url": "https://registry-1.docker.io/v2/library/maven/manifests/3.9.12-eclipse-temurin-17",
+      "official_image": "https://hub.docker.com/_/maven",
+      "manifest_sha256": "a0603aab698040d9c94259f379ec0487da1678560748d6c7508483034033c53d",
+      "platform_manifests": {
+        "amd64": "sha256:22e5056a4cd1e09d0373044e1a8f5f47711878cb5803b11c97729b856571a52e",
+        "arm64": "sha256:e5070a6d02d64e87af7b52c21f682ae6f24c92948819b8eb9cf7e0953ada82c4"
+      }
+    },
+    {
+      "image": "docker.io/library/eclipse-temurin:17-jre-jammy@sha256:b3054a20e1a851574cdb1692dd0db5310c647e62214a2a7abecbec1b9e3ae8f1",
+      "registry_url": "https://registry-1.docker.io/v2/library/eclipse-temurin/manifests/17-jre-jammy",
+      "official_image": "https://hub.docker.com/_/eclipse-temurin",
+      "manifest_sha256": "b3054a20e1a851574cdb1692dd0db5310c647e62214a2a7abecbec1b9e3ae8f1",
+      "platform_manifests": {
+        "amd64": "sha256:30a8176ab22afd141ad9cd1948ad23bdb9fb7ddae666bad4a1d188d9f479d585",
+        "arm64": "sha256:2b7abd9a571c7ffc981914a91139946bd856ee57d2912d5cb339731e6009db6e"
+      }
+    },
+    {
+      "image": "docker.io/library/redis:7.2.10-alpine@sha256:395ccd7ee4db0867de0d0410f4712a9e0331cff9fdbd864f71ec0f7982d3ffe6",
+      "registry_url": "https://registry-1.docker.io/v2/library/redis/manifests/7.2.10-alpine",
+      "official_image": "https://hub.docker.com/_/redis",
+      "manifest_sha256": "395ccd7ee4db0867de0d0410f4712a9e0331cff9fdbd864f71ec0f7982d3ffe6",
+      "platform_manifests": {
+        "amd64": "sha256:292bcb7d082cefea764db04c8f795fa728881ae202772532eb83a9082166b023",
+        "arm64": "sha256:9ccb221663b4e85f99b0c47ba93af680df5a79033cccd8c7b870ea3cf99ae24e"
+      }
+    }
+  ],
+  "uv_wheels_source": "https://pypi.org/pypi/uv/0.13.3/json"
+}

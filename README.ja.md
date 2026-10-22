@@ -363,3 +363,5 @@ TLS 検証コマンドを追加しました。制限内の本文をすべて受�
 バックエンドへ接続し、実際のコンテナー JAR 依存関係を検査します。
 [準備状況の評価](docs/development/release-readiness.md#separate-readiness-assessment)は技術的な阻害要因と
 外部承認待ちを区別し、ローカル結果だけで本番利用を承認しません。
+
+[本番リリース基準](docs/development/production-release.md)で継続負荷・障害復旧、GitHub の実際のソースとジョブの検証、ライセンス・NOTICE 原文を追跡します。証明書・認証連携・永続 Redis の設定とインストール手順は[制限付きコンテナーデプロイガイド](deploy/spring-ingress/README.md)を参照してください。未解決の脆弱性や必須の外部承認が残る間はリリースできません。

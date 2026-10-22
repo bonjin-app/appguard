@@ -1,0 +1,17 @@
+FROM python:3.11.16-slim-bookworm@sha256:a36c24f9cbdf4fd0f52d67f0823eeac19c2028c637cecc392d97f980d4fec56b AS build
+WORKDIR /opt/appguard
+COPY deploy/spring-ingress/uv.requirements.txt /tmp/uv.requirements.txt
+RUN python -m pip install --no-cache-dir --disable-pip-version-check --no-deps --require-hashes -r /tmp/uv.requirements.txt
+COPY sdk/python/ ./
+RUN UV_LINK_MODE=copy uv sync --locked --no-dev --extra server --extra redis --no-install-project --python /usr/local/bin/python
+
+FROM python:3.11.16-slim-bookworm@sha256:a36c24f9cbdf4fd0f52d67f0823eeac19c2028c637cecc392d97f980d4fec56b
+ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1 PYTHONPATH=/opt/appguard/src PATH=/opt/appguard/.venv/bin:$PATH
+WORKDIR /opt/appguard
+COPY --from=build /opt/appguard/.venv /opt/appguard/.venv
+COPY sdk/python/src/ /opt/appguard/src/
+COPY examples/spring-ingress/ingress.py /opt/appguard/ingress.py
+COPY deploy/spring-ingress/probe.py /opt/appguard/probe.py
+COPY LICENSE /usr/share/licenses/appguard/LICENSE
+USER 10001:10001
+ENTRYPOINT ["/opt/appguard/.venv/bin/python", "/opt/appguard/ingress.py"]

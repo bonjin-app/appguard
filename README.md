@@ -426,3 +426,5 @@ a complete bounded body before connecting to the certificate-protected backend,
 and scans the actual container JAR graph. The [readiness assessor](docs/development/release-readiness.md#separate-readiness-assessment)
 keeps technical findings and pending external approvals separate; local receipts
 cannot grant production approval.
+
+The [production release criteria](docs/development/production-release.md) track sustained load, outage/recovery, live GitHub source/job verification and original license/NOTICE materials. Use the [constrained container installation guide](deploy/spring-ingress/README.md) for explicit certificates, identity and persistent Redis configuration. These checks provide evidence; unresolved vulnerabilities and required external approvals still block release.

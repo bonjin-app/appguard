@@ -23,6 +23,85 @@ CHECKS = ('signed_fidelity', 'replay_rejected', 'backend_bypass_rejected',
 
 
 class AssessmentTests(unittest.TestCase):
+    def test_actual_hosted_verifier_accepts_preserved_source_modes_through_assessor(self):
+        import assess
+        import verify_hosted
+        import test_verify_hosted as hosted_fixture
+        from datetime import datetime, timedelta, timezone
+        helper = hosted_fixture.HostedTests()
+        helper.setUp()
+        self.addCleanup(helper.doCleanups)
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary).resolve()
+            candidate, scans = self.fixture(base)
+            workflow = candidate / 'source/.github/workflows/verify.yml'
+            workflow.parent.mkdir(parents=True)
+            workflow.write_bytes(hosted_fixture.WORKFLOW)
+            (candidate / 'source/LICENSE').write_text('Apache-2.0\n')
+            # The old publication-only fixture has a synthetic root lockfile;
+            # a real source candidate permits it under an SDK directory.
+            lock = candidate / 'source/package-lock.json'
+            target = candidate / 'source/sdk/node/package-lock.json'
+            target.parent.mkdir(parents=True, exist_ok=True)
+            lock.rename(target)
+            helper.candidate = candidate
+            helper.manifest = json.loads((candidate / 'manifest.json').read_text())
+            helper.manifest.update(archive_prefix='appguard/', excluded=[])
+            helper.restamp()
+            helper.remote_source()
+            now = datetime.now(timezone.utc) - timedelta(seconds=10)
+            helper.run.update(created_at=now.isoformat(timespec='seconds').replace('+00:00', 'Z'),
+                              updated_at=now.isoformat(timespec='seconds').replace('+00:00', 'Z'))
+            with patch.object(verify_hosted, 'fetch_github', side_effect=helper.fetch):
+                report = assess.assess(candidate, scans, base / 'assessment', COMMIT, hosted_run_id=42)
+            self.assertEqual(self.gate(report, 'hosted_ci')['state'], 'pass')
+            self.assertFalse(report['release_ready'])
+
+    def test_hosted_gate_uses_live_verifier_and_never_approves_external_gates(self):
+        import assess
+        import verify_hosted
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary).resolve()
+            candidate, scans = self.fixture(base)
+            def verified(candidate, commit, repository, run, output):
+                self.assertEqual(repository, 'bonjin-app/appguard')
+                self.assertEqual(run, 123)
+                output.mkdir()
+                report = {'technical_gate_verified': True, 'candidate_commit': commit,
+                    'sha256': {'candidate_manifest': hashlib.sha256((candidate / 'manifest.json').read_bytes()).hexdigest(),
+                               'source_archive': hashlib.sha256((candidate / 'source.tar.gz').read_bytes()).hexdigest()}}
+                (output / 'hosted.json').write_text(json.dumps(report))
+                return report
+            with patch.object(verify_hosted, 'verify_hosted', side_effect=verified) as verifier:
+                report = assess.assess(candidate, scans, base / 'assessment', COMMIT, hosted_run_id=123)
+            verifier.assert_called_once()
+            self.assertEqual(self.gate(report, 'hosted_ci')['state'], 'pass')
+            self.assertFalse(report['release_ready'])
+            for gate in ('external_security_audit', 'license_notice_approval', 'release_publication_approval'):
+                self.assertEqual(self.gate(report, gate)['state'], 'pending_external')
+
+    def test_hosted_failure_wrong_candidate_and_late_mutation_cannot_pass(self):
+        import assess
+        import verify_hosted
+        for mode in ('failed', 'wrong_commit', 'wrong_manifest', 'mutation'):
+            with self.subTest(mode=mode), tempfile.TemporaryDirectory() as temporary:
+                base = Path(temporary).resolve()
+                candidate, scans = self.fixture(base)
+                def failed(source, commit, repository, run, output):
+                    output.mkdir()
+                    report = {'technical_gate_verified': mode != 'failed', 'candidate_commit': COMMIT,
+                        'sha256': {'candidate_manifest': hashlib.sha256((source / 'manifest.json').read_bytes()).hexdigest(),
+                                   'source_archive': hashlib.sha256((source / 'source.tar.gz').read_bytes()).hexdigest()}}
+                    if mode == 'wrong_commit': report['candidate_commit'] = 'b' * 40
+                    if mode == 'wrong_manifest': report['sha256']['candidate_manifest'] = 'c' * 64
+                    if mode == 'mutation': (candidate / 'source/docs/input.txt').write_bytes(b'mutated')
+                    (output / 'hosted.json').write_text(json.dumps(report))
+                    return report
+                with patch.object(verify_hosted, 'verify_hosted', side_effect=failed):
+                    report = assess.assess(candidate, scans, base / 'assessment', COMMIT, hosted_run_id=123)
+                self.assertEqual(self.gate(report, 'hosted_ci')['state'], 'blocked')
+                self.assertFalse(report['release_ready'])
+
     def fixture(self, base):
         helper = publication_fixture.PublicationTests()
         candidate, scans = helper.setup_inputs(base)

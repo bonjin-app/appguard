@@ -6,18 +6,22 @@ receipt proves this local topology only, not a production deployment or audit.
 """
 import argparse
 import base64
+from concurrent.futures import ThreadPoolExecutor, wait
 from datetime import datetime, timedelta, timezone
 import hashlib
 import json
+import math
 import os
 from pathlib import Path
 import secrets
+import re
 import shutil
 import socket
 import ssl
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 import zipfile
 
@@ -117,6 +121,304 @@ def wait_port(process, port, timeout=30):
     raise AssertionError('owned listener did not start')
 
 
+
+def validate_soak_options(seconds, concurrency):
+    if type(seconds) is not int or not 0 <= seconds <= 3600 or type(concurrency) is not int or not 1 <= concurrency <= 32:
+        raise ValueError('bounded integer soak options required')
+
+
+def stop_owned(process, owners, run_id):
+    # Popen.poll checks this exact child before a signal; never signal a PID read
+    # from a socket or accept a child from another qualification run.
+    require(owners.get(process)==(process.pid,run_id) and process.poll() is None)
+    return stop(process)
+
+
+def verify_redis_owner(client, process, owners, run_id, expected_run_id=None):
+    require(owners.get(process)==(process.pid,run_id) and process.poll() is None)
+    info=client.info('server')
+    identity=info.get('run_id')
+    require(info.get('process_id')==process.pid and type(identity) is str and re.fullmatch('[0-9a-f]{40}',identity) is not None)
+    require(expected_run_id is None or identity==expected_run_id)
+    return identity
+
+
+class LatencyMetrics:
+    # Fixed buckets keep memory independent of request count and soak duration.
+    bounds=(1,2,5,10,20,50,100,200,500,1000,2000,5000,10000)
+
+    def __init__(self):
+        self.counts=[0]*(len(self.bounds)+1)
+        self.samples=0;self.total=0.;self.minimum=None;self.maximum=0.
+
+    def observe(self,seconds):
+        if type(seconds) not in (int,float) or not math.isfinite(seconds) or seconds<0:
+            raise ValueError('finite nonnegative latency required')
+        milliseconds=seconds*1000
+        if not math.isfinite(milliseconds):
+            raise ValueError('finite latency required')
+        index=next((i for i,bound in enumerate(self.bounds) if milliseconds<=bound),len(self.bounds))
+        self.counts[index]+=1;self.samples+=1;self.total+=milliseconds
+        self.minimum=milliseconds if self.minimum is None else min(self.minimum,milliseconds)
+        self.maximum=max(self.maximum,milliseconds)
+
+    def merge(self,other):
+        self.counts=[a+b for a,b in zip(self.counts,other.counts)]
+        self.samples+=other.samples;self.total+=other.total
+        if other.minimum is not None:
+            self.minimum=other.minimum if self.minimum is None else min(self.minimum,other.minimum)
+        self.maximum=max(self.maximum,other.maximum)
+
+    def report(self):
+        def percentile(fraction):
+            accumulated=0
+            for index,count in enumerate(self.counts):
+                accumulated+=count
+                if accumulated>=max(1,math.ceil(self.samples*fraction)):
+                    return min(self.bounds[index],self.maximum) if index<len(self.bounds) else self.maximum
+            return 0.
+        return {'samples':self.samples,'min_ms':self.minimum or 0.,'max_ms':self.maximum,
+            'mean_ms':self.total/self.samples if self.samples else 0.,
+            'p50_upper_bound_ms':percentile(.5),'p95_upper_bound_ms':percentile(.95),'p99_upper_bound_ms':percentile(.99),
+            'histogram_upper_bounds_ms':list(self.bounds),'histogram_counts':self.counts.copy()}
+
+
+def process_resources(processes):
+    """Point-in-time RSS and cumulative CPU only; no command/env disclosure."""
+    result={}
+    for role,process in processes.items():
+        require(process.poll() is None)
+        output=subprocess.check_output(['ps','-o','pid=,rss=,time=','-p',str(process.pid)],text=True,timeout=2)
+        require(len(output)<256)
+        fields=output.split();require(len(fields)==3 and fields[0]==str(process.pid))
+        rss=int(fields[1])*1024
+        match=re.fullmatch(r'(?:(\d+)-)?(?:(\d+):)?(\d+):(\d+(?:\.\d+)?)',fields[2])
+        require(match is not None)
+        days,hours,minutes,seconds=match.groups()
+        cpu=int(days or 0)*86400+int(hours or 0)*3600+int(minutes)*60+float(seconds)
+        require(rss>=0 and math.isfinite(cpu) and cpu>=0)
+        result[role]={'pid':process.pid,'rss_bytes':rss,'cpu_seconds':cpu}
+    return result
+
+
+def replay_denied(response):
+    status,body=response
+    try:
+        return status==403 and json.loads(body)=={'code':'REPLAY_DETECTED'}
+    except (ValueError,UnicodeError):
+        return False
+
+
+def run_soak(seconds, concurrency, port, context, signer, sample_resources=None):
+    validate_soak_options(seconds,concurrency);require(seconds>0)
+    started=time.monotonic();deadline=started+seconds;cancel=threading.Event()
+    def worker(index):
+        metrics={name:0 for name in ('signed_requests','replay_requests','fidelity_failures','replay_failures','transport_errors')}
+        latency=LatencyMetrics()
+        while not cancel.is_set() and time.monotonic()<deadline:
+            target='/v1/items?worker='+str(index)+'&x=%2f&x=%2F'
+            body=b'\x00\xff\r\n'+secrets.token_bytes(32)
+            request=wire(target,signer.headers(target,body),body)
+            for replay in (False,True):
+                metrics['replay_requests' if replay else 'signed_requests']+=1
+                begin=time.monotonic()
+                try:
+                    response=exchange(port,context,request)
+                    if replay:
+                        metrics['replay_failures']+=not replay_denied(response)
+                    else:
+                        metrics['fidelity_failures']+=response!=(200,body)
+                except (OSError,ValueError):
+                    metrics['transport_errors']+=1
+                finally:
+                    latency.observe(time.monotonic()-begin)
+            # Avoid unbounded hot spinning if a local endpoint fails immediately.
+            if metrics['transport_errors']:
+                time.sleep(.01)
+        return metrics,latency
+    result={name:0 for name in ('signed_requests','replay_requests','fidelity_failures','replay_failures','transport_errors')}
+    latency=LatencyMetrics()
+    with ThreadPoolExecutor(max_workers=concurrency) as pool:
+        pending={pool.submit(worker,index) for index in range(concurrency)}
+        try:
+            while pending:
+                if sample_resources is not None:sample_resources()
+                finished,pending=wait(pending,timeout=1)
+                for future in finished:
+                    metrics,samples=future.result()
+                    for name,value in metrics.items():result[name]+=value
+                    latency.merge(samples)
+        finally:
+            cancel.set()
+    elapsed=time.monotonic()-started
+    requests=result['signed_requests']+result['replay_requests']
+    errors=result['fidelity_failures']+result['replay_failures']+result['transport_errors']
+    return result|{'requested_seconds':seconds,'concurrency':concurrency,'elapsed_seconds':elapsed,
+        'requests_per_second':requests/elapsed,'error_rate':errors/requests if requests else 1.,'latency':latency.report()}
+
+
+def require_soak_success(result):
+    require(result['signed_requests']>0 and result['signed_requests']==result['replay_requests']
+        and result['elapsed_seconds']>=result['requested_seconds']
+        and all(result[name]==0 for name in ('fidelity_failures','replay_failures','transport_errors')))
+
+
+
+def verify_soak_counters(before,after,soak):
+    delta={name:after[name]-value for name,value in before.items()}
+    requests=soak['signed_requests']+soak['replay_requests']
+    require(delta=={'dispatch':requests,'auth':requests,'key':requests,'replay':requests,'resource':soak['signed_requests']})
+    return delta
+
+
+def expect_healthy(port,context,signer):
+    body=secrets.token_bytes(32);target='/v1/items?recovery=%2f&recovery=%2F'
+    request=wire(target,signer.headers(target,body),body)
+    require(exchange(port,context,request)==(200,body))
+    return request
+
+
+def admission_probe(spawn,env,port,context,signer,count_file):
+    pressure_port=free_port()
+    gateway=spawn([sys.executable,str(ROOT/'examples/spring-ingress/ingress.py')],env|{
+        'APPGUARD_LISTEN_PORT':str(pressure_port),'APPGUARD_MAX_CONNECTIONS':'4','APPGUARD_MAX_INFLIGHT':'2'},'pressure-gateway')
+    wait_port(gateway,pressure_port)
+    baseline=counters(count_file);holders=[]
+    def connect():
+        raw=socket.create_connection(('127.0.0.1',pressure_port),timeout=2)
+        try:
+            secured=context.wrap_socket(raw,server_hostname='api.example.test');secured.settimeout(7)
+            return secured
+        except BaseException:
+            raw.close();raise
+    started=time.monotonic()
+    try:
+        for _ in range(2):
+            connection=connect();holders.append(connection)
+            connection.sendall(b'POST /v1/items HTTP/1.1\r\nHost: api.example.test\r\nContent-Length: 8\r\n\r\n')
+        # Let the event loop register both bounded body-capture applications.
+        time.sleep(.1)
+        response=exchange(pressure_port,context,wire('/v1/items',signer.headers('/v1/items',b'pressure'),b'pressure'))
+        require(response[0]==503 and json.loads(response[1])=={'code':'INGRESS_OVERLOADED'})
+        require(counters(count_file)==baseline)
+    finally:
+        for connection in holders:connection.close()
+    overload_seconds=time.monotonic()-started
+    require(overload_seconds<3.5)
+    # A post-cancellation healthy request proves inflight admission is released.
+    time.sleep(.9);expect_healthy(pressure_port,context,signer)
+    baseline=counters(count_file);holders=[];started=time.monotonic()
+    try:
+        for _ in range(4):
+            connection=connect();holders.append(connection)
+            connection.sendall(b'POST /v1/items HTTP/1.1\r\nHost: api.example.test\r\n')
+        refused=False
+        try:
+            # A fifth TLS connection must be refused by the raw admission cap.
+            with connect() as extra:
+                extra.sendall(b'POST /v1/items HTTP/1.1\r\n')
+                refused=extra.recv(1)==b''
+        except (ConnectionError,ssl.SSLError):
+            refused=True
+        require(refused)
+        for connection in holders:
+            try:require(connection.recv(1)==b'')
+            except (ConnectionError,ssl.SSLError):pass
+        require(time.monotonic()-started<7 and counters(count_file)==baseline)
+    finally:
+        for connection in holders:connection.close()
+    header_seconds=time.monotonic()-started
+    expect_healthy(pressure_port,context,signer);expect_healthy(port,context,signer)
+    return {'passed':True,'max_connections':4,'max_inflight':2,'slow_header_connections':4,
+        'overload_status':503,'overload_seconds':overload_seconds,'excess_connection_refused':1,
+        'slow_header_close_seconds':header_seconds,'recovered':True,
+        'counters_before_slow_headers':baseline,'counters_after_recovery':counters(count_file)}
+
+
+
+def expect_redis_unavailable(port,context,request):
+    started=time.monotonic()
+    response=exchange(port,context,request)
+    elapsed=time.monotonic()-started
+    require(response[0]==503 and json.loads(response[1])=={'code':'REPLAY_STORE_UNAVAILABLE'} and elapsed<3.5)
+    return elapsed
+
+
+def operational_probes(report,seconds,concurrency,spawn,owners,run_id,owned,client,redis_run_id,redis_command,
+                       backend_command,backend_env,env,gateway_env,gateway_port,context,signer,count_file):
+    resources={'scope':'primary Redis/backend/ingress child ps RSS and cumulative CPU; sampled points only; excludes build and pressure/failure gateways; not leak proof',
+        'samples':0,'peak_rss_bytes':{role:0 for role in owned}}
+    def sample():
+        current=process_resources(owned);resources['samples']+=1
+        for role,value in current.items():resources['peak_rss_bytes'][role]=max(resources['peak_rss_bytes'][role],value['rss_bytes'])
+        return current
+    report['resources']=resources;resources['before']=sample()
+    report['counters']={'before_faults':counters(count_file),'scope':'backend process-local counters; reset on backend restart'}
+    # Authenticate the listener against the exact spawned child AND Redis run ID
+    # immediately before fault control. This fixture never uses shared Redis.
+    verify_redis_owner(client,owned['redis'],owners,run_id,redis_run_id)
+    before=counters(count_file)
+    require(stop_owned(owned['redis'],owners,run_id))
+    body=secrets.token_bytes(32);target='/v1/items'
+    request=wire(target,signer.headers(target,body),body)
+    report['redis_outage']={'deny_status':503,'deny_seconds':expect_redis_unavailable(gateway_port,context,request)}
+    require(counters(count_file)['resource']==before['resource'])
+    report['checks']['redis_outage_denied']=True
+    owned['redis']=spawn(redis_command,env,'redis-restarted');wait_port(owned['redis'],client.connection_pool.connection_kwargs['port'])
+    replacement_id=verify_redis_owner(client,owned['redis'],owners,run_id)
+    require(replacement_id!=redis_run_id)
+    started=time.monotonic()
+    # Each trial is newly signed, never a retry of a possibly consumed nonce.
+    recovered=False;attempts=0
+    while time.monotonic()-started<15:
+        attempts+=1
+        body=secrets.token_bytes(32);request=wire(target,signer.headers(target,body),body)
+        response=exchange(gateway_port,context,request)
+        if response==(200,body):recovered=True;break
+        require(response[0]==503 and json.loads(response[1])=={'code':'REPLAY_STORE_UNAVAILABLE'})
+        time.sleep(.25)
+    report['redis_recovery']={'recovered':recovered,'attempts':attempts,'seconds':time.monotonic()-started,
+        'new_owned_server_run':True,'automatic_recovery':recovered,'persistence_enabled':False,'replay_retention_across_redis_loss_verified':False}
+    require(recovered and report['redis_recovery']['seconds']<=15)
+    require(replay_denied(exchange(gateway_port,context,request)))
+    report['redis_recovery']['new_replay_rejected']=True
+    report['checks']['redis_recovered']=True
+    # Keep Redis running, then prove its replay claim survives a backend restart.
+    replay=expect_healthy(gateway_port,context,signer)
+    require(replay_denied(exchange(gateway_port,context,replay)))
+    report['counters']['before_backend_restart']=counters(count_file)
+    verify_redis_owner(client,owned['redis'],owners,run_id,replacement_id)
+    require(stop_owned(owned['backend'],owners,run_id))
+    started=time.monotonic()
+    request=wire(target,signer.headers(target,b'bounded'),b'bounded')
+    require(exchange(gateway_port,context,request)[0] in {502,504} and time.monotonic()-started<3.5)
+    # Startup requires a new empty owner-only counter file. Snapshot is retained
+    # above; clear it only after the exact owned backend has fully stopped.
+    count_file.write_bytes(b'')
+    owned['backend']=spawn(backend_command,backend_env,'backend-restarted')
+    wait_port(owned['backend'],int(backend_env['APPGUARD_BACKEND_PORT']),60)
+    expect_healthy(gateway_port,context,signer)
+    require(replay_denied(exchange(gateway_port,context,replay)))
+    verify_redis_owner(client,owned['redis'],owners,run_id,replacement_id)
+    report['backend_restart']={'recovered':True,'replay_retained':True,'seconds':time.monotonic()-started,
+        'redis_run_unchanged':True,'counter_reset_expected':True}
+    report['checks']['backend_restarted_with_replay_retained']=True
+    report['counters']['after_backend_restart']=counters(count_file)
+    report['admission']=admission_probe(spawn,gateway_env,gateway_port,context,signer,count_file)
+    report['checks']['admission_pressure_recovered']=True
+    resources['after_recovery']=sample()
+    report['counters']['after_recovery']=counters(count_file)
+    # Create restart replay evidence first, within the request's 60-second
+    # acceptance window; a long soak must never age that proof into INVALID_TIME.
+    report['counters']['before_soak']=counters(count_file)
+    report['soak']=run_soak(seconds,concurrency,gateway_port,context,signer,sample)
+    report['counters']['after_soak']=counters(count_file)
+    resources['after_soak']=sample();require_soak_success(report['soak'])
+    report['counters']['soak_delta']=verify_soak_counters(report['counters']['before_soak'],report['counters']['after_soak'],report['soak'])
+    report['checks']['soak']=True
+    report['passed']=True
+
+
 def certificates(directory, java_home):
     from cryptography import x509
     from cryptography.hazmat.primitives import hashes, serialization
@@ -131,7 +433,7 @@ def certificates(directory, java_home):
         builder = (x509.CertificateBuilder().subject_name(subject)
             .issuer_name(parent.subject if parent else subject).public_key(key.public_key())
             .serial_number(x509.random_serial_number()).not_valid_before(now-timedelta(minutes=1))
-            .not_valid_after(now+timedelta(hours=1))
+            .not_valid_after(now+timedelta(hours=2))
             .add_extension(x509.BasicConstraints(ca=issuer is None, path_length=0 if issuer is None else None), True))
         if issuer:
             builder = builder.add_extension(x509.ExtendedKeyUsage([
@@ -246,7 +548,8 @@ def counters(path):
     raise AssertionError('counter snapshot unavailable')
 
 
-def qualify(output, maven, java_home, redis_server):
+def qualify(output, maven, java_home, redis_server, soak_seconds=0, soak_concurrency=8):
+    validate_soak_options(soak_seconds,soak_concurrency)
     import redis
     started=datetime.now(timezone.utc)
     receipt={'schema':1,'evidence_class':'local_deployment','profile':'spring-mtls-store-forward-v1',
@@ -255,11 +558,19 @@ def qualify(output, maven, java_home, redis_server):
         'checks':{name:False for name in CHECKS},'release_ready':False,
         'limits':{'body_bytes':1048576,'upload_seconds':.8,'backend_seconds':2},
         'limitations':['local topology only','no external audit or provider validation','no physical device proof']}
+    if soak_seconds:
+        receipt['operational']={'schema':1,'passed':False,'release_ready':False,
+            'scope':'actual local packaged Spring topology; synthetic owned traffic only',
+            'checks':{name:False for name in ('soak','redis_outage_denied','redis_recovered',
+                'backend_restarted_with_replay_retained','admission_pressure_recovered','owned_process_cleanup')},
+            'limitations':['timed local soak is not long-term production or cloud operating proof',
+                'Redis persistence disabled: restart discards replay state; production requires reviewed persistence and noeviction',
+                'no external security review, provider-account validation, or production approval']}
     source_pins=source_hashes()
     receipt['source_sha256']={str(path.relative_to(ROOT)):value for path,value in source_pins.items()}
     receipt['source_matches_commit']=not bool(subprocess.check_output(['git','status','--porcelain','--untracked-files=normal'],cwd=ROOT))
     pins={};runtime=None;hashes={}
-    processes=[]
+    processes=[];owners={};run_id=secrets.token_hex(16)
     with tempfile.TemporaryDirectory(prefix='appguard-spring-qualification-') as temporary:
         private=Path(temporary).resolve();private.chmod(0o700)
         handles=[]
@@ -267,7 +578,7 @@ def qualify(output, maven, java_home, redis_server):
         def spawn(command, env, name):
             handle=(private/(name+'.log')).open('wb');os.chmod(handle.name,0o600);handles.append(handle)
             process=subprocess.Popen(command,cwd=ROOT,env=env,stdin=subprocess.DEVNULL,stdout=handle,stderr=subprocess.STDOUT)
-            processes.append(process);return process
+            processes.append(process);owners[process]=(process.pid,run_id);return process
         def run(command, name):
             with (private/(name+'.log')).open('wb') as log:
                 os.chmod(log.name,0o600)
@@ -319,10 +630,11 @@ def qualify(output, maven, java_home, redis_server):
             verify_pins(pins,runtime,hashes)
             password=certificates(private,java_home);signer=Signer(private)
             redis_port,backend_port,gateway_port=free_port(),free_port(),free_port()
-            redis_process=spawn([str(redis_server),'--bind','127.0.0.1','--port',str(redis_port),'--save','','--appendonly','no','--dir',str(private)],env,'redis')
+            redis_command=[str(redis_server),'--bind','127.0.0.1','--port',str(redis_port),'--save','','--appendonly','no','--dir',str(private)]
+            redis_process=spawn(redis_command,env,'redis')
             wait_port(redis_process,redis_port)
             client=redis.Redis(host='127.0.0.1',port=redis_port,socket_connect_timeout=1,socket_timeout=1)
-            require(client.info('server')['process_id']==redis_process.pid)
+            redis_run_id=verify_redis_owner(client,redis_process,owners,run_id)
             count_file=private/'counters.json';count_file.touch(mode=0o600)
             backend_env=env|{'APPGUARD_BACKEND_PORT':str(backend_port),'APPGUARD_BACKEND_KEYSTORE':str(private/'backend.p12'),
                 'APPGUARD_BACKEND_KEYSTORE_PASSWORD':password,'APPGUARD_BACKEND_TRUSTSTORE':str(private/'trust.p12'),
@@ -331,7 +643,8 @@ def qualify(output, maven, java_home, redis_server):
                 'APPGUARD_PUBLIC_KEY_FILE':str(private/'enrolled.pem'),'APPGUARD_BEARER_SHA256':hashlib.sha256(signer.token.encode()).hexdigest(),
                 'APPGUARD_REDIS_URL':f'redis://127.0.0.1:{redis_port}/0','APPGUARD_BACKEND_COUNTER_FILE':str(count_file)}
             classpath=os.pathsep.join(map(str,[output/'backend.jar',*jars]))
-            backend_process=spawn([str(java_home/'bin/java'),'-cp',classpath,'io.appguard.example.BackendMain'],backend_env,'backend')
+            backend_command=[str(java_home/'bin/java'),'-cp',classpath,'io.appguard.example.BackendMain']
+            backend_process=spawn(backend_command,backend_env,'backend')
             wait_port(backend_process,backend_port,60)
             gateway_env=env|{'APPGUARD_ORIGIN':'https://api.example.test','APPGUARD_BACKEND_PORT':str(backend_port),
                 'APPGUARD_BACKEND_HOSTNAME':'backend.example.test','APPGUARD_BACKEND_CA':str(private/'server-ca.pem'),
@@ -412,6 +725,10 @@ def qualify(output, maven, java_home, redis_server):
             require(exchange(gateway_port,context,wire(target,signer.headers(target,body),body))==(200,body))
             receipt['checks']['healthy_recovery']=True
             receipt['metrics']={'runtime_jars':len(jars),'backend_counters':counters(count_file)}
+            if soak_seconds:
+                operational_probes(receipt['operational'],soak_seconds,soak_concurrency,spawn,owners,run_id,
+                    {'redis':redis_process,'backend':backend_process,'gateway':gateway},client,redis_run_id,redis_command,
+                    backend_command,backend_env,env,gateway_env,gateway_port,context,signer,count_file)
             client.close()
         finally:
             if client is not None:
@@ -422,6 +739,11 @@ def qualify(output, maven, java_home, redis_server):
             receipt['checks']['owned_process_cleanup']=settled
             receipt['owned_process_cleanup']=settled
             receipt['cleanup']=settled
+            if soak_seconds:
+                receipt['operational']['checks']['owned_process_cleanup']=settled
+                receipt['operational']['passed']=receipt['operational']['passed'] and settled
+                receipt['operational']['owned_children_started']=len(processes)
+                receipt['operational']['owned_children_settled']=sum(process.poll() is not None for process in processes)
             try:
                 require(bool(pins) and runtime is not None)
                 verify_pins(pins,runtime,hashes)
@@ -429,12 +751,17 @@ def qualify(output, maven, java_home, redis_server):
                 require(subprocess.check_output(['git','rev-parse','HEAD'],cwd=ROOT,text=True).strip()==receipt['candidate_commit'])
                 receipt['source_matches_commit']=receipt['source_matches_commit'] and not bool(subprocess.check_output(['git','status','--porcelain','--untracked-files=normal'],cwd=ROOT))
                 receipt['provenance_unchanged']=True
+                if soak_seconds:receipt['operational']['provenance_unchanged']=True
             except (AssertionError,OSError,ValueError,subprocess.SubprocessError):
                 receipt['provenance_unchanged']=False
+                if soak_seconds:
+                    receipt['operational']['passed']=False
+                    receipt['operational']['provenance_unchanged']=False
                 receipt['checks']={name:False for name in CHECKS}
                 receipt['checks']['owned_process_cleanup']=settled
             (output/'receipt.json').write_text(json.dumps(receipt,indent=2,sort_keys=True)+'\n')
     require(all(receipt['checks'].values()))
+    if soak_seconds:require(receipt['operational']['passed'] and all(receipt['operational']['checks'].values()))
     return receipt
 
 
@@ -444,14 +771,17 @@ def main():
     parser.add_argument('--maven',default=os.environ.get('APPGUARD_MAVEN','mvn'))
     parser.add_argument('--java-home',default=os.environ.get('JAVA_HOME'))
     parser.add_argument('--redis-server',default=os.environ.get('APPGUARD_REDIS_SERVER','redis-server'))
+    parser.add_argument('--soak-seconds',type=int,default=0,help='0 disables operational probes; otherwise 1..3600 seconds')
+    parser.add_argument('--soak-concurrency',type=int,default=8,help='1..32 concurrent synthetic request workers')
     args=parser.parse_args()
     try:
+        validate_soak_options(args.soak_seconds,args.soak_concurrency)
         require(args.java_home is not None)
         java=Path(args.java_home).resolve(strict=True)
         maven=Path(shutil.which(args.maven) or args.maven).resolve(strict=True)
         redis_server=Path(shutil.which(args.redis_server) or args.redis_server).resolve(strict=True)
         output=new_output(args.output)
-        qualify(output,maven,java,redis_server)
+        qualify(output,maven,java,redis_server,args.soak_seconds,args.soak_concurrency)
     except Exception:
         print('SPRING_QUALIFICATION_FAILED',file=sys.stderr)
         return 1

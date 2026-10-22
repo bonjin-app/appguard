@@ -31,7 +31,7 @@ authenticate who prepared it.
 
 The tracked-source allowlist includes root README/license/security/contribution
 files and `sdk/`, `reference/`, `scripts/`, `tools/`, `docs/`, `conformance/`, `protocol/`, `examples/`, and
-`.github/`. VCS state, toolchains, dependencies, build outputs, `.evidence`/`.artifacts`, private folders,
+`.github/` and `deploy/`. VCS state, toolchains, dependencies, build outputs, `.evidence`/`.artifacts`, private folders,
 credential-like names and common private key formats (including Apple `.p8`)
 are excluded. CLI `bin/`
 is explicitly included source. This policy is defense in depth, not a secret
@@ -307,3 +307,10 @@ to mean local tool prerequisites only.
 The hosted workflow retains only this fixed-schema assessment separately from
 the existing gated publication artifact. It never includes scanner exceptions,
 raw requests, arbitrary input fields or approval text in that report.
+
+`--hosted-run-id NUMERIC_RUN_ID` now verifies a completed main push run directly
+through the fixed GitHub HTTPS API and binds its entire source tree/archive to
+this candidate. This can satisfy the hosted CI gate; it does not import a saved
+approval or pass other gates. The final release decision is derived from all
+required gate states and remains false while unsupported external approvals or
+findings remain. See the [production goal and commands](production-release.md).

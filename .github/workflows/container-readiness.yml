@@ -1,0 +1,57 @@
+name: Container deployment readiness
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: container-readiness-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  owned-container-deployment:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.11'
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        with:
+          version: 0.13.3
+          enable-cache: false
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Frozen tooling and focused container safety tests
+        run: |
+          uv sync --locked --project sdk/python
+          uv run --frozen --project sdk/python python .github/tests/test_spring_containers.py -v
+          python3 .github/tests/test_container_image_scan.py -v
+      - name: Build and exercise the owned container deployment
+        run: |
+          uv run --frozen --project sdk/python python scripts/qualification/spring_containers.py --docker-context default --java-home "$JAVA_HOME" --output "$RUNNER_TEMP/appguard-spring-containers"
+      - name: Scan the exact runtime images without suppressions
+        run: |
+          python3 scripts/qualification/scan_container_images.py --receipt "$RUNNER_TEMP/appguard-spring-containers/receipt.json" --docker-context default --output "$RUNNER_TEMP/appguard-container-image-scans"
+      - name: Retain fixed-schema operating and image status only
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: owned-container-readiness-${{ github.sha }}
+          path: |
+            ${{ runner.temp }}/appguard-spring-containers/receipt.json
+            ${{ runner.temp }}/appguard-container-image-scans/status.json
+          if-no-files-found: warn
+          retention-days: 7

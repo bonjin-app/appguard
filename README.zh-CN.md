@@ -362,3 +362,5 @@ ASP.NET Core 对整个请求体读取实施绝对时间限制（默认 30 秒）
 完整接收限量请求体后才连接由证书保护的后端，并检查实际容器 JAR 依赖图。
 [就绪度评估命令](docs/development/release-readiness.md#separate-readiness-assessment)区分技术阻碍与外部审批待办，
 本地结果不能授予生产环境批准。
+
+[生产发布标准](docs/development/production-release.md)跟踪持续负载、故障恢复、GitHub 实际源码与任务验证，以及许可证和 NOTICE 原文。证书、身份集成、持久化 Redis 配置及安装命令参见[受限容器部署指南](deploy/spring-ingress/README.md)。存在未解决漏洞或缺少必需的外部批准时，仍会阻止发布。

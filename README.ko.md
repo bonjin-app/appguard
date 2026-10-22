@@ -423,3 +423,5 @@ ASP.NET Core는 전체 본문 읽기에 절대 제한 시간(기본 30초)을 �
 검증 명령을 추가했습니다. 제한된 본문을 모두 받은 뒤 인증서로 보호한 백엔드에 연결하고,
 실제 컨테이너 JAR 의존성을 검사합니다. [준비도 점검 명령](docs/development/release-readiness.md#separate-readiness-assessment)은
 기술적 차단 항목과 외부 승인 대기를 구분하며, 로컬 결과만으로 프로덕션 승인을 부여하지 않습니다.
+
+[프로덕션 출시 기준](docs/development/production-release.md)에서 지속 부하·장애 복구, GitHub의 실제 소스·작업 검증, 원문 라이선스·NOTICE 자료를 추적합니다. 인증서·인증 연동·영속 Redis 설정과 설치 명령은 [제한된 컨테이너 배포 가이드](deploy/spring-ingress/README.md)를 확인하세요. 검증 증거가 쌓여도 미해결 취약점과 필수 외부 승인이 남으면 출시는 차단됩니다.

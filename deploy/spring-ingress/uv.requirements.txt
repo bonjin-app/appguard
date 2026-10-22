@@ -1,0 +1,5 @@
+# Official PyPI uv 0.13.3 wheels for Linux amd64 and arm64 (glibc).
+uv==0.13.3 \
+    --hash=sha256:8d9ba65db55f3701908b09394cb7d3248be28496aab6bd9a96e8e870261ad372 \
+    --hash=sha256:d8e4ab48719a285eb38ee0397dd8e2c7376f216baff6dc2390686ffae0df650f \
+    --hash=sha256:efdc59a3447aed23f131957db586b53dc78d51ca79986b401e1e7e1e8b9129fe

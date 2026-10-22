@@ -45,7 +45,9 @@ public class BackendMain {
     @Bean LettuceConnectionFactory redisConnection(BackendSettings settings){
         RedisStandaloneConfiguration config=new RedisStandaloneConfiguration("127.0.0.1",settings.redisPort);config.setDatabase(settings.redisDatabase);
         var client=LettuceClientConfiguration.builder().commandTimeout(Duration.ofSeconds(1)).shutdownTimeout(Duration.ofMillis(100))
-            .clientOptions(ClientOptions.builder().autoReconnect(false).socketOptions(SocketOptions.builder().connectTimeout(Duration.ofSeconds(1)).build()).build()).build();
+            .clientOptions(ClientOptions.builder().autoReconnect(true)
+                .disconnectedBehavior(ClientOptions.DisconnectedBehavior.REJECT_COMMANDS).requestQueueSize(128)
+                .socketOptions(SocketOptions.builder().connectTimeout(Duration.ofSeconds(1)).build()).build()).build();
         return new LettuceConnectionFactory(config,client);
     }
     @Bean StringRedisTemplate redisTemplate(LettuceConnectionFactory factory){return new StringRedisTemplate(factory);}

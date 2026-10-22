@@ -123,3 +123,21 @@ Successful local probes do not prove those external controls.
 
 See the [local qualification and internal review record](../security/production-qualification-2026-10-22.md)
 for test scope, findings resolved during development and remaining release gates.
+
+## Sustained load and container deployment
+
+Add `--soak-seconds 1800 --soak-concurrency 8` to the qualification command
+for a 30-minute operating probe. The runner checks unique signed calls, exact
+replay rejection, owned Redis outage/recovery, backend restart and bounded
+admission pressure. See [production release criteria](../development/production-release.md)
+for measured evidence and its limits. The process fixture uses nonpersistent
+Redis and cannot prove replay retention across Redis data loss.
+
+The example's Lettuce client reconnects after Redis returns, rejects commands
+while disconnected, and caps its queue at 128. Reconnection does not restore
+lost replay state. Never admit protected requests during a replay-store outage.
+
+For pinned image builds, constrained runtime settings and a persistent owned
+Redis volume, follow the [container installation guide](../../deploy/spring-ingress/README.md).
+Its qualifier separately exercises ordinary Redis stop/start retention and
+backend mTLS isolation. Actual operator deployment approval remains required.
