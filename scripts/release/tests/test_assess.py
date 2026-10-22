@@ -121,7 +121,8 @@ class AssessmentTests(unittest.TestCase):
             qualification = self.qualification(base)
             receipt = json.loads(qualification.read_text())
             receipt.update(release_ready=True, limitations=[MARKER], owned_process_cleanup={MARKER: True},
-                           exampleclasses_sha256='c' * 64, provenance_unchanged=True, source_matches_commit=True)
+                           exampleclasses_sha256='c' * 64, provenance_unchanged=True, source_matches_commit=True,
+                           source_sha256={'sdk/python/src/appguard/uvicorn.py': 'd' * 64})
             qualification.write_text(json.dumps(receipt))
             report = self.run_cli(base, candidate, scans, '--qualification', qualification, '--check', expected_code=2)
             self.assertEqual(self.gate(report, 'local_spring_ingress')['state'], 'referenced_unverified')

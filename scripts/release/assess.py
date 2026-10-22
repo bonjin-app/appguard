@@ -39,7 +39,7 @@ QUALIFICATION_ARTIFACTS = frozenset(('sdk_jar', 'example_pom', 'ingress_source')
 # Bounded opaque extensions from the local runner are never approval evidence.
 QUALIFICATION_EXTENSIONS = frozenset((
     'metrics', 'sources', 'release_ready', 'limitations', 'owned_process_cleanup',
-    'exampleclasses_sha256', 'provenance_unchanged', 'source_matches_commit',
+    'exampleclasses_sha256', 'provenance_unchanged', 'source_matches_commit', 'source_sha256',
 ))
 _SCAN_REASONS = frozenset((
     'candidate_unverified', 'scan_evidence_unverified', 'source_coverage_unverified',
