@@ -225,7 +225,14 @@ class ScanTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             base = Path(tmp).resolve()
             (base / 'candidate/source').mkdir(parents=True)
-            (base / 'candidate/manifest.json').write_text(json.dumps({'sha256': {}}))
+            source = base / 'candidate/source'
+            digest = 'a' * 64
+            (source / 'pyproject.toml').write_text('[tool.uv]\nrequire-build-hashes=true\n'
+                'build-constraint-dependencies=[{requirement="builder==3.2",hashes=["sha256:' + digest + '"]}]\n')
+            (source / 'uv.lock').write_text('version=1\nrevision=5\npackage=[]\n[manifest]\n'
+                'build-constraints=[{name="builder",specifier="==3.2",hashes=["sha256:' + digest + '"]}]\n')
+            (base / 'candidate/manifest.json').write_text(json.dumps({'sha256': {
+                'source/' + p.name: hashlib.sha256(p.read_bytes()).hexdigest() for p in source.iterdir()}}))
             fake = base / 'scanner'
             fake.write_text('#!' + sys.executable + '\n' +
                 'import json,pathlib,sys,hashlib\n'
@@ -237,6 +244,7 @@ class ScanTests(unittest.TestCase):
                 '  report["components"]=[{"type":"library","name":"library","version":"1","purl":"pkg:maven/org.example/library@1","properties":[{"name":"syft:location:0:path","value":"/org/example/library/1/library-1.jar"}]},{"type":"file","name":str(jar),"hashes":[{"alg":"SHA-256","content":hashlib.sha256(jar.read_bytes()).hexdigest()}]}]\n'
                 'else:\n'
                 ' path=pathlib.Path(args[args.index("--output")+1]); report={"SchemaVersion":2,"Results":[]}\n'
+                ' if "sbom" in args: report["ObservedPurls"]=[c.get("purl") for c in json.loads(pathlib.Path(args[-1]).read_text())["components"]]\n'
                 ' if "license" in args: report["Results"]=[{"Licenses":[{"PkgName":"library","Name":"UNKNOWN","Category":"unknown"}]}]\n'
                 'if "--output" in args: report.update(ArtifactName=args[-1],ArtifactType="filesystem" if "fs" in args else "cyclonedx")\n'
                 'path.write_text(json.dumps(report))\n')
@@ -255,6 +263,13 @@ class ScanTests(unittest.TestCase):
                 self.assertEqual(m.run_scans(base / 'candidate', base / 'reports'), 0)
             status = json.loads((base / 'reports/status.json').read_text())
             self.assertTrue(status['automated_checks_passed'])
+            self.assertEqual(len(status['commands']), 8)
+            for name in ('trivy-sbom.json', 'trivy-licenses.json'):
+                self.assertIn('pkg:pypi/builder@3.2', json.loads((base / 'reports' / name).read_text())['ObservedPurls'])
+            raw = json.loads((base / 'reports/sbom-source.raw.cdx.json').read_text())
+            self.assertEqual(raw['components'], [])
+            coverage = json.loads((base / 'reports/source-lock-coverage.json').read_text())
+            self.assertEqual(len(coverage['python_build_constraints']), 1)
             self.assertFalse(status['release_ready'])
             self.assertGreater(len(status['remaining_release_gates']), 0)
             inventory = json.loads((base / 'reports/license-review.json').read_text())

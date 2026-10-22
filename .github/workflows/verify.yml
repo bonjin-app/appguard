@@ -59,6 +59,19 @@ jobs:
         env:
           APPGUARD_TEST_REDIS_URL: redis://127.0.0.1:6379/0
         run: bash scripts/test-server-sdks.sh
+      - name: Hash-locked Python wheel and clean consumer
+        run: |
+          python3 .github/tests/test_python_package.py --verify-packaging \
+            --uv "$(command -v uv)" --python "$(command -v python3)" \
+            --evidence "$RUNNER_TEMP/appguard-python-package" -v
+      - name: Retain fixed-schema Python packaging receipt
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: python-package-verification-${{ github.sha }}
+          path: ${{ runner.temp }}/appguard-python-package/receipt.json
+          if-no-files-found: warn
+          retention-days: 7
 
   extended-server:
     name: Go race/vet, .NET and PHP

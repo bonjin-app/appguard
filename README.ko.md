@@ -92,6 +92,17 @@ python3 -m pip install "$APPGUARD_REPO/sdk/python[django,redis]"
 python3 -m pip install "$APPGUARD_REPO/sdk/python[flask,redis]"
 ```
 
+버전과 해시를 고정한 SDK wheel은 uv 0.13.4로 빌드합니다.
+
+```sh
+uv --no-cache --directory "$APPGUARD_REPO/sdk/python" build --require-build-hashes
+```
+
+생성된 wheel에 필요한 extras와 애플리케이션의 런타임 잠금 설정을 적용해 설치하세요.
+위의 pip 소스 설치 명령에는 uv 빌드 제약이 적용되지 않습니다.
+[Python 빌드 안내](sdk/python/README.md)를 참조하세요.
+
+
 환경에 맞게 `appguard.fastapi.AppGuardMiddleware`,
 `appguard.django.protect_django`, `appguard.flask.protect_flask`를 사용하세요.
 Django는 ASGI 앱을 사용하며, Flask는 일반 WSGI가 아닌 제공된 ASGI 브리지를 통해

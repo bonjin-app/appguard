@@ -6,6 +6,7 @@ asserts a native/container closure nor accepts anonymous archive counts as GAVs.
 import copy
 import hashlib
 import json
+import math
 import os
 from pathlib import Path, PurePosixPath
 import re
@@ -51,7 +52,7 @@ def _read(path, keep=False):
     if not stat.S_ISREG(initial.st_mode):
         raise ValueError('not_regular_file')
     digest, chunks = hashlib.sha256(), []
-    with os.fdopen(os.open(path, os.O_RDONLY | os.O_NOFOLLOW), 'rb') as stream:
+    with os.fdopen(os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK), 'rb') as stream:
         if _stamp(initial) != _stamp(os.fstat(stream.fileno())):
             raise ValueError('input_changed')
         for chunk in iter(lambda: stream.read(1024 * 1024), b''):
@@ -76,7 +77,13 @@ def _json(data):
                 raise ValueError('duplicate_json_field')
             result[key] = value
         return result
+    def finite_float(value):
+        number = float(value)
+        if not math.isfinite(number):
+            raise ValueError('nonfinite_json')
+        return number
     return json.loads(data, object_pairs_hook=unique,
+                      parse_float=finite_float,
                       parse_constant=lambda _: (_ for _ in ()).throw(ValueError('nonfinite_json')))
 
 
@@ -240,7 +247,7 @@ def _write_bytes(reports, name, data):
 
 
 def _encoded(value):
-    return (json.dumps(value, indent=2, sort_keys=True) + '\n').encode('utf-8')
+    return (json.dumps(value, indent=2, sort_keys=True, allow_nan=False) + '\n').encode('utf-8')
 
 
 def _write(reports, name, value):

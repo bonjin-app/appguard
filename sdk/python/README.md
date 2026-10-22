@@ -4,13 +4,49 @@ Experimental Apache-2.0 package implementing the common [request](../../protocol
 
 ## Local installation and tests
 
-Python 3.11+ and uv, from the repository root:
+Python 3.11+ and uv 0.13.4, from the repository root:
 
 ```sh
 uv sync --locked --project sdk/python
 uv run --frozen --project sdk/python pytest sdk/python/tests -q
-uv build --project sdk/python
+uv --directory sdk/python build --require-build-hashes --no-cache
 ```
+
+The supported uv producer command uses an isolated build environment. The five
+build dependencies have exact versions and SHA-256 hashes under `[tool.uv]`;
+`require-build-hashes = true` also applies to an ordinary `uv build` from this SDK
+directory. They are build constraints, separate from runtime dependencies and
+optional extras. uv 0.13.4 treats build-hash enforcement as experimental; the
+version and closure are reviewed together. A dependency group alone would not
+constrain isolated builds. Use the project-directory command above so uv loads
+this project's settings. `--no-config` and `--no-build-isolation` bypass this
+producer contract. Hash enforcement verifies downloads, and does not recheck
+previously cached builds. The supported command disables cache reuse with
+`--no-cache` so its build tools are checked again. An ordinary `uv build` still
+honors the project constraints, but its default cache behavior does not establish
+fresh download verification. CI packaging regressions also use fresh caches.
+
+The real package regression entry point builds with a fresh isolated environment,
+checks missing/wrong transitive hashes, inspects wheel contents and installs it
+with all extras and frozen, hashed runtime dependencies in one fresh consumer
+environment:
+
+```sh
+python3 .github/tests/test_python_package.py --verify-packaging \
+  --uv /absolute/path/to/uv --python /absolute/path/to/python3.11 \
+  --evidence /absolute/path/to/new-private-evidence
+```
+
+This explicit check downloads only the reviewed build wheels and locked runtime
+wheels from official PyPI sources. It runs separately from the default,
+network-free tests. For offline execution, supply `--build-wheelhouse DIRECTORY`
+and `--runtime-wheelhouse DIRECTORY` containing compatible wheels; the checker
+verifies their hashes against the build constraints and runtime lock respectively.
+Missing compatible wheels fail the check. The supported producer/consumer path is this uv build followed
+by installation of the wheel. `pip install ./sdk/python` builds from source and
+**does not enforce `[tool.uv]` build constraints or hashes**; it is not evidence of
+the same controlled build. These checks do not establish cross-platform
+reproducibility, dependency safety, license approval or production readiness.
 
 For an existing application, install the local source with the desired extras, for example `pip install './sdk/python[fastapi,redis]'`. The built wheel is independent of `appguard_reference`; the reference package now re-exports this SDK's core. Optional extras are `fastapi`, `django`, `flask` and `redis`.
 

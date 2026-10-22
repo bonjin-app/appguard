@@ -18,6 +18,36 @@ unresolved. Passing an increment's tests does not complete this product goal.
 | Mobile-attested claims | Real Apple/Google app/account evidence and supported failure cases | Provider configuration remains deployment-specific; no device proof inferred |
 | Publication and support | Approved version, registry identity, signing/provenance, support policy and release approval | No registry publication or security support commitment is implied |
 
+## Python build dependency verification
+
+Both Python projects record the same reviewed build-tool versions and wheel
+hashes in their uv configuration and lock manifests. Their existing lock
+package records are preserved; those records include local projects and
+development dependencies, not just installed production dependencies.
+
+Use the reviewed uv 0.13.4 producer with build isolation and no prior cache:
+
+```sh
+uv --no-cache --directory sdk/python build --require-build-hashes
+uv --no-cache --directory reference/python build --require-build-hashes
+```
+
+The explicit packaging check in SDK CI tests isolated builds, missing/incorrect
+transitive hash refusals, wheel contents and a fresh all-extras consumer
+installation from frozen hashed runtime requirements. Only its fixed-schema
+receipt is retained. Pip source builds do not enforce these uv settings;
+controlled producer checks do not establish universal build reproducibility.
+
+Source scanning preserves `sbom-source.raw.cdx.json` and adds a deterministic
+declared-build overlay to the existing `sbom.cdx.json` read by Trivy. The
+`python-build-catalog-overlay.json` binds the raw SBOM and project configuration
+hashes. Coverage validation recomputes the overlay and rejects missing or
+mismatched pins and altered evidence. Project-bound build components do not
+replace raw components, licenses or runtime locations, including when a package
+version appears in both build and runtime inputs. This inventories declared
+hash-pinned build constraints; downloaded artifacts, resolved build/runtime
+closure, native dependencies and license approval require separate evidence.
+
 ## Sustained operating verification
 
 The existing Spring qualifier now accepts `--soak-seconds` from 0 (disabled) to 3600

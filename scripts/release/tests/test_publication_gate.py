@@ -16,7 +16,7 @@ MARKER = 'SYNTHETIC-SECRET-DO-NOT-PUBLISH-8b117a'
 
 
 class PublicationTests(unittest.TestCase):
-    def setup_inputs(self, base, code=0, secrets=0):
+    def setup_inputs(self, base, code=0, secrets=0, build_pin=False):
         candidate = base / 'candidate'
         scans = base / 'scans'
         (candidate / 'source/docs').mkdir(parents=True)
@@ -29,6 +29,13 @@ class PublicationTests(unittest.TestCase):
         for name in ('dependency-coverage.json', 'licenses.json'):
             (candidate / name).write_text('{}')
         (candidate / 'source/package-lock.json').write_text(json.dumps({'lockfileVersion': 3, 'packages': {'': {}}}))
+        if build_pin:
+            (candidate / 'source/pyproject.toml').write_text('[build-system]\nrequires=["builder>=1"]\n'
+                '[tool.uv]\nrequire-build-hashes=true\nbuild-constraint-dependencies=['
+                '{requirement="builder==1.2",hashes=["sha256:' + 'a' * 64 + '"]}]\n')
+            (candidate / 'source/uv.lock').write_text('version=1\nrevision=5\npackage=[]\n'
+                '[manifest]\nbuild-constraints=[{name="builder",specifier="==1.2",'
+                'hashes=["sha256:' + 'a' * 64 + '"]}]\n')
         hashes = {str(path.relative_to(candidate)): hashlib.sha256(path.read_bytes()).hexdigest()
                   for path in candidate.rglob('*') if path.is_file()}
         (candidate / 'manifest.json').write_text(json.dumps({'commit': 'a'*40, 'sha256': hashes}))
@@ -42,8 +49,11 @@ class PublicationTests(unittest.TestCase):
                                        'finding_counts': {'Secrets': count, 'Vulnerabilities': 0, 'Licenses': 0}})
             report = {'SchemaVersion': 2, 'Results': [{'Target': MARKER, 'Secrets': [{'Match': MARKER}] if count else []}]}
             (scans / (name + '.json')).write_text(json.dumps(report))
-        (scans / 'sbom.cdx.json').write_text(json.dumps({'bomFormat':'CycloneDX', 'components': [], 'unsafe_metadata': MARKER}))
+        raw = scans / 'sbom-source.raw.cdx.json'
+        raw.write_text(json.dumps({'bomFormat':'CycloneDX', 'specVersion': '1.6', 'components': [], 'unsafe_metadata': MARKER}))
         (scans / 'trivy-secrets.log').write_text(MARKER)
+        from python_build_catalog import prepare_python_build_catalog
+        prepare_python_build_catalog(candidate / 'source', raw, scans)
         from source_catalog import validate_source_catalog
         validate_source_catalog(candidate / 'source', scans / 'sbom.cdx.json', scans)
         status['commands'].append({'name':'syft','returncode':0,'recorded_npm_lock_coverage_passed':True,
@@ -175,6 +185,73 @@ class PublicationTests(unittest.TestCase):
             self.assertTrue((output / 'scans/sbom.cdx.json').exists())
             self.assertFalse((output / 'scans/trivy-secrets.json').exists())
             self.assertFalse((output / 'scans/trivy-secrets.log').exists())
+
+    def test_declared_build_provenance_is_staged_with_bound_hashes(self):
+        with tempfile.TemporaryDirectory() as temp:
+            base = Path(temp).resolve()
+            candidate, scans = self.setup_inputs(base, build_pin=True)
+            output = self.run_gate(base, candidate, scans)
+            safe = json.loads((output / 'public-status.json').read_text())
+            self.assertTrue(safe['source_publication_allowed'])
+            coverage = json.loads((output / 'scans/source-lock-coverage.json').read_text())
+            for filename, field in [('sbom-source.raw.cdx.json', 'python_build_raw_sbom_sha256'),
+                                    ('python-build-catalog-overlay.json', 'python_build_overlay_sha256')]:
+                staged = output / 'scans' / filename
+                self.assertTrue(staged.is_file())
+                self.assertEqual(staged.read_bytes(), (scans / filename).read_bytes())
+                self.assertEqual(hashlib.sha256(staged.read_bytes()).hexdigest(), coverage[field])
+
+    def test_late_build_provenance_mutation_is_denied(self):
+        spec = importlib.util.spec_from_file_location('publication_gate_build_mutation', SCRIPT)
+        gate = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(gate)
+        for filename in ('sbom-source.raw.cdx.json', 'python-build-catalog-overlay.json'):
+            with self.subTest(filename=filename), tempfile.TemporaryDirectory() as temp:
+                base = Path(temp).resolve()
+                candidate, scans = self.setup_inputs(base, build_pin=True)
+                original = gate.validate_source_catalog
+                def validate_then_mutate(*args):
+                    result = original(*args)
+                    (scans / filename).write_text('{}')
+                    return result
+                with patch.object(gate, 'validate_source_catalog', side_effect=validate_then_mutate):
+                    safe = gate.stage_publication(candidate, scans, base / 'publication', 'a' * 40)
+                self.assertFalse(safe['source_publication_allowed'])
+                self.assertEqual([p.name for p in (base / 'publication').iterdir()], ['public-status.json'])
+
+    def test_zero_pin_pipeline_still_requires_both_provenance_files(self):
+        for missing in (None, 'sbom-source.raw.cdx.json', 'python-build-catalog-overlay.json'):
+            with self.subTest(missing=missing), tempfile.TemporaryDirectory() as temp:
+                base = Path(temp).resolve()
+                candidate, scans = self.setup_inputs(base)
+                self.assertTrue((scans / 'python-build-catalog-overlay.json').is_file())
+                if missing:
+                    (scans / missing).unlink()
+                output = self.run_gate(base, candidate, scans)
+                safe = json.loads((output / 'public-status.json').read_text())
+                self.assertEqual(safe['source_publication_allowed'], missing is None)
+                if missing is None:
+                    self.assertTrue((output / 'scans/sbom-source.raw.cdx.json').is_file())
+                    self.assertTrue((output / 'scans/python-build-catalog-overlay.json').is_file())
+
+    def test_corrupted_staged_build_provenance_is_denied(self):
+        spec = importlib.util.spec_from_file_location('publication_gate_build_copy', SCRIPT)
+        gate = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(gate)
+        for filename in ('sbom-source.raw.cdx.json', 'python-build-catalog-overlay.json'):
+            with self.subTest(filename=filename), tempfile.TemporaryDirectory() as temp:
+                base = Path(temp).resolve()
+                candidate, scans = self.setup_inputs(base, build_pin=True)
+                original = gate.shutil.copyfile
+                def corrupt_copy(source, destination):
+                    result = original(source, destination)
+                    if Path(destination).name == filename:
+                        Path(destination).write_text('{}')
+                    return result
+                with patch.object(gate.shutil, 'copyfile', side_effect=corrupt_copy):
+                    safe = gate.stage_publication(candidate, scans, base / 'publication', 'a' * 40)
+                self.assertFalse(safe['source_publication_allowed'])
+                self.assertEqual([p.name for p in (base / 'publication').iterdir()], ['public-status.json'])
 
     def test_missing_checks_bad_catalog_or_raw_findings_are_not_publishable(self):
         for mode, reason in [('missing_vulnerability_check', 'scan_evidence_unverified'),

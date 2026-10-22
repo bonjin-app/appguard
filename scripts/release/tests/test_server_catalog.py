@@ -36,7 +36,7 @@ class ServerCatalogTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
-        self.base = Path(self.temp.name)
+        self.base = Path(self.temp.name).resolve()
         self.source = self.base / 'source'
         self.source.mkdir()
         self.sbom = self.base / 'sbom.cdx.json'
@@ -297,10 +297,16 @@ class ServerCatalogTests(unittest.TestCase):
                 self.write(name, (ROOT / name).read_text())
         config = self.base / 'syft.json'
         module().write_syft_config(config)
+        raw = self.base / 'sbom-source.raw.cdx.json'
         subprocess.run([os.environ['APPGUARD_SYFT'], 'scan', 'dir:' + str(self.source), '--config', str(config),
-                        '-o', 'cyclonedx-json=' + str(self.sbom)], check=True, capture_output=True, timeout=90)
+                        '-o', 'cyclonedx-json=' + str(raw)], check=True, capture_output=True, timeout=90)
+        with patch.object(sys, 'path', [str(ROOT / 'scripts/release'), *sys.path]):
+            from python_build_catalog import prepare_python_build_catalog
+        prepare_python_build_catalog(self.source, raw, self.base)
         result = module().validate_source_catalog(self.source, self.sbom, self.base)
         self.assertTrue(result['all_recorded_packages_cataloged'])
+        self.assertEqual(len(result['python_build_constraints']), 10)
+        self.assertEqual(len({r['purl'] for r in result['python_build_constraints']}), 5)
         self.assertEqual(len(result['server_locks']), 8)
         self.assertEqual(sum(len(v['records']) for v in result['server_locks']), 83)
 

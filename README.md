@@ -92,6 +92,17 @@ python3 -m pip install "$APPGUARD_REPO/sdk/python[django,redis]"
 python3 -m pip install "$APPGUARD_REPO/sdk/python[flask,redis]"
 ```
 
+Build the SDK wheel with uv 0.13.4 using reviewed build versions and hashes:
+
+```sh
+uv --no-cache --directory "$APPGUARD_REPO/sdk/python" build --require-build-hashes
+```
+
+Install that wheel with the desired extras and your application's runtime lock.
+The source installation commands above use pip, which does not enforce the uv
+build constraints. See the [controlled Python build](sdk/python/README.md).
+
+
 Use `appguard.fastapi.AppGuardMiddleware`,
 `appguard.django.protect_django`, or `appguard.flask.protect_flask` as appropriate.
 Django uses its ASGI app; Flask must run through the supplied ASGI bridge rather

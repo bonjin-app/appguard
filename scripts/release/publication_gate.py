@@ -21,6 +21,7 @@ CANDIDATE_FILES = ('source.tar.gz', 'manifest.json', 'dependency-coverage.json',
 SCAN_FILES = ('status.json', 'source-lock-coverage.json', 'license-review.json', 'THIRD_PARTY_NOTICES.review.md',
               'trivy-sbom.json', 'trivy-maven-runtime.json', 'trivy-licenses.json',
               'trivy-maven-runtime-licenses.json', 'sbom.cdx.json', 'sbom-maven-runtime.cdx.json',
+              'sbom-source.raw.cdx.json', 'python-build-catalog-overlay.json',
               'maven-runtime-manifest.json', 'maven-runtime-dependencies.txt',
               'runtime-lock-coverage.json', 'runtime-catalog-overlay.json', 'sbom-maven-runtime.raw.cdx.json')
 

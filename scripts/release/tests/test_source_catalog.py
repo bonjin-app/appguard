@@ -22,10 +22,34 @@ def module():
 
 
 class CatalogTests(unittest.TestCase):
+    def test_initial_fifo_sbom_is_rejected_without_blocking(self):
+        with tempfile.TemporaryDirectory() as temp:
+            base = Path(temp).resolve()
+            source = base / 'source'
+            source.mkdir()
+            sbom = base / 'sbom.cdx.json'
+            os.mkfifo(sbom)
+            script = '''
+import pathlib, sys
+sys.path.insert(0, sys.argv[1])
+from source_catalog import validate_source_catalog
+try:
+    validate_source_catalog(*map(pathlib.Path, sys.argv[2:]))
+except ValueError:
+    sys.exit(0)
+sys.exit(2)
+'''
+            try:
+                result = subprocess.run([sys.executable, '-c', script, str(ROOT / 'scripts/release'),
+                                         str(source), str(sbom), str(base)], capture_output=True, timeout=0.75)
+            except subprocess.TimeoutExpired:
+                self.fail('Initial FIFO blocked source validation; owned child killed and reaped')
+            self.assertEqual(result.returncode, 0, result.stderr.decode())
+
     def test_missing_recorded_dev_dependency_fails_coverage(self):
         m = module()
         with tempfile.TemporaryDirectory() as temp:
-            base = Path(temp)
+            base = Path(temp).resolve()
             source = base / 'source'
             (source / 'sdk/node').mkdir(parents=True)
             (source / 'sdk/node/package-lock.json').write_text(json.dumps({'lockfileVersion': 3, 'packages': {
@@ -56,7 +80,7 @@ class CatalogTests(unittest.TestCase):
         ]
         for data in cases:
             with self.subTest(data=data), tempfile.TemporaryDirectory() as temp:
-                base = Path(temp)
+                base = Path(temp).resolve()
                 source = base / 'source'
                 source.mkdir()
                 (source / 'package-lock.json').write_text(json.dumps(data))
@@ -71,7 +95,7 @@ class CatalogTests(unittest.TestCase):
     def test_explicit_resolved_link_is_recorded_without_inventing_package_version(self):
         m = module()
         with tempfile.TemporaryDirectory() as temp:
-            base = Path(temp)
+            base = Path(temp).resolve()
             source = base / 'source'
             source.mkdir()
             (source / 'package-lock.json').write_text(json.dumps({'lockfileVersion': 3, 'packages': {
@@ -87,7 +111,7 @@ class CatalogTests(unittest.TestCase):
         for raw in ('{"lockfileVersion":3,"packages":{"":{}},"packages":{"":{}}}',
                     '{"lockfileVersion":3,"packages":{"":{}},"unknown":NaN}'):
             with self.subTest(raw=raw), tempfile.TemporaryDirectory() as temp:
-                base = Path(temp)
+                base = Path(temp).resolve()
                 source = base / 'source'
                 source.mkdir()
                 (source / 'package-lock.json').write_text(raw)
@@ -101,7 +125,7 @@ class CatalogTests(unittest.TestCase):
         m = module()
         for purl, valid in [('pkg:npm/other-package@99', False), ('pkg:npm/%40scope/example@1.0.0', True)]:
             with self.subTest(purl=purl), tempfile.TemporaryDirectory() as temp:
-                base = Path(temp)
+                base = Path(temp).resolve()
                 source = base / 'source'
                 source.mkdir()
                 (source / 'package-lock.json').write_text(json.dumps({'lockfileVersion':3,'packages': {
@@ -119,7 +143,7 @@ class CatalogTests(unittest.TestCase):
         for change in ({'type': 'file'}, {'type': None}, {'scope': 'excluded'}, {'scope': 'invalid'},
                        {'purl': 'pkg:npm/express@5.3.0?bad'}, {'purl': 'pkg:npm/express@5.3.0#other'}):
             with self.subTest(change=change), tempfile.TemporaryDirectory() as temp:
-                base = Path(temp)
+                base = Path(temp).resolve()
                 source = base / 'source'
                 source.mkdir()
                 (source / 'package-lock.json').write_text(json.dumps({'lockfileVersion': 3, 'packages': {
@@ -136,7 +160,7 @@ class CatalogTests(unittest.TestCase):
     def test_actual_syft_catalogs_framework_redis_and_expo_peer_test_graph(self):
         m = module()
         with tempfile.TemporaryDirectory() as temp:
-            base = Path(temp)
+            base = Path(temp).resolve()
             source = base / 'source'
             for directory in ['sdk/node','sdk/expo']:
                 (source / directory).mkdir(parents=True)

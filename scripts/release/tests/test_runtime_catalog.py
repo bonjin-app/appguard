@@ -1,8 +1,10 @@
 import hashlib
 import importlib.util
 import json
+import subprocess
 import shutil
 from pathlib import Path
+import sys
 import tempfile
 import unittest
 from unittest.mock import patch
@@ -65,6 +67,49 @@ class RuntimeCatalogTests(unittest.TestCase):
             self.assertEqual(result['sbom_sha256'], hashlib.sha256(f[2].read_bytes()).hexdigest())
             self.assertEqual(result['records'][0]['sha256'], hashlib.sha256(f[4].read_bytes()).hexdigest())
             self.assertEqual(result, json.loads((f[3] / 'runtime-lock-coverage.json').read_text()))
+
+    def test_validator_rejects_regular_file_replaced_with_fifo_at_open_without_blocking(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            f = self.fixture(Path(tmp).resolve())
+            script = '''
+import importlib.util, json, os, pathlib, sys
+from unittest.mock import patch
+spec = importlib.util.spec_from_file_location('owned_runtime_fifo_probe', sys.argv[1])
+m = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(m)
+paths = [pathlib.Path(p) for p in sys.argv[2:]]
+target = paths[1]
+original_open = os.open
+def swap_at_open(path, flags, *args, **kwargs):
+    if pathlib.Path(path) == target:
+        target.unlink()
+        os.mkfifo(target)
+    return original_open(path, flags, *args, **kwargs)
+with patch.object(os, 'open', side_effect=swap_at_open):
+    try:
+        m.validate_runtime_catalog(*paths)
+    except ValueError:
+        result = json.loads((paths[3] / 'runtime-lock-coverage.json').read_text())
+        sys.exit(0 if result['all_maven_runtime_jars_cataloged'] is False else 2)
+sys.exit(3)
+'''
+            try:
+                result = subprocess.run([sys.executable, '-c', script, str(MODULE), *map(str, f[:4])],
+                                        capture_output=True, timeout=0.75)
+            except subprocess.TimeoutExpired:
+                # subprocess.run kills and reaps this owned, child-only probe.
+                self.fail('Runtime validator blocked on a concurrent FIFO; owned child killed and reaped')
+            self.assertEqual(result.returncode, 0, result.stderr.decode())
+
+    def test_json_exponent_overflow_and_nonfinite_encoder_values_are_rejected(self):
+        m = self.module()
+        for token in ('1e999', '-1e999', 'NaN', 'Infinity', '-Infinity'):
+            with self.subTest(token=token), self.assertRaises(ValueError):
+                m._json('{"extension":' + token + '}')
+        for number in (float('inf'), float('-inf'), float('nan')):
+            with self.subTest(number=number), self.assertRaises(ValueError):
+                m._encoded({'extension': number})
+        self.assertEqual(m._json('{"extension":1e2}')['extension'], 100.0)
 
     def test_empty_or_anonymous_archive_sbom_cannot_satisfy_runtime_package_coverage(self):
         m = self.module()

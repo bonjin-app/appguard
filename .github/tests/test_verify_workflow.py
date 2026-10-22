@@ -39,6 +39,30 @@ class WorkflowShellTests(unittest.TestCase):
         path.write_text('#!/bin/bash\nset -euo pipefail\n' + text)
         path.chmod(0o755)
 
+    def test_packaging_step_runs_real_mode_and_propagates_failure(self):
+        for exit_code in (0, 17):
+            with self.subTest(exit_code=exit_code):
+                def setup(base, bin_path):
+                    self.executable(bin_path / 'uv', 'exit 0\n')
+                    self.executable(bin_path / 'python3',
+                                    'printf "%s\\n" "$@" > "$STEP_MARKER"\n'
+                                    + 'exit ' + str(exit_code) + '\n')
+                result, marker, exported = self.run_step(
+                    'Hash-locked Python wheel and clean consumer', setup)
+                self.assertEqual(result.returncode, exit_code)
+                self.assertFalse(exported)
+                args = marker.splitlines()
+                self.assertEqual(args[0], '.github/tests/test_python_package.py')
+                self.assertIn('--verify-packaging', args)
+                uv = Path(args[args.index('--uv') + 1])
+                python = Path(args[args.index('--python') + 1])
+                evidence = Path(args[args.index('--evidence') + 1])
+                self.assertEqual(uv.name, 'uv')
+                self.assertEqual(python.name, 'python3')
+                self.assertTrue(uv.is_absolute() and python.is_absolute())
+                self.assertEqual(uv.parent, python.parent)
+                self.assertEqual(evidence, uv.parent.parent / 'appguard-python-package')
+
     def test_invalid_redis_archive_never_extracts_builds_or_exports_runtime(self):
         def setup(base, bin_path):
             self.executable(bin_path / 'curl', 'while [[ $# -gt 0 ]]; do if [[ "$1" == --output ]]; then printf tampered > "$2"; exit 0; fi; shift; done\nexit 2\n')

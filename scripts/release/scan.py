@@ -15,6 +15,7 @@ import urllib.request
 from candidate import validate_path, write_json
 from source_catalog import write_syft_config, validate_source_catalog
 from runtime_catalog import prepare_runtime_catalog
+from python_build_catalog import prepare_python_build_catalog
 from publication_evidence import count_findings, validate_report_binding
 
 # Official immutable GitHub release asset digests, read 2026-10-22 from
@@ -217,7 +218,7 @@ def run_scans(candidate, output):
             status['commands'].append(maven)
             commands = [
                 ('syft', [str(syft), 'scan', 'dir:' + str(candidate / 'source'), '--config', str(syft_config),
-                          '-o', 'cyclonedx-json=' + str(reports / 'sbom.cdx.json')]),
+                          '-o', 'cyclonedx-json=' + str(reports / 'sbom-source.raw.cdx.json')]),
                 ('trivy-sbom', [str(trivy), 'sbom', '--config', str(config), '--ignorefile', str(ignore),
                                 '--scanners', 'vuln', '--severity', 'UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL',
                                 '--exit-code', '1', '--format', 'json', '--output', str(reports / 'trivy-sbom.json'),
@@ -260,7 +261,7 @@ def run_scans(candidate, output):
                         code = 124
                 item = {'name': name, 'returncode': code}
                 if code == 0:
-                    report_name = {'syft': 'sbom.cdx.json', 'syft-maven-runtime': 'sbom-maven-runtime.raw.cdx.json'}.get(name, name + '.json')
+                    report_name = {'syft': 'sbom-source.raw.cdx.json', 'syft-maven-runtime': 'sbom-maven-runtime.raw.cdx.json'}.get(name, name + '.json')
                     try:
                         report = json.loads((reports / report_name).read_text())
                         valid = report.get('bomFormat') == 'CycloneDX' if name.startswith('syft') else isinstance(report.get('SchemaVersion'), int)
@@ -268,7 +269,7 @@ def run_scans(candidate, output):
                             raise ValueError('Unexpected report schema')
                     except (OSError, ValueError, AttributeError) as error:
                         item.update(returncode=65, report_validation_error=str(error))
-                report_name = {'syft': 'sbom.cdx.json', 'syft-maven-runtime': 'sbom-maven-runtime.raw.cdx.json'}.get(name, name + '.json')
+                report_name = {'syft': 'sbom-source.raw.cdx.json', 'syft-maven-runtime': 'sbom-maven-runtime.raw.cdx.json'}.get(name, name + '.json')
                 item['report_available'] = (reports / report_name).is_file()
                 if not name.startswith('syft') and item['report_available']:
                     try:
@@ -278,6 +279,7 @@ def run_scans(candidate, output):
                         item.update(report_parse_error=True, returncode=65)
                 if name == 'syft' and item['returncode'] == 0:
                     try:
+                        prepare_python_build_catalog(candidate / 'source', reports / 'sbom-source.raw.cdx.json', reports)
                         validate_source_catalog(candidate / 'source', reports / 'sbom.cdx.json', reports)
                         item['recorded_npm_lock_coverage_passed'] = True
                         item['recorded_source_lock_coverage_passed'] = True

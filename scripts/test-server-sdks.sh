@@ -12,7 +12,7 @@ export APPGUARD_REDIS_URL="${APPGUARD_TEST_REDIS_URL:?Set a disposable loopback 
 "$uv_cmd" sync --locked --project reference/python
 "$uv_cmd" run --frozen --project reference/python pytest reference/python/tests -q
 "$uv_cmd" run --frozen --project sdk/python pytest sdk/python/tests -q
-"$uv_cmd" build --project sdk/python
+"$uv_cmd" --directory sdk/python build --require-build-hashes --no-cache
 npm --prefix sdk/node ci --ignore-scripts
 npm --prefix sdk/node test
 npm --prefix sdk/node run test:types

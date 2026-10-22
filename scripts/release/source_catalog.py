@@ -3,6 +3,8 @@ import hashlib
 import json
 from pathlib import Path
 from server_catalog import CatalogInputError, catalog_observations, parse_recorded_json, source_components, validate_server_catalog
+from python_build_catalog import PythonBuildCatalogError, validate_python_build_catalog
+from runtime_catalog import _json, _read
 
 
 def write_syft_config(path):
@@ -12,19 +14,26 @@ def write_syft_config(path):
 
 def validate_source_catalog(source, sbom, reports):
     source, sbom, reports = map(Path, (source, sbom, reports))
-    sbom_bytes = sbom.read_bytes()
-    sbom_sha256 = hashlib.sha256(sbom_bytes).hexdigest()
+    sbom_snapshot = _read(sbom, True)
+    sbom_bytes, sbom_sha256 = sbom_snapshot['bytes'], sbom_snapshot['sha256']
     def reject_server(error, locks):
         invalid = {'schema': 1, 'all_recorded_packages_cataloged': False,
                    'all_recorded_npm_packages_cataloged': False,
+                   'all_declared_python_build_constraints_cataloged': False,
+                   'python_build_resolved_closure_verified': False,
                    'validation_errors': [{'path': error.path, 'code': error.code}],
                    'locks': locks, 'server_locks': [], 'sbom_sha256': sbom_sha256}
         (reports / 'source-lock-coverage.json').write_text(json.dumps(invalid, indent=2, sort_keys=True) + '\n')
         raise ValueError('Invalid recorded server lock input; see source-lock-coverage.json')
     try:
+        _json(sbom_bytes)
+    except (ValueError, UnicodeError):
+        reject_server(CatalogInputError('<sbom>', 'invalid_sbom_json'), [])
+    try:
         components = source_components(sbom_bytes)
         server = validate_server_catalog(source, components)
-    except CatalogInputError as error:
+        build = validate_python_build_catalog(source, sbom)
+    except (CatalogInputError, PythonBuildCatalogError) as error:
         reject_server(error, [])
     observed = {(path, name, version) for kind, path, name, version in catalog_observations(components) if kind == 'npm'}
     locks = []
@@ -72,12 +81,13 @@ def validate_source_catalog(source, sbom, reports):
         locks.append({'path': relative, 'sha256': hashlib.sha256(lock.read_bytes()).hexdigest(),
                       'records': records, 'unversioned_or_link_records': links})
     result = {'schema': 1, 'all_recorded_npm_packages_cataloged': all(r['cataloged'] for lock in locks for r in lock['records']),
-              'sbom_sha256': sbom_sha256, 'locks': locks, **server,
-              'scope': 'Recorded npm, uv, NuGet, Go require versions with checksums and Composer package entries; includes recorded development/optional entries; not proof of installed/native or resolved runtime closure',
+              'sbom_sha256': sbom_sha256, 'locks': locks, **server, **build,
+              'scope': 'Recorded npm, uv, NuGet, Go require versions with checksums and Composer package entries plus separately classified declared hashed Python build constraints; includes recorded development/optional entries; not proof of installed/native or resolved runtime closure',
               'classification': 'Original lock development/optional/peer flags are preserved here; Syft CycloneDX does not encode npm dev as component scope',
               'other_ecosystems': 'Maven runtime JARs are checked separately; native/platform graphs are outside this recorded-lock comparison'}
     result['all_recorded_packages_cataloged'] = (result['all_recorded_npm_packages_cataloged'] and
-                                                result['all_recorded_server_packages_cataloged'])
+                                                result['all_recorded_server_packages_cataloged'] and
+                                                result['all_declared_python_build_constraints_cataloged'])
     (reports / 'source-lock-coverage.json').write_text(json.dumps(result, indent=2, sort_keys=True) + '\n')
     if not result['all_recorded_npm_packages_cataloged']:
         raise ValueError('Source SBOM omitted recorded npm package versions; see source-lock-coverage.json')

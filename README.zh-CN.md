@@ -80,6 +80,17 @@ python3 -m pip install "$APPGUARD_REPO/sdk/python[django,redis]"
 python3 -m pip install "$APPGUARD_REPO/sdk/python[flask,redis]"
 ```
 
+使用 uv 0.13.4 构建固定版本和哈希的 SDK wheel：
+
+```sh
+uv --no-cache --directory "$APPGUARD_REPO/sdk/python" build --require-build-hashes
+```
+
+安装生成的 wheel 时，请选择所需的 extras，并使用应用自身的运行时依赖锁定配置。
+上述 pip 源码安装命令不会应用 uv 的构建约束。
+请参阅 [Python 构建说明](sdk/python/README.md)。
+
+
 根据需要使用 `appguard.fastapi.AppGuardMiddleware`、`appguard.django.protect_django` 或 `appguard.flask.protect_flask`。Django 使用其 ASGI 应用；Flask 必须通过提供的 ASGI 桥接层运行，不能直接使用 WSGI。请提供可信的身份认证/密钥查询、重放存储和原始请求证据。请参阅 [Python 集成](sdk/python/README.md)。
 
 <a id="install-node"></a>
