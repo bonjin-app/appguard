@@ -154,6 +154,32 @@ uv run --frozen --project sdk/python python scripts/qualification/spring_contain
   --output /absolute/new/appguard-spring-containers
 ```
 
+For sustained synthetic traffic under the same configured container limits,
+add `--soak-seconds 1800 --soak-concurrency 8`. Duration accepts 0 (disabled,
+the CLI default) or 1–3600 seconds; concurrency accepts 1–32. A disabled soak
+does not establish sustained operating behavior. Normal push/PR CI enables a
+30-second, eight-worker check. Manual `Container deployment readiness` runs
+default to 1800 seconds and eight workers and reject disabled or invalid input.
+Keep the reviewed ref unchanged during a manual run: a later run on that ref
+can cancel an in-progress qualification.
+
+The optional operating evidence uses actual signed requests and exact replay
+denials, with strict zero-error checks. Resource observations come from the
+owned running containers rather than host JVM RSS. Linux cgroup v2 evidence
+is required for this mode, including numeric-zero `memory.swap.max` and
+`memory.swap.current` readbacks for the no-swap profile. Missing, unlimited or
+nonzero swap evidence fails this qualification. The kernel exposes swap as a
+[separate memory interface](https://docs.kernel.org/admin-guide/cgroup-v2.html#memory-interface-files),
+and Docker documents that [swap limiting requires kernel support](https://docs.docker.com/engine/containers/resource_constraints/).
+Sampled resource peaks are not continuous maxima,
+memory-leak analysis or production capacity/SLA evidence. Container identity,
+image, configured restrictions, OOM/restart state and source provenance must
+remain valid; a failed sampler, traffic worker or cleanup cannot become a pass.
+Credentials and raw traffic stay in the temporary private fixture, and only
+bounded results are retained. The existing Redis outage/AOF restart checks
+remain separate from sustained healthy traffic; this mode does not prove
+power-loss durability or service availability during an induced outage.
+
 The runner creates one random Compose project, ephemeral CAs and leaf keys.
 It builds three local images, inspects actual runtime resource/UID/capability/
 mount/rootfs/port restrictions and verifies shared network namespace identity.

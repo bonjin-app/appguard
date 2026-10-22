@@ -68,6 +68,34 @@ example. The corrected client reconnects while rejecting disconnected commands,
 caps its queue at 128 and preserves one-second connect/command timeouts. Recovery
 does not introduce an in-memory replay fallback or business-operation retries.
 
+### Constrained-container sustained verification
+
+The standalone qualifier above uses the host JVM's default heap; it does not
+prove operating behavior at the container profile's 512 MiB backend limit.
+Run the separate [owned container qualifier](../../deploy/spring-ingress/README.md)
+with `--soak-seconds 1800 --soak-concurrency 8` to test that profile. It retains
+the gateway 256 MiB, backend 512 MiB and Redis 128 MiB limits, CPU/PID limits,
+read-only roots and existing mTLS boundaries. Optional operating evidence must
+not replace or weaken any existing core transport, Redis or cleanup check.
+
+The `Container deployment readiness` workflow uses a short 30-second soak on
+push/PR and offers bounded numeric inputs for manual runs. Dispatch a reviewed
+ref, retain its exact commit and run ID, and compare both with the receipt;
+the artifact name alone is insufficient. Keep the ref unchanged until the run
+finishes to avoid concurrency cancellation. Only the fixed receipt and image
+status are retained, without credentials, raw requests or private logs.
+
+Strict normal/replay outcomes, sampled container resource measurements and
+unchanged runtime identities/restrictions are required. Missing resource
+evidence, worker failure, unexpected OOM/restart or cleanup failure cannot satisfy this
+technical qualification. Linux cgroup v2 is required for the optional operating
+mode, with effective zero swap limit/usage required in addition to configured
+Docker limits. Sampled peaks are not exact maxima or leak proof, and neither a short nor
+a 30-minute synthetic run grants production approval or an SLA. Image findings,
+native dependency coverage, actual operator deployment and external approvals
+remain independent gates. Historical unexplained failures remain open even if
+this separate qualification passes.
+
 ## Authoritative hosted verification
 
 For a completed main push run of `Verify SDK foundation`:

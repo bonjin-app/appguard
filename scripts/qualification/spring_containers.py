@@ -8,10 +8,12 @@ fixed checks, counts, identifiers and hashes enter the retained receipt.
 import argparse
 from contextlib import contextmanager
 from datetime import datetime, timezone
+from decimal import Decimal
 import errno
 import hashlib
 import importlib.util
 import json
+import math
 import os
 from pathlib import Path
 import re
@@ -130,19 +132,28 @@ def wait_for_group_absence(child):
         time.sleep(.01)
 
 
-def bounded_command(command, *, timeout=30, limit=2097152, env=None, cwd=None):
+def bounded_command(command, *, timeout=30, limit=2097152, env=None, cwd=None,
+                    observer=None, observer_interval=5):
     """Bound output, elapsed time and retained memory for every CLI command."""
-    require(0 < timeout <= 1200 and 0 < limit <= 8388608)
+    require(0 < timeout <= (3615 if observer is not None else 1200) and 0 < limit <= 8388608)
+    require(observer is None or callable(observer))
+    require(type(observer_interval) in (int, float) and 0 < observer_interval <= 5)
     child = subprocess.Popen(command, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT, env=env, cwd=cwd, start_new_session=True)
     output = bytearray()
     deadline = time.monotonic() + timeout
+    next_observation = time.monotonic() + observer_interval
     try:
         with selectors.DefaultSelector() as selector:
             selector.register(child.stdout, selectors.EVENT_READ)
             while child.poll() is None or selector.get_map():
                 if time.monotonic() >= deadline:
                     raise CommandFailure('timeout', child.poll(), output)
+                if observer is not None and time.monotonic() >= next_observation:
+                    observer()
+                    next_observation = time.monotonic() + observer_interval
+                    if time.monotonic() >= deadline:
+                        raise CommandFailure('timeout', child.poll(), output)
                 for event, _ in selector.select(min(.05, max(0, deadline - time.monotonic()))):
                     part = os.read(event.fd, min(65536, limit - len(output) + 1))
                     if not part:
@@ -517,8 +528,9 @@ def records_for(docker, project, owner):
     return records
 
 
-def wait_ready(docker, gateway, backend, project, owner):
-    deadline = time.monotonic() + 90
+def wait_ready(docker, gateway, backend, project, owner, timeout=90):
+    require(0 < timeout <= 90)
+    deadline = time.monotonic() + timeout
     while time.monotonic() < deadline:
         inspect_container(docker, gateway, project, owner, 'gateway')
         current = inspect_container(docker, backend, project, owner, 'backend')
@@ -866,12 +878,362 @@ def qualification_override(private, uid, gid, project, owner):
         'volumes': [mount('counters.json', '/run/appguard/counters.json', False)]}, 'probe': probe}}
 
 
-def qualify(output, executable, context, java_home):
+def validate_soak_options(seconds, concurrency):
+    require(type(seconds) is int and 0 <= seconds <= 3600
+            and type(concurrency) is int and 1 <= concurrency <= 32)
+
+
+def integer(value):
+    require(type(value) is str and re.fullmatch(r'[0-9]{1,20}', value) is not None)
+    result = int(value)
+    require(result <= 2 ** 63 - 1)
+    return result
+
+
+def byte_quantity(value):
+    match = re.fullmatch(r'([0-9]{1,12}(?:\.[0-9]{1,6})?)\s*(B|kB|MB|GB|TB|KiB|MiB|GiB|TiB)', value)
+    require(match is not None)
+    units = {'B': 1, 'kB': 1000, 'MB': 1000 ** 2, 'GB': 1000 ** 3, 'TB': 1000 ** 4,
+             'KiB': 1024, 'MiB': 1024 ** 2, 'GiB': 1024 ** 3, 'TiB': 1024 ** 4}
+    result = int(Decimal(match[1]) * units[match[2]])
+    require(result <= 2 ** 63 - 1)
+    return result
+
+
+def normalize_stats(text, identifiers):
+    """CLI memory excludes inactive file cache on Linux; quantities are rounded."""
+    require(type(text) is str and len(text) <= 32768 and set(identifiers) == {'gateway', 'backend', 'redis'})
+    roles = {identifier: role for role, identifier in identifiers.items()}
+    require(len(roles) == 3 and all(ID.fullmatch(value) is not None for value in roles))
+    result = {}
+    for line in text.splitlines():
+        row = json.loads(line)
+        require(type(row) is dict and row.get('ID') in roles and roles[row['ID']] not in result)
+        cpu = row.get('CPUPerc')
+        require(type(cpu) is str and re.fullmatch(r'[0-9]{1,6}(?:\.[0-9]{1,6})?%', cpu) is not None)
+        cpu = float(cpu[:-1]); require(cpu <= 100000)
+        memory = row['MemUsage'].split(' / '); require(len(memory) == 2)
+        used, limit = map(byte_quantity, memory)
+        require(0 < limit and used <= limit)
+        result[roles[row['ID']]] = {'cpu_percent': cpu, 'memory_bytes': used,
+            'memory_limit_bytes': limit, 'pids': integer(row['PIDs'])}
+    require(set(result) == set(identifiers))
+    return result
+
+
+CGROUP_FILES = ('memory.current', 'memory.max', 'memory.swap.max', 'memory.swap.current',
+                'memory.events', 'cpu.stat', 'cpu.max', 'pids.current', 'pids.max')
+CGROUP_READBACK = ('test -f /sys/fs/cgroup/cgroup.controllers || exit 1; '
+    'for name in ' + ' '.join(CGROUP_FILES) + '; do '
+    'printf "[%s]\\n" "$name"; cat "/sys/fs/cgroup/$name" || exit 1; done')
+
+
+def normalize_cgroup(text, host):
+    require(type(text) is str and len(text) <= 8192)
+    sections = {}; current = None
+    for line in text.splitlines():
+        if line.startswith('[') and line.endswith(']'):
+            current = line[1:-1]
+            require(current in CGROUP_FILES and current not in sections)
+            sections[current] = []
+        else:
+            require(current is not None and line != '')
+            sections[current].append(line)
+    require(set(sections) == set(CGROUP_FILES))
+    def single(name):
+        require(len(sections[name]) == 1)
+        return integer(sections[name][0])
+    def fields(name):
+        result = {}
+        for line in sections[name]:
+            parts = line.split()
+            require(len(parts) == 2 and re.fullmatch(r'[a-z_]+', parts[0]) is not None and parts[0] not in result)
+            result[parts[0]] = integer(parts[1])
+        return result
+    require(len(sections['cpu.max']) == 1)
+    quota = sections['cpu.max'][0].split(); require(len(quota) == 2)
+    quota, period = map(integer, quota)
+    limit, pids = single('memory.max'), single('pids.max')
+    require(limit == host['Memory'] and pids == host['PidsLimit'] and period > 0
+            and quota * 1000000000 == host['NanoCpus'] * period)
+    events, cpu = fields('memory.events'), fields('cpu.stat')
+    result = {'version': 2, 'memory_bytes': single('memory.current'), 'memory_limit_bytes': limit,
+        'swap_limit_bytes': single('memory.swap.max'), 'swap_bytes': single('memory.swap.current'),
+        'memory_oom_events': events['oom'], 'memory_oom_kills': events['oom_kill'],
+        'memory_max_events': events['max'], 'cpu_usage_usec': cpu['usage_usec'],
+        'cpu_throttled_usec': cpu['throttled_usec'], 'cpu_throttled_periods': cpu['nr_throttled'],
+        'cpu_periods': cpu['nr_periods'], 'cpu_quota_usec': quota, 'cpu_period_usec': period,
+        'pids': single('pids.current'), 'pids_limit': pids}
+    require(result['memory_bytes'] <= limit and result['pids'] <= pids
+            and result['swap_limit_bytes'] == result['swap_bytes'] == 0)
+    return result
+
+
+def restriction_fingerprint(record):
+    values = {name: record[name] for name in ('Id', 'Image', 'Config', 'HostConfig', 'Mounts')}
+    values['ports'] = record['NetworkSettings'].get('Ports')
+    return hashlib.sha256(json.dumps(values, sort_keys=True, separators=(',', ':')).encode()).hexdigest()
+
+
+def container_state(record):
+    state = record['State']
+    require(type(state['Running']) is bool and type(state['OOMKilled']) is bool)
+    require(type(record['RestartCount']) is int and 0 <= record['RestartCount'] <= 1000000)
+    require(type(state['ExitCode']) is int and -128 <= state['ExitCode'] <= 255)
+    started = state['StartedAt']
+    require(type(started) is str and re.fullmatch(r'[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9:.]+Z', started) is not None)
+    return {'running': state['Running'], 'oom_killed': state['OOMKilled'], 'exit_code': state['ExitCode'],
+        'restart_count': record['RestartCount'], 'started_at': started}
+
+
+def sample_container_resources(docker, original, project, owner):
+    """Twelve-second budget; exact owned IDs only, no host process/env/log reads."""
+    deadline = time.monotonic() + 12
+    class Reader:
+        def call(self, args, *, timeout=2, limit=262144):
+            remaining = deadline - time.monotonic()
+            require(remaining > 0)
+            return docker.call(args, timeout=min(timeout, remaining), limit=limit)
+    reader = Reader()
+    current = {name: inspect_container(reader, record['Id'], project, owner, name)
+        for name, record in original.items()}
+    validate_runtime(current, project, owner)
+    require(all(restriction_fingerprint(current[name]) == restriction_fingerprint(original[name]) for name in original))
+    identifiers = {name: current[name]['Id'] for name in current}
+    stats = normalize_stats(reader.call(['stats', '--no-stream', '--no-trunc', '--format', '{{json .}}',
+        *identifiers.values()], timeout=5, limit=32768), identifiers)
+    result = {}
+    for name, record in current.items():
+        group = normalize_cgroup(reader.call(['exec', record['Id'], '/bin/sh', '-c', CGROUP_READBACK], limit=8192), record['HostConfig'])
+        # Docker's rounded display is descriptive; exact limits come from cgroup v2.
+        require(abs(stats[name]['memory_limit_bytes'] - group['memory_limit_bytes']) <= 1048576
+                and stats[name]['pids'] <= group['pids_limit'])
+        result[name] = {'state': container_state(record), 'docker': stats[name], 'cgroup': group,
+            'restriction_sha256': restriction_fingerprint(record)}
+    return result
+
+
+def require_resource_continuity(before, after):
+    require(set(before) == set(after) == {'gateway', 'backend', 'redis'})
+    for name, previous in before.items():
+        current = after[name]
+        require(previous['restriction_sha256'] == current['restriction_sha256']
+            and current['state']['running'] is True and current['state']['oom_killed'] is False
+            and current['state']['started_at'] == previous['state']['started_at']
+            and current['state']['restart_count'] == previous['state']['restart_count'])
+        for key in ('memory_oom_events', 'memory_oom_kills'):
+            require(current['cgroup'][key] == previous['cgroup'][key] == 0)
+        for key in ('cpu_usage_usec', 'cpu_throttled_usec', 'cpu_throttled_periods', 'cpu_periods', 'memory_max_events'):
+            require(current['cgroup'][key] >= previous['cgroup'][key])
+
+
+def read_private_control(path):
+    path = Path(path)
+    require(path.is_absolute() and path == path.resolve(strict=True))
+    descriptor = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    try:
+        before = os.fstat(descriptor)
+        require(stat.S_ISREG(before.st_mode) and before.st_mode & 0o777 == 0o600
+            and before.st_uid == os.getuid() and before.st_nlink == 1 and 0 < before.st_size <= 16384)
+        payload = os.read(descriptor, 16385)
+        after, named = os.fstat(descriptor), path.lstat()
+        require(len(payload) == before.st_size and (before.st_dev, before.st_ino, before.st_size, before.st_mtime_ns)
+            == (after.st_dev, after.st_ino, after.st_size, after.st_mtime_ns)
+            and (after.st_dev, after.st_ino) == (named.st_dev, named.st_ino))
+        result = json.loads(payload); require(type(result) is dict)
+        return result
+    finally:
+        os.close(descriptor)
+
+
+def normalize_soak_result(value, seconds, concurrency, local):
+    """Reject arbitrary child output before retaining any traffic metrics."""
+    counters = ('signed_requests', 'replay_requests', 'fidelity_failures', 'replay_failures', 'transport_errors')
+    numbers = ('requested_seconds', 'concurrency', 'elapsed_seconds', 'requests_per_second', 'error_rate')
+    require(type(value) is dict and set(value) == set(counters + numbers + ('latency', 'outcomes')))
+    def count(number):
+        require(type(number) is int and 0 <= number <= 2 ** 40)
+    def finite(number):
+        require(type(number) in (int, float) and math.isfinite(number) and 0 <= number <= 2 ** 40)
+    for key in counters: count(value[key])
+    for key in numbers: finite(value[key])
+    require(value['requested_seconds'] == seconds and value['concurrency'] == concurrency
+        and seconds <= value['elapsed_seconds'] <= seconds + 10 and value['error_rate'] <= 1)
+    latency = value['latency']
+    require(type(latency) is dict and set(latency) == {'samples', 'min_ms', 'max_ms', 'mean_ms',
+        'p50_upper_bound_ms', 'p95_upper_bound_ms', 'p99_upper_bound_ms', 'histogram_upper_bounds_ms', 'histogram_counts'})
+    bounds = list(local.LatencyMetrics.bounds)
+    require(latency['histogram_upper_bounds_ms'] == bounds and type(latency['histogram_counts']) is list
+        and len(latency['histogram_counts']) == len(bounds) + 1)
+    for number in latency['histogram_counts']: count(number)
+    count(latency['samples'])
+    for key in ('min_ms', 'max_ms', 'mean_ms', 'p50_upper_bound_ms', 'p95_upper_bound_ms', 'p99_upper_bound_ms'):
+        finite(latency[key])
+    requests = value['signed_requests'] + value['replay_requests']
+    require(sum(latency['histogram_counts']) == latency['samples'] == requests)
+    outcomes = value['outcomes']; require(type(outcomes) is dict and set(outcomes) == {'schema', 'normal', 'replay'} and outcomes['schema'] == 1)
+    for role, expected in (('normal', value['signed_requests']), ('replay', value['replay_requests'])):
+        row = outcomes[role]
+        require(type(row) is dict and set(row) == {'missing_status', 'invalid_status', 'unrecognized_error_body', 'transport_errors', 'statuses', 'error_codes'})
+        for key in ('missing_status', 'invalid_status', 'unrecognized_error_body', 'transport_errors'): count(row[key])
+        require(type(row['statuses']) is list and len(row['statuses']) <= 500)
+        seen = set()
+        for status in row['statuses']:
+            require(type(status) is dict and set(status) == {'status', 'count'} and type(status['status']) is int
+                and 100 <= status['status'] <= 599 and status['status'] not in seen)
+            seen.add(status['status']); count(status['count'])
+        require(sum(status['count'] for status in row['statuses']) + row['missing_status'] + row['invalid_status'] + row['transport_errors'] == expected)
+        require(type(row['error_codes']) is dict and set(row['error_codes']) == set(local.OutcomeMetrics.codes))
+        for number in row['error_codes'].values(): count(number)
+    return value
+
+
+def require_sustained_success(result, local):
+    local.require_soak_success(result)
+    for role, status, count in (('normal', 200, result['signed_requests']), ('replay', 403, result['replay_requests'])):
+        row = result['outcomes'][role]
+        require(row['statuses'] == [{'status': status, 'count': count}]
+            and all(row[key] == 0 for key in ('missing_status', 'invalid_status', 'unrecognized_error_body', 'transport_errors')))
+        require(row['error_codes'] == {code: count if role == 'replay' and code == 'REPLAY_DETECTED' else 0
+            for code in local.OutcomeMetrics.codes})
+
+
+def traffic_control(path):
+    from cryptography.hazmat.primitives import serialization
+    from cryptography.hazmat.primitives.asymmetric import ec
+    payload = read_private_control(path)
+    require(set(payload) == {'seconds', 'concurrency', 'port', 'ca_file', 'private_key', 'token'})
+    validate_soak_options(payload['seconds'], payload['concurrency']); require(payload['seconds'] > 0)
+    require(type(payload['port']) is int and 1 <= payload['port'] <= 65535)
+    require(type(payload['token']) is str and re.fullmatch(r'[A-Za-z0-9_-]{32,128}', payload['token']) is not None)
+    require(type(payload['private_key']) is str and len(payload['private_key']) <= 4096)
+    ca = Path(payload['ca_file']); require(ca == Path(path).parent / 'server-ca.pem' and ca == ca.resolve(strict=True))
+    local = helpers(); signer = local.Signer.__new__(local.Signer)
+    signer.key = serialization.load_pem_private_key(payload['private_key'].encode(), password=None)
+    require(isinstance(signer.key, ec.EllipticCurvePrivateKey) and signer.key.curve.name == 'secp256r1')
+    signer.token = payload['token']
+    context = ssl.create_default_context(cafile=str(ca))
+    result = local.run_soak(payload['seconds'], payload['concurrency'], payload['port'], context, signer)
+    return normalize_soak_result(result, payload['seconds'], payload['concurrency'], local)
+
+
+def new_operational(seconds, concurrency):
+    return {'schema': 1, 'scope': 'owned resource-constrained Linux containers; synthetic signed/replay HTTP traffic',
+        'requested_seconds': seconds, 'concurrency': concurrency, 'phase': 'pending', 'passed': False, 'release_ready': False,
+        'checks': {name: False for name in ('sustained_traffic', 'counter_fidelity', 'runtime_unchanged',
+            'no_oom_or_restart', 'backend_restart_replay_retained', 'owned_container_cleanup', 'provenance_unchanged')},
+        'limitations': ['sampled resource points are not leak or long-term capacity proof',
+            'cgroup v2 is required for effective resource evidence', 'Docker CLI memory excludes inactive file cache and is rounded',
+            'no external security, provider, production or physical-device approval']}
+
+
+def restart_backend(docker, records, project, owner, port, tls, signer, local, counter_file):
+    backend = records['backend']['Id']
+    redis = records['redis']['Id']
+    inspect_container(docker, redis, project, owner, 'redis')
+    before_run = redis_values(docker, redis, 'server')['run_id']
+    require(re.fullmatch(r'[0-9a-f]{40}', before_run) is not None)
+    target, body = '/v1/items', secrets.token_bytes(32)
+    original = local.wire(target, signer.headers(target, body), body)
+    require(local.exchange(port, tls, original) == (200, body))
+    started = time.monotonic()
+    inspect_container(docker, backend, project, owner, 'backend')
+    docker.call(['container', 'stop', '--time', '8', backend], timeout=15)
+    require(inspect_container(docker, backend, project, owner, 'backend')['State']['Running'] is False)
+    descriptor = os.open(counter_file, os.O_WRONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    try:
+        info = os.fstat(descriptor)
+        require(stat.S_ISREG(info.st_mode) and info.st_mode & 0o777 == 0o600 and info.st_uid == os.getuid()
+            and info.st_nlink == 1 and (info.st_dev, info.st_ino) == (counter_file.lstat().st_dev, counter_file.lstat().st_ino))
+        os.ftruncate(descriptor, 0)
+    finally:
+        os.close(descriptor)
+    inspect_container(docker, backend, project, owner, 'backend')
+    docker.call(['container', 'start', backend], timeout=15)
+    wait_ready(docker, records['gateway']['Id'], backend, project, owner, timeout=30)
+    body = secrets.token_bytes(32)
+    require(local.exchange(port, tls, local.wire(target, signer.headers(target, body), body)) == (200, body))
+    require(local.replay_denied(local.exchange(port, tls, original)))
+    elapsed = time.monotonic() - started
+    inspect_container(docker, redis, project, owner, 'redis')
+    require(elapsed < 45 and redis_values(docker, redis, 'server')['run_id'] == before_run)
+    current = {name: inspect_container(docker, row['Id'], project, owner, name) for name, row in records.items()}
+    require(validate_runtime(current, project, owner) == validate_runtime(records, project, owner)
+        and all(restriction_fingerprint(current[name]) == restriction_fingerprint(records[name]) for name in records))
+    require(current['backend']['State']['OOMKilled'] is False)
+    return {'recovered': True, 'recovery_seconds': elapsed, 'original_replay_status': 403,
+        'redis_run_unchanged': True, 'counter_reset_expected': True,
+        'scope': 'owned backend container stop/start; existing Redis volume and network namespace retained'}
+
+
+def run_operational(report, seconds, concurrency, docker, records, project, owner, port, tls, signer, local, private):
+    from cryptography.hazmat.primitives import serialization
+    resources = {'samples': 0, 'interval_seconds': 5, 'peak': {name: {'docker_memory_bytes': 0,
+        'cgroup_memory_bytes': 0, 'pids': 0, 'cpu_percent': 0.} for name in records}}
+    resources['scope'] = 'sampled Docker CLI and exact cgroup-v2 readbacks; observer exec processes contribute to usage; no leak proof'
+    report['resources'] = resources
+    def sample():
+        value = sample_container_resources(docker, records, project, owner)
+        resources['samples'] += 1
+        if 'before' not in resources: resources['before'] = value
+        resources['after'] = value
+        require_resource_continuity(resources['before'], value)
+        for name, row in value.items():
+            for key, number in (('docker_memory_bytes', row['docker']['memory_bytes']),
+                    ('cgroup_memory_bytes', row['cgroup']['memory_bytes']), ('pids', row['cgroup']['pids']),
+                    ('cpu_percent', row['docker']['cpu_percent'])):
+                resources['peak'][name][key] = max(resources['peak'][name][key], number)
+        return value
+    try:
+        report['phase'] = 'resources_before'
+        sample()
+        before = local.counters(private / 'counters.json')
+        control = private / 'traffic-control.json'
+        write_private(control, json.dumps({'seconds': seconds, 'concurrency': concurrency, 'port': port,
+            'ca_file': str(private / 'server-ca.pem'), 'token': signer.token,
+            'private_key': signer.key.private_bytes(serialization.Encoding.PEM, serialization.PrivateFormat.PKCS8,
+                serialization.NoEncryption()).decode()}))
+        command = [sys.executable, str(Path(__file__).resolve()), '--traffic-control', str(control)]
+        environment = {'PATH': os.environ.get('PATH', ''), 'PYTHONPATH': str(ROOT / 'sdk/python/src'), 'PYTHONDONTWRITEBYTECODE': '1'}
+        report['phase'] = 'traffic'
+        result = json.loads(bounded_command(command, timeout=seconds + 15, limit=131072, observer=sample, env=environment, cwd=ROOT))
+        report['soak'] = normalize_soak_result(result, seconds, concurrency, local)
+        after = local.counters(private / 'counters.json')
+        report['phase'] = 'resources_after'
+        sample()
+        report['counters'] = {'before': before, 'after': after}
+        require_sustained_success(report['soak'], local)
+        report['checks']['sustained_traffic'] = True
+        report['counters']['delta'] = local.verify_soak_counters(before, after, report['soak'])
+        report['checks']['counter_fidelity'] = True
+        report['checks']['runtime_unchanged'] = report['checks']['no_oom_or_restart'] = True
+        report['phase'] = 'backend_restart'
+        report['backend_restart'] = restart_backend(docker, records, project, owner, port, tls, signer, local, private / 'counters.json')
+        report['checks']['backend_restart_replay_retained'] = True
+        report['phase'] = 'completed'
+    except BaseException as error:
+        report['failure'] = failure_summary(error)
+        if not isinstance(error, KeyboardInterrupt):
+            try:
+                deadline = time.monotonic() + 6
+                class Reader:
+                    def call(self, args, **kwargs):
+                        remaining = deadline - time.monotonic(); require(remaining > 0)
+                        return docker.call(args, timeout=min(2, remaining), limit=262144)
+                report['last_states'] = {name: container_state(inspect_container(Reader(), record['Id'], project, owner, name))
+                    for name, record in records.items()}
+            except (Exception, KeyboardInterrupt):
+                report['state_readback_incomplete'] = True
+        raise
+
+
+def qualify(output, executable, context, java_home, soak_seconds=0, soak_concurrency=8):
+    validate_soak_options(soak_seconds, soak_concurrency)
     with ReceiptDirectory(output) as receipt_directory:
-        return _qualify(receipt_directory, executable, context, java_home)
+        return _qualify(receipt_directory, executable, context, java_home, soak_seconds, soak_concurrency)
 
 
-def _qualify(output, executable, context, java_home):
+def _qualify(output, executable, context, java_home, soak_seconds=0, soak_concurrency=8):
     local = helpers()
     started = datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
     pins = source_hashes()
@@ -886,6 +1248,8 @@ def _qualify(output, executable, context, java_home):
         'limitations': ['owned local Linux Docker daemon only', 'no external security or license approval',
             'no provider account or physical device evidence', 'image vulnerabilities require a separate current scan']}
     docker = None
+    if soak_seconds:
+        receipt['operational'] = new_operational(soak_seconds, soak_concurrency)
     completed = False
     project = 'appguard-spring-' + secrets.token_hex(12)
     owner = secrets.token_hex(12)
@@ -988,6 +1352,10 @@ def _qualify(output, executable, context, java_home):
             # Reinspect surviving services after the probes, not just at startup.
             current = records_for(docker, project, owner)
             require(validate_runtime({name: current[name] for name in records}, project, owner) == inspected)
+            if soak_seconds:
+                receipt['phase'] = 'sustained_containers'
+                run_operational(receipt['operational'], soak_seconds, soak_concurrency, docker, records,
+                    project, owner, port, tls, signer, local, private)
             completed = True
             receipt['phase'] = 'completed'
         except BaseException as error:
@@ -1003,6 +1371,8 @@ def _qualify(output, executable, context, java_home):
             if docker is not None:
                 receipt['checks']['owned_container_cleanup'] = cleanup_owned(docker, project, owner)
             receipt['cleanup'] = receipt['checks']['owned_container_cleanup']
+            if soak_seconds:
+                receipt['operational']['checks']['owned_container_cleanup'] = receipt['cleanup']
             try:
                 require(source_hashes() == pins
                     and bounded_command(['git', 'rev-parse', 'HEAD'], cwd=ROOT).strip() == commit)
@@ -1011,27 +1381,43 @@ def _qualify(output, executable, context, java_home):
                 receipt['checks']['provenance_unchanged'] = True
             except (ValueError, RuntimeError, OSError):
                 receipt['checks']['provenance_unchanged'] = False
+            if soak_seconds:
+                operating = receipt['operational']
+                operating['checks']['provenance_unchanged'] = receipt['checks']['provenance_unchanged']
+                operating['passed'] = completed and all(operating['checks'].values())
             receipt['technical_verification'] = completed and all(receipt['checks'].values())
+            if soak_seconds:
+                receipt['technical_verification'] = receipt['technical_verification'] and receipt['operational']['passed']
             output.publish(json.dumps(receipt, indent=2, sort_keys=True) + '\n')
     require(receipt['technical_verification'])
     return receipt
 
 
 def main():
+    if len(sys.argv) == 3 and sys.argv[1] == '--traffic-control':
+        try:
+            print(json.dumps(traffic_control(Path(sys.argv[2])), separators=(',', ':')))
+            return 0
+        except (Exception, KeyboardInterrupt):
+            print('SPRING_CONTAINER_TRAFFIC_FAILED', file=sys.stderr)
+            return 1
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--output', required=True)
     parser.add_argument('--docker-context', required=True)
     parser.add_argument('--docker', default='docker')
     parser.add_argument('--java-home', default=os.environ.get('JAVA_HOME'))
+    parser.add_argument('--soak-seconds', type=int, default=0, help='0 disables sustained qualification; otherwise 1..3600 seconds')
+    parser.add_argument('--soak-concurrency', type=int, default=8, help='1..32 concurrent synthetic request workers')
     args = parser.parse_args()
     try:
+        validate_soak_options(args.soak_seconds, args.soak_concurrency)
         require(args.java_home is not None)
         java = Path(args.java_home).resolve(strict=True)
         require((java / 'bin/keytool').is_file())
         executable = Path(shutil.which(args.docker) or args.docker).resolve(strict=True)
         output = helpers().new_output(args.output)
         with cancellation_scope():
-            qualify(output, executable, args.docker_context, java)
+            qualify(output, executable, args.docker_context, java, args.soak_seconds, args.soak_concurrency)
     except (Exception, KeyboardInterrupt):
         print('SPRING_CONTAINER_QUALIFICATION_FAILED', file=sys.stderr)
         return 1
