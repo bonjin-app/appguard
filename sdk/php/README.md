@@ -10,6 +10,15 @@ Install this local package through a Composer path repository or copy the versio
 
 `HttpAdapter` is a native PHP callback adapter. It requires all of: configured external HTTPS origin/app ID, trusted authentication callback, key resolver, replay store and clock. Its evidence callback must return `HttpEvidence` captured before normalization/body processing. `handle($nativeRequest, $capture, $next)` invokes `$next($nativeRequest, $verifiedRequest)` only after verification; the native object and existing identity remain intact. `VerifiedRequest` carries captured bytes plus verification metadata separately. Failures return `HttpFailure` with a fixed status and compact `{"code":"FIXED_REASON"}` body. The application maps that to its response framework.
 
+`VerificationError` derives its HTTP status from the normalized fixed reason:
+400 for `INVALID_REQUEST`, 401 for missing authentication, 503 for dependency
+failures, and 403 for the remaining verification failures. Its optional status
+argument permits only 413 with normalized `INVALID_REQUEST`, for content overflow.
+Other overrides are ignored, including success, redirect and out-of-range values.
+The constructor signature is unchanged; callers that previously used arbitrary
+overrides must implement unrelated response policy in their application. See the
+[error-status verification](../../docs/security/php-error-status.md).
+
 ```php
 use AppGuard\{HttpAdapter, HttpEvidence};
 

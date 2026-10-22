@@ -9,7 +9,9 @@ class VerificationError extends \RuntimeException {
     private const CODES = ['INVALID_REQUEST','UNSUPPORTED_PROFILE','INVALID_TIME','KEY_REJECTED','DIGEST_MISMATCH','INVALID_SIGNATURE','REPLAY_DETECTED','REPLAY_STORE_UNAVAILABLE','AUTHENTICATION_REQUIRED','IDENTITY_UNAVAILABLE','KEY_RESOLVER_UNAVAILABLE','VERIFICATION_UNAVAILABLE'];
     public function __construct(string $reason='INVALID_REQUEST', ?int $status=null) {
         $this->reason=in_array($reason,self::CODES,true)?$reason:'INVALID_REQUEST';
-        $this->status=$status??match($this->reason){'INVALID_REQUEST'=>400,'AUTHENTICATION_REQUIRED'=>401,'IDENTITY_UNAVAILABLE','KEY_RESOLVER_UNAVAILABLE','VERIFICATION_UNAVAILABLE','REPLAY_STORE_UNAVAILABLE'=>503,default=>403};
+        // Oversized content is the only status override in the HTTP contract.
+        // Callback-thrown errors cannot turn a failure into success or redirect it.
+        $this->status=$this->reason==='INVALID_REQUEST'&&$status===413?413:match($this->reason){'INVALID_REQUEST'=>400,'AUTHENTICATION_REQUIRED'=>401,'IDENTITY_UNAVAILABLE','KEY_RESOLVER_UNAVAILABLE','VERIFICATION_UNAVAILABLE','REPLAY_STORE_UNAVAILABLE'=>503,default=>403};
         parent::__construct($this->reason);
     }
 }
