@@ -300,6 +300,26 @@ def run_scans(candidate, output):
     return 1 if failed else 0
 
 
+def public_check_summary(status):
+    """Fixed-label counts for CI debugging; never raw errors, paths or findings."""
+    known = {'maven-runtime', 'syft', 'trivy-sbom', 'trivy-licenses', 'trivy-secrets',
+             'syft-maven-runtime', 'trivy-maven-runtime', 'trivy-maven-runtime-licenses'}
+    checks = []
+    for item in status.get('commands', []):
+        if not isinstance(item, dict) or not isinstance(item.get('name'), str) or item['name'] not in known:
+            continue
+        code = item.get('returncode')
+        entry = {'check': item['name'], 'returncode': code if type(code) is int and -255 <= code <= 255 else None}
+        counts = item.get('finding_counts', {})
+        for kind in ('Vulnerabilities', 'Secrets', 'Licenses'):
+            count = counts.get(kind) if isinstance(counts, dict) else None
+            if type(count) is int and 0 <= count <= 2147483647:
+                entry[kind.lower()] = count
+        checks.append(entry)
+    return {'automated_checks_passed': status.get('automated_checks_passed') is True,
+            'release_ready': False, 'checks': checks}
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--candidate', type=Path, required=True)
@@ -307,6 +327,7 @@ def main():
     args = parser.parse_args()
     try:
         code = run_scans(args.candidate, args.output)
+        print(json.dumps(public_check_summary(json.loads((args.output / 'status.json').read_text())), sort_keys=True))
     except (OSError, ValueError, KeyError) as error:
         parser.exit(1, str(error) + '\n')
     parser.exit(code)

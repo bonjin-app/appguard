@@ -214,3 +214,9 @@ and explicitly approve versions, registry ownership, signing/provenance and
 publication. Device/provider evidence remains required wherever the product
 claims depend on it. This tooling does not establish a support SLA or security
 reporting contact; see the existing security policy for its actual limits.
+
+The scanner CLI emits only fixed check names, exit codes and numeric finding
+counts to CI stdout. This makes a blocked source vulnerability gate visible
+without publishing raw secret reports, component paths or parser errors. The
+full reports remain local; artifact staging still requires all technical checks
+and zero-secret evidence to pass. A count summary never overrides a failed gate.

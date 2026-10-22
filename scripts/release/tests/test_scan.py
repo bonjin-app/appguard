@@ -12,6 +12,22 @@ SPEC = importlib.util.spec_from_file_location('scan', Path(__file__).resolve().p
 
 
 class ScanTests(unittest.TestCase):
+    def test_public_summary_reports_counts_without_private_errors_or_metadata(self):
+        m = self.module()
+        result = m.public_check_summary({'automated_checks_passed': False, 'error': 'PRIVATE_ERROR',
+            'commands': [{'name': 'trivy-sbom', 'returncode': 1, 'path': 'PRIVATE_PATH',
+                          'finding_counts': {'Vulnerabilities': 2, 'Secrets': 0, 'Licenses': 0},
+                          'finding': 'PRIVATE_FINDING'},
+                         {'name': 'trivy-secrets', 'returncode': 0,
+                          'finding_counts': {'Secrets': 'PRIVATE_COUNT'}},
+                         {'name': 'PRIVATE_CHECK', 'returncode': 1}]})
+        self.assertFalse(result['automated_checks_passed'])
+        self.assertFalse(result['release_ready'])
+        self.assertEqual(result['checks'][0]['vulnerabilities'], 2)
+        self.assertEqual(result['checks'][0]['returncode'], 1)
+        self.assertNotIn('secrets', result['checks'][1])
+        self.assertNotIn('PRIVATE', json.dumps(result))
+
     def module(self):
         module = importlib.util.module_from_spec(SPEC)
         with patch.object(sys, "path", [str(Path(__file__).resolve().parents[1]), *sys.path]):

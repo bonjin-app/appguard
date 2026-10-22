@@ -13,7 +13,7 @@ Proceed under the user's existing authorization, in the reusable isolated worktr
 - [x] Run cross-language and isolated package consumers; run all affected suites.
 - [x] Perform independent read-only review and resolve concrete findings.
 - [x] Update English/Korean/Japanese/Chinese documentation and readiness boundaries.
-- [ ] Merge/push SDK-verified main; inspect hosted technical jobs and the explicit release gate to completion and retain evidence.
+- [x] Merge/push SDK-verified main; inspect hosted technical jobs and the explicit release gate to completion and retain evidence.
 
 Do not publish registries, provision credentials, use physical devices, merge the physical candidate or claim an external security audit. Track account-dependent/provider validations explicitly.
 
