@@ -1,4 +1,5 @@
 import importlib.util
+import hashlib
 import json
 import os
 from pathlib import Path
@@ -44,14 +45,33 @@ class ContainerScanTests(unittest.TestCase):
         self.assertNotIn('DOCKER_HOST', env)
         if command[1:] == ['--context', 'default', 'context', 'inspect', 'default']:
             return 0, b'[{"Endpoints":{"docker":{"Host":"unix:///var/run/docker.sock"}}}]'
+        if command[1] == 'version':
+            return 0, json.dumps({'Version': self.version}).encode()
+        for flag, directory, filename, schema in (
+                ('--download-db-only', 'db', 'trivy.db', 2),
+                ('--download-java-db-only', 'java-db', 'trivy-java.db', 1)):
+            if flag not in command:
+                continue
+            self.downloads.append(flag)
+            self.cache = Path(env['TRIVY_CACHE_DIR'])
+            destination = self.cache / directory
+            destination.mkdir(parents=True)
+            (destination / filename).write_bytes(b'owned tiny database ' + directory.encode())
+            metadata = dict(Version=schema, UpdatedAt='2026-10-22T00:00:00.123456789Z',
+                NextUpdate='2026-10-24T00:00:00Z', DownloadedAt='2026-10-23T00:00:00Z')
+            if self.database_change:
+                self.database_change(destination, metadata)
+            (destination / 'metadata.json').write_text(json.dumps(metadata))
+            return 0, b'private setup output SECRET'
         self.assertEqual(command[1], 'image')
+        self.commands.append(command)
         self.assertEqual(command[-1], self.ids[module.ROLES[self.scans]])
         self.assertEqual(command[command.index('--image-src') + 1], 'docker')
         self.assertNotIn('--ignore-unfixed', command)
         report = self.publication.output.parent / self.publication.name / ('trivy-' + module.ROLES[self.scans] + '.json')
         self.assertEqual(command[command.index('--output') + 1], '/dev/fd/' + str(kwargs['report']))
         image = command[-1]
-        value = {'SchemaVersion': 2, 'ArtifactType': 'container_image', 'ArtifactName': image,
+        value = {'SchemaVersion': 2, 'Trivy': {'Version': '0.76.1'}, 'ArtifactType': 'container_image', 'ArtifactName': image,
                  'Metadata': {'ImageID': image, 'OS': {'Family': 'alpine', 'Name': '3.22'}},
                  'Results': [{'Class': 'os-pkgs', 'Type': 'alpine',
                      'Packages': [{'Name': 'pkg', 'Version': '1.0'}]}]}
@@ -74,18 +94,27 @@ class ContainerScanTests(unittest.TestCase):
         self.scans += 1
         if self.mutate and self.scans == 2:
             (self.publication.output.parent / self.publication.name / 'trivy-gateway.json').write_text('{}')
+        if self.integrity_change:
+            self.integrity_change(self.scans)
         return code, b'private scanner output SECRET'
 
-    def run_scan(self, transform=None, mutate=False):
+    def run_scan(self, transform=None, mutate=False, *, version='0.76.1', database_change=None, integrity_change=None):
         self.scans, self.mutate = 0, mutate
+        self.version, self.database_change, self.integrity_change = version, database_change, integrity_change
+        self.downloads, self.commands = [], []
         self.transform = transform or (lambda value, report: (0, None))
         original_enter = module.Publication.__enter__
         def enter(publication):
             result = original_enter(publication)
             self.publication = publication
             return result
+        def install(name, state):
+            self.tool = state / name
+            self.tool.write_bytes(b'owned fake scanner executable')
+            self.tool.chmod(0o700)
+            return self.tool
         with patch.object(module.Publication, '__enter__', enter), \
-                patch.object(module, 'install_tool', return_value=Path('/mock/trivy')), \
+                patch.object(module, 'install_tool', side_effect=install), \
                 patch.object(module, 'bounded_command', side_effect=self.runner), \
                 patch.dict(os.environ, {'TRIVY_TOKEN': 'SECRET', 'DOCKER_HOST': 'tcp://secret'}):
             return module.scan(self.receipt, self.output)
@@ -103,6 +132,237 @@ class ContainerScanTests(unittest.TestCase):
         self.assertEqual(self.output.stat().st_mode & 0o777, 0o700)
         self.assertNotIn('SECRET', json.dumps(result))
         self.assertNotIn(str(self.root), json.dumps(result))
+
+    def test_schema_two_identifies_scanner_and_both_frozen_databases(self):
+        result = self.run_scan()
+        self.assertEqual(result['schema'], 2)
+        self.assertTrue(result['finding_details_complete'])
+        scanner = result['scanner']
+        self.assertEqual(set(scanner), {'name', 'version', 'platform', 'archive_sha256', 'executable_sha256'})
+        self.assertEqual((scanner['name'], scanner['version']), ('trivy', '0.76.1'))
+        self.assertIn(scanner['platform'], ('Linux-x86_64', 'Darwin-arm64'))
+        self.assertEqual(scanner['executable_sha256'], hashlib.sha256(b'owned fake scanner executable').hexdigest())
+        self.assertEqual(self.downloads, ['--download-db-only', '--download-java-db-only'])
+        for role in module.ROLES:
+            self.assertTrue(result['images'][role]['finding_details_complete'])
+            self.assertEqual(result['images'][role]['findings'], [])
+        for name, directory, schema in (('vulnerability', 'db', 2), ('java', 'java-db', 1)):
+            row = result['databases'][name]
+            self.assertEqual(set(row), {'schema', 'metadata_sha256', 'database_sha256', 'updated_at', 'next_update', 'downloaded_at'})
+            self.assertEqual(row['schema'], schema)
+            self.assertEqual(row['database_sha256'], hashlib.sha256(b'owned tiny database ' + directory.encode()).hexdigest())
+            self.assertEqual(row['updated_at'], '2026-10-22T00:00:00.123456789Z')
+        for command in self.commands:
+            self.assertIn('--skip-db-update', command)
+            self.assertIn('--skip-java-db-update', command)
+
+    def test_full_projection_preserves_duplicate_unfixed_and_all_severity_rows(self):
+        def findings(value, report):
+            value['Results'][0].update(Target='/SECRET/os/path', Vulnerabilities=[
+                dict(VulnerabilityID='CVE-2026-12345', PkgName='libpkg:amd64', InstalledVersion='1:2.0~rc1-1',
+                    FixedVersion='1:2.0-2, 1:2.1-1', Severity='UNKNOWN', PkgID='SECRET@1', PkgPath='/SECRET/pkg'),
+                dict(VulnerabilityID='CVE-2026-12345', PkgName='libpkg:amd64', InstalledVersion='1:2.0~rc1-1',
+                    FixedVersion='1:2.0-2, 1:2.1-1', Severity='UNKNOWN', PkgID='SECRET@1', PkgPath='/SECRET/pkg'),
+                dict(VulnerabilityID='GHSA-abcd-1234-efgh', PkgName='@scope/name', InstalledVersion='1.0+build',
+                    Severity='LOW')])
+            return 0, None
+        result = self.run_scan(findings)
+        self.assertEqual(result['vulnerabilities'], 9)
+        self.assertEqual(result['reason'], 'findings_present')
+        self.assertTrue(result['finding_details_complete'])
+        rows = result['images']['gateway']['findings']
+        self.assertEqual(len(rows), 3)
+        self.assertEqual(set(rows[0]), {'vulnerability_id', 'package', 'installed_version', 'fixed_versions',
+            'severity', 'source_class', 'package_type', 'occurrence_sha256'})
+        self.assertEqual(rows[0]['fixed_versions'], ['1:2.0-2', '1:2.1-1'])
+        self.assertEqual(rows[2]['fixed_versions'], [])
+        self.assertNotEqual(rows[0]['occurrence_sha256'], rows[1]['occurrence_sha256'])
+        self.assertNotIn('SECRET', json.dumps(result))
+
+    def test_unprojectable_or_excess_findings_keep_every_count_and_false_details(self):
+        valid = dict(VulnerabilityID='CVE-2026-1', PkgName='pkg', InstalledVersion='1.0', Severity='HIGH')
+        for i, rows in enumerate(([valid, {}], [valid, None], [valid] * 1025)):
+            self.output = self.root / ('partial' + str(i))
+            def findings(value, report):
+                value['Results'][0]['Vulnerabilities'] = rows
+                return 0, None
+            with self.subTest(count=len(rows)):
+                result = self.run_scan(findings)
+                self.assertEqual(result['vulnerabilities'], len(rows) * 3)
+                self.assertEqual(result['reason'], 'findings_present')
+                self.assertFalse(result['finding_details_complete'])
+                self.assertTrue(all(row['findings'] == [] and row['finding_details_complete'] is False
+                    for row in result['images'].values()))
+
+    def test_wrong_version_or_database_setup_never_claims_complete_details(self):
+        result = self.run_scan(version='9.9.9')
+        self.assertFalse(result['finding_details_complete'])
+        self.assertFalse(result['automated_checks_passed'])
+        self.assertIsNone(result['scanner'])
+        self.assertIsNone(result['databases'])
+        self.assertEqual(self.scans, 0)
+        for i, change in enumerate((lambda d, m: m.update(Version=True),
+                lambda d, m: m.update(DownloadedAt='2026-10-21T00:00:00Z'),
+                lambda d, m: m.update(NextUpdate=m['UpdatedAt']),
+                lambda d, m: m.update(UpdatedAt='2026-02-30T00:00:00Z'))):
+            self.output = self.root / ('setup' + str(i))
+            with self.subTest(change=change):
+                result = self.run_scan(database_change=change)
+                self.assertEqual(result['reason'], 'container_scan_unverified')
+                self.assertFalse(result['finding_details_complete'])
+                self.assertIsNone(result['databases'])
+                self.assertEqual(self.scans, 0)
+
+    def test_database_and_executable_changes_invalidate_detail_provenance(self):
+        for i, name in enumerate(('trivy', 'db/trivy.db', 'java-db/trivy-java.db', 'db/metadata.json')):
+            self.output = self.root / ('integrity' + str(i))
+            def change(scans):
+                if scans == 1:
+                    path = self.tool if name == 'trivy' else self.cache / name
+                    path.write_bytes(path.read_bytes() + b' ')
+            with self.subTest(name=name):
+                result = self.run_scan(integrity_change=change)
+                self.assertEqual(result['reason'], 'container_scan_unverified')
+                self.assertFalse(result['finding_details_complete'])
+                self.assertFalse(result['automated_checks_passed'])
+
+    def test_projection_lexical_rejection_never_drops_occurrences(self):
+        valid = dict(VulnerabilityID='CVE-2026-1', PkgName='pkg', InstalledVersion='1.0', Severity='CRITICAL')
+        for key, invalid in (('VulnerabilityID', 'cve-2026-1'), ('PkgName', '/SECRET/pkg'),
+                ('InstalledVersion', 'https://SECRET'), ('Severity', 'IMPORTANT'),
+                ('FixedVersion', '1.0,,2.0'), ('FixedVersion', ','.join(['1.0'] * 33)),
+                ('FixedVersion', '1' * 201)):
+            document = {'SchemaVersion': 2, 'Results': [{'Class': 'lang-pkgs', 'Type': 'jar',
+                'Vulnerabilities': [valid, dict(valid, **{key: invalid})]}]}
+            with self.subTest(key=key, invalid=invalid):
+                count, rows, complete = module.finding_details(document)
+                self.assertEqual((count, rows, complete), (2, [], False))
+        for source, package_type in (('secret', 'jar'), ('lang-pkgs', 'RAW/PATH')):
+            count, rows, complete = module.finding_details({'SchemaVersion': 2,
+                'Results': [{'Class': source, 'Type': package_type, 'Vulnerabilities': [valid]}]})
+            self.assertEqual((count, rows, complete), (1, [], False))
+
+    def test_occurrence_digest_binds_raw_location_and_indexes_without_emitting_them(self):
+        raw = dict(VulnerabilityID='CVE-2026-1', PkgName='pkg', InstalledVersion='1.0',
+                   Severity='MEDIUM', PkgID='PRIVATE-ID', PkgPath='/PRIVATE/path')
+        def project(target, padding=False):
+            results = [{'Class': 'os-pkgs', 'Type': 'alpine', 'Target': target, 'Vulnerabilities': [raw]}]
+            if padding: results.insert(0, {'Vulnerabilities': []})
+            return module.finding_details({'SchemaVersion': 2, 'Results': results})[1][0]
+        original = project('/PRIVATE/target')
+        self.assertNotEqual(original['occurrence_sha256'], project('/PRIVATE/changed')['occurrence_sha256'])
+        self.assertNotEqual(original['occurrence_sha256'], project('/PRIVATE/target', True)['occurrence_sha256'])
+        expected = json.dumps(dict(result_index=0, finding_index=0, target='/PRIVATE/target',
+            pkg_id='PRIVATE-ID', pkg_path='/PRIVATE/path'), sort_keys=True, separators=(',', ':')).encode()
+        self.assertEqual(original['occurrence_sha256'], hashlib.sha256(expected).hexdigest())
+        self.assertNotIn('PRIVATE', json.dumps(original))
+
+    def test_status_envelope_degrades_details_without_erasing_counts(self):
+        fixed = ','.join('1.' + '2' * 14 for _ in range(32))
+        row = dict(VulnerabilityID='CVE-2026-1', PkgName='pkg', InstalledVersion='1.0',
+                   FixedVersion=fixed, Severity='LOW')
+        def findings(value, report):
+            value['Results'][0]['Vulnerabilities'] = [row] * 1024
+            return 0, None
+        result = self.run_scan(findings)
+        self.assertEqual(result['vulnerabilities'], 3072)
+        self.assertEqual(result['reason'], 'findings_present')
+        self.assertFalse(result['finding_details_complete'])
+        self.assertFalse(result['automated_checks_passed'])
+        self.assertTrue(all(row['vulnerabilities'] == 1024 and row['findings'] == []
+            and row['finding_details_complete'] is False for row in result['images'].values()))
+        self.assertLessEqual((self.output / 'status.json').stat().st_size, 2 * 1024 * 1024)
+
+    def test_nanosecond_metadata_order_and_utc_calendar_validation(self):
+        before = module.database_time('2026-10-23T00:00:00.123456780Z')
+        after = module.database_time('2026-10-23T00:00:00.123456789Z')
+        self.assertLess(before, after)
+        for value in ('2026-02-30T00:00:00Z', '2026-10-23T00:00:00+00:00',
+                '2026-10-23T00:00:00.1234567890Z', None, True):
+            with self.subTest(value=value), self.assertRaises((ValueError, TypeError)):
+                module.database_time(value)
+        def backwards(destination, metadata):
+            metadata.update(UpdatedAt='2026-10-23T00:00:00.123456789Z',
+                DownloadedAt='2026-10-23T00:00:00.123456780Z')
+        self.assertEqual(self.run_scan(database_change=backwards)['reason'], 'container_scan_unverified')
+
+    def test_streaming_file_bounds_regular_files_and_stability(self):
+        regular = self.root / 'tiny.db'; regular.write_bytes(b'1234567')
+        self.assertEqual(module.file_identity(regular, 7)['sha256'], hashlib.sha256(b'1234567').hexdigest())
+        with self.assertRaises(ValueError): module.file_identity(regular, 6)
+        link = self.root / 'link.db'; link.symlink_to(regular)
+        with self.assertRaises(ValueError): module.file_identity(link, 7)
+        fifo = self.root / 'fifo.db'; os.mkfifo(fifo)
+        with self.assertRaises(ValueError): module.file_identity(fifo, 7)
+        oversized = self.root / 'oversized.db'
+        with oversized.open('wb') as stream: stream.truncate(4 * 1024 ** 3 + 1)
+        with self.assertRaises(ValueError): module.file_identity(oversized, module.MAX_DATABASE)
+        metadata = self.root / 'oversized.json'; metadata.write_bytes(b'x' * (64 * 1024 + 1))
+        with self.assertRaises(ValueError): module.file_identity(metadata, module.MAX_METADATA, keep=True)
+        pin = module.file_identity(regular, 7)
+        regular.write_bytes(b'7654321')
+        with self.assertRaises(ValueError): module.verify_files({regular: (7, pin)})
+
+    def test_late_integrity_mutation_cannot_publish_complete_finding_status(self):
+        original = module.Publication.publish
+        def mutate(publication):
+            original(publication)
+            (self.cache / 'java-db/trivy-java.db').write_bytes(b'changed owned fixture')
+        with patch.object(module.Publication, 'publish', mutate), self.assertRaises(ValueError):
+            self.run_scan()
+        self.assertFalse(self.output.exists())
+
+    def test_unexpected_exit_and_partial_reports_have_false_top_details(self):
+        result = self.run_scan(lambda v, p: (2, None))
+        self.assertFalse(result['finding_details_complete'])
+        self.assertEqual(result['reason'], 'container_scan_unverified')
+        self.assertEqual(result['vulnerabilities'], 0)
+        self.output = self.root / 'partial-images'
+        def incomplete(value, report):
+            return (0, b'{}') if self.scans == 1 else (0, None)
+        result = self.run_scan(incomplete)
+        self.assertEqual(set(result['images']), {'gateway'})
+        self.assertIsNone(result['vulnerabilities'])
+        self.assertFalse(result['finding_details_complete'])
+
+    def test_returned_scanner_statuses_satisfy_independent_producer_contract(self):
+        producer_spec = importlib.util.spec_from_file_location('independent_binding',
+            SCRIPT.with_name('bind_container_evidence.py'))
+        producer = importlib.util.module_from_spec(producer_spec)
+        producer_spec.loader.exec_module(producer)
+        def positive(value, report):
+            value['Results'][0]['Vulnerabilities'] = [dict(VulnerabilityID='CVE-2026-1',
+                PkgName='pkg', InstalledVersion='1.0', Severity='HIGH')]
+            return 0, None
+        def invalid(value, report):
+            value['Results'][0]['Vulnerabilities'] = [{}]
+            return 0, None
+        def inventory_missing(value, report):
+            value['Results'][0]['Packages'] = []
+            return 0, None
+        cases = ({}, {'transform': positive}, {'transform': invalid},
+            {'database_change': lambda d, m: m.update(Version=False)},
+            {'transform': lambda v, p: (2, None)}, {'transform': inventory_missing})
+        for i, options in enumerate(cases):
+            self.output = self.root / ('producer-contract' + str(i))
+            with self.subTest(case=i):
+                result = self.run_scan(**options)
+                before = json.dumps(result, sort_keys=True)
+                producer.STATUS(result)
+                self.assertEqual(json.dumps(result, sort_keys=True), before)
+
+    def test_every_image_report_must_identify_the_exact_scanner_version(self):
+        for i, trivy in enumerate((None, {}, {'Version': '9.9.9'}, {'Version': True})):
+            self.output = self.root / ('report-version' + str(i))
+            def mismatch(value, report):
+                if trivy is None: value.pop('Trivy')
+                else: value['Trivy'] = trivy
+                return 0, None
+            with self.subTest(trivy=trivy):
+                result = self.run_scan(mismatch)
+                self.assertEqual(result['reason'], 'container_scan_unverified')
+                self.assertFalse(result['automated_checks_passed'])
+                self.assertFalse(result['finding_details_complete'])
 
     def test_every_finding_counts_even_with_zero_exit(self):
         def finding(value, report):

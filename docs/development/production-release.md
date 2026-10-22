@@ -227,6 +227,30 @@ This does not establish complete native dependency coverage for source-built
 Redis, the JVM or bundled native libraries; those gaps remain explicit.
 Image scan completion cannot grant deployment or release approval.
 
+Image status schema 2 retains bounded finding records: advisory ID, package,
+installed version, reported fixed versions, severity, package class/type and an
+opaque occurrence digest. Duplicate occurrences, unfixed findings and all
+severities remain counted. An empty fixed-version array means the scanner did
+not report one; it is not proof that no fix exists. Raw targets, package paths,
+descriptions, URLs and logs remain private. If projection exceeds lexical,
+record or the 2 MiB status envelope limits, detailed records become unverified
+while aggregate finding counts remain intact.
+
+The scanner explicitly downloads the vulnerability and Java databases into a
+fresh private cache, then scans all images with both update paths disabled.
+Schema 2 records the pinned Trivy release archive and installed executable
+digests, both database/metadata digests and database timestamps. Stable bytes
+are rechecked across scanning and publication. These values identify the
+observed scanner and data; they do not prove database completeness or native
+coverage. An integrity or setup failure cannot claim complete details or an
+automated scan pass.
+
+The evidence producer and verifier validate schema 2 independently. The
+verifier requires complete, count-consistent detail provenance for this new
+format. It still accepts schema 1 operating evidence, reporting
+`image_finding_details_verified: false` for that legacy format. Finding
+verification never clears positive image findings or changes release approval.
+
 ## Original license materials
 
 ```sh

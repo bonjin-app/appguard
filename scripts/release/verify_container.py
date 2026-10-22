@@ -76,6 +76,15 @@ MAX_API_REQUESTS = 24
 SHA = re.compile(r'[0-9a-f]{64}\Z')
 IMAGE = re.compile(r'sha256:[0-9a-f]{64}\Z')
 FILES = frozenset(('binding.json', 'receipt.json', 'image-status.json'))
+SCANNER_PINS = {
+    'Linux-x86_64': 'c7cbe3137fb8a48a17574bede3dd6beb16742d1e9772929940fc90082c39d9c0',
+    'Darwin-arm64': '11a9b6cd2752011b54f01ea4bd0dbfa9f0c41dc6538d5a3f9d23955f471bf4e5',
+}
+FINDING_ID = re.compile(r'[A-Z][A-Z0-9]{1,19}(?:-[A-Za-z0-9]+){1,9}\Z')
+PACKAGE = re.compile(r'(?:[A-Za-z0-9][A-Za-z0-9._+:-]*|@[A-Za-z0-9._-]+/[A-Za-z0-9._-]+)\Z')
+VERSION = re.compile(r'[A-Za-z0-9][A-Za-z0-9._+~:!*-]*\Z')
+PACKAGE_TYPE = re.compile(r'[a-z][a-z0-9-]{0,39}\Z')
+DB_TIME = re.compile(r'[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}(?:\.[0-9]{1,9})?Z\Z')
 _require, _Denied = hosted._require, hosted._Denied
 
 
@@ -106,6 +115,59 @@ def _digest(value, reason='operating_unverified'):
 def _checks(value, names):
     _exact(value, names)
     _require(all(v is True for v in value.values()), 'operating_unverified')
+
+
+def _finding_text(value, pattern, maximum=200):
+    _require(type(value) is str and 0 < len(value) <= maximum and pattern.fullmatch(value), 'image_status_unverified')
+
+
+def _image_time(value):
+    _finding_text(value, DB_TIME, 40)
+    try: base = datetime.strptime(value[:19], '%Y-%m-%dT%H:%M:%S').replace(tzinfo=timezone.utc)
+    except ValueError: raise _Denied('image_status_unverified') from None
+    fraction = value[20:-1] if value[19] == '.' else ''
+    return base, int(fraction.ljust(9, '0'))
+
+
+def _image_details(image, run):
+    """Validate only bounded schema-2 data; never copy raw finding strings.
+
+    Schema 1 supports historical operating evidence without claiming detailed
+    finding provenance. Database digests identify observed bytes, not coverage.
+    """
+    reason = 'image_status_unverified'
+    scanner = _exact(image['scanner'], ('name', 'version', 'platform', 'archive_sha256', 'executable_sha256'), reason)
+    _require(scanner['name'] == 'trivy' and scanner['version'] == '0.76.1'
+        and type(scanner['platform']) is str and scanner['platform'] in SCANNER_PINS
+        and scanner['archive_sha256'] == SCANNER_PINS[scanner['platform']], reason)
+    _digest(scanner['executable_sha256'], reason)
+    databases = _exact(image['databases'], ('vulnerability', 'java'), reason)
+    run_created, run_updated = (_image_time(run[key]) for key in ('created_at', 'updated_at'))
+    for name, schema in (('vulnerability', 2), ('java', 1)):
+        row = _exact(databases[name], ('schema', 'metadata_sha256', 'database_sha256',
+            'updated_at', 'next_update', 'downloaded_at'), reason)
+        _require(type(row['schema']) is int and row['schema'] == schema, reason)
+        for key in ('metadata_sha256', 'database_sha256'): _digest(row[key], reason)
+        times = {key: _image_time(row[key]) for key in ('updated_at', 'next_update', 'downloaded_at')}
+        _require(times['updated_at'] <= times['downloaded_at']
+            and times['updated_at'] < times['next_update']
+            and run_created <= times['downloaded_at'] <= run_updated, reason)
+    _require(image['finding_details_complete'] is True, reason)
+    for row in image['images'].values():
+        _require(row['finding_details_complete'] is True and type(row['findings']) is list
+            and len(row['findings']) <= 1024 and len(row['findings']) == row['vulnerabilities'], reason)
+        for finding in row['findings']:
+            _exact(finding, ('vulnerability_id', 'package', 'installed_version', 'fixed_versions',
+                'severity', 'source_class', 'package_type', 'occurrence_sha256'), reason)
+            _finding_text(finding['vulnerability_id'], FINDING_ID)
+            _finding_text(finding['package'], PACKAGE)
+            _finding_text(finding['installed_version'], VERSION)
+            _finding_text(finding['package_type'], PACKAGE_TYPE, 40)
+            _require(type(finding['severity']) is str and finding['severity'] in ('UNKNOWN', 'LOW', 'MEDIUM', 'HIGH', 'CRITICAL')
+                and type(finding['source_class']) is str and finding['source_class'] in ('os-pkgs', 'lang-pkgs'), reason)
+            _digest(finding['occurrence_sha256'], reason)
+            _require(type(finding['fixed_versions']) is list and len(finding['fixed_versions']) <= 32, reason)
+            for version in finding['fixed_versions']: _finding_text(version, VERSION)
 
 
 def _pin_zip(path, copy_to=None):
@@ -439,10 +501,13 @@ def _receipt(receipt, image, hashes, commit, expected_sources, snapshot, run, no
     _require(backend['recovered'] is backend['redis_run_unchanged'] is backend['counter_reset_expected'] is True
         and _count(backend['original_replay_status']) == 403 and 0 < _number(backend['recovery_seconds'], 45) < 45
         and backend['scope'] == BACKEND_RESTART_SCOPE, reason)
-    image = _exact(image, ('schema', 'evidence_class', 'release_ready', 'automated_checks_passed', 'reason',
+    image_fields = ('schema', 'evidence_class', 'release_ready', 'automated_checks_passed', 'reason',
         'qualification_sha256', 'images', 'scanners', 'vulnerabilities', 'secrets', 'coverage_complete',
-        'native_binary_coverage', 'complete_resolved_graph', 'coverage_passed', 'coverage_limitations'), 'image_status_unverified')
-    _require(type(image['schema']) is int and image['schema'] == 1 and image['evidence_class'] == 'owned_container_image_scan'
+        'native_binary_coverage', 'complete_resolved_graph', 'coverage_passed', 'coverage_limitations')
+    _require(type(image) is dict and type(image.get('schema')) is int and image['schema'] in (1, 2), 'image_status_unverified')
+    detail = image['schema'] == 2
+    image = _exact(image, image_fields + (('scanner', 'databases', 'finding_details_complete') if detail else ()), 'image_status_unverified')
+    _require(image['evidence_class'] == 'owned_container_image_scan'
         and image['release_ready'] is image['coverage_complete'] is image['native_binary_coverage'] is image['complete_resolved_graph'] is False
         and image['coverage_passed'] is True and image['qualification_sha256'] == hashes['receipt.json']
         and image['scanners'] == ['vuln'] and image['secrets'] is None
@@ -450,7 +515,8 @@ def _receipt(receipt, image, hashes, commit, expected_sources, snapshot, run, no
     _exact(image['images'], ROLES, 'image_status_unverified')
     total = 0
     for role, row in image['images'].items():
-        _exact(row, ('image_id', 'report_sha256', 'vulnerabilities', 'coverage'), 'image_status_unverified')
+        _exact(row, ('image_id', 'report_sha256', 'vulnerabilities', 'coverage')
+            + (('findings', 'finding_details_complete') if detail else ()), 'image_status_unverified')
         _require(row['image_id'] == c['image_ids'][role], 'image_status_unverified')
         _digest(row['report_sha256'], 'image_status_unverified')
         total += _count(row['vulnerabilities'], reason='image_status_unverified')
@@ -463,8 +529,10 @@ def _receipt(receipt, image, hashes, commit, expected_sources, snapshot, run, no
             else coverage['application_inventory'] is None and app_count == 0, 'image_status_unverified')
     _require(_count(image['vulnerabilities']) == total and image['automated_checks_passed'] is (total == 0)
         and image['reason'] == ('findings_present' if total else 'local_images_checked'), 'image_status_unverified')
+    if detail: _image_details(image, run)
     return dict(requested_seconds=seconds, concurrency=workers, elapsed_seconds=elapsed,
-                signed_requests=requests, resource_samples=samples, image_vulnerabilities=total)
+                signed_requests=requests, resource_samples=samples, image_vulnerabilities=total,
+                image_status_schema=image['schema'], image_finding_details_verified=detail)
 
 
 def _run(document, commit, run_id, now, complete=True):
@@ -693,6 +761,7 @@ def verify_container(candidate, expected_commit, run_id, artifact_zip, output, *
         raise ContainerError() from None
     report = {'schema': 1, 'evidence_class': 'github_container_artifact_verification', 'technical_gate_verified': False,
         'sustained_operating_verified': False, 'artifact_verified': False, 'release_ready': False,
+        'image_status_schema': None, 'image_finding_details_verified': False,
         'candidate_commit': expected_commit, 'run_id': run_id, 'run_attempt': None, 'repository': REPOSITORY,
         'workflow_path': WORKFLOW, 'observed_at': now.isoformat(timespec='seconds').replace('+00:00', 'Z'),
         'reason': 'candidate_unverified', 'api_response_count': 0, 'source_file_count': 0, 'applicable_run_count': 0,

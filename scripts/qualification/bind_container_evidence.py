@@ -6,6 +6,7 @@ Original input bytes are retained only after recursive schema validation.
 """
 import argparse
 import ctypes
+from datetime import datetime
 import hashlib
 import json
 import math
@@ -295,12 +296,93 @@ RECEIPT = fields(dict(schema=literal(1),evidence_class=literal('owned_container_
         operational=OPERATIONAL,startup_diagnostics=STARTUP))
 COVERAGE = fields(dict(os_inventory=BOOL,os_package_count=COUNT,application_package_count=COUNT,application_inventory=nullable(BOOL),
     native_binary_coverage=literal(False),coverage_complete=literal(False)))
-STATUS = fields(dict(schema=literal(1),evidence_class=literal('owned_container_image_scan'),release_ready=literal(False),
+STATUS1 = fields(dict(schema=literal(1),evidence_class=literal('owned_container_image_scan'),release_ready=literal(False),
     automated_checks_passed=BOOL,reason=enum('container_scan_unverified','findings_present','inventory_unverified','local_images_checked'),
     qualification_sha256=SHA,images=mapping(enum(*ROLES),fields(dict(image_id=IMAGE,report_sha256=SHA,vulnerabilities=COUNT,coverage=COVERAGE)),maximum=3),
     scanners=literal(['vuln']),vulnerabilities=nullable(COUNT),secrets=literal(None),coverage_complete=literal(False),
     native_binary_coverage=literal(False),complete_resolved_graph=literal(False),coverage_passed=BOOL,
     coverage_limitations=literal(list(COVERAGE_LIMITATIONS))))
+# Schema 2 is independently validated here. Never import scanner/candidate code.
+TRIVY_ARCHIVES = {
+    'Linux-x86_64': 'c7cbe3137fb8a48a17574bede3dd6beb16742d1e9772929940fc90082c39d9c0',
+    'Darwin-arm64': '11a9b6cd2752011b54f01ea4bd0dbfa9f0c41dc6538d5a3f9d23955f471bf4e5',
+}
+FINDING_VERSION = pattern(r'[A-Za-z0-9][A-Za-z0-9._+~:!*-]*',200)
+FINDING = fields(dict(vulnerability_id=pattern(r'[A-Z][A-Z0-9]{1,19}(?:-[A-Za-z0-9]+){1,9}',200),
+    package=pattern(r'(?:[A-Za-z0-9][A-Za-z0-9._+:-]*|@[A-Za-z0-9._-]+/[A-Za-z0-9._-]+)',200),
+    installed_version=FINDING_VERSION,fixed_versions=sequence(FINDING_VERSION,32),
+    severity=enum('UNKNOWN','LOW','MEDIUM','HIGH','CRITICAL'),source_class=enum('os-pkgs','lang-pkgs'),
+    package_type=pattern(r'[a-z][a-z0-9-]{0,39}',40),occurrence_sha256=SHA))
+SCANNER = fields(dict(name=literal('trivy'),version=literal('0.76.1'),platform=enum(*TRIVY_ARCHIVES),
+    archive_sha256=SHA,executable_sha256=SHA))
+
+
+def timestamp(value):
+    UTC(value)
+    # Validate the calendar and compare all nine fractional digits, rather than
+    # silently truncating nanoseconds to Python datetime's microseconds.
+    datetime.strptime(value[:19],'%Y-%m-%dT%H:%M:%S')
+    fraction=value[20:-1] if '.' in value else ''
+    return value[:19],fraction.ljust(9,'0')
+
+
+def database(schema):
+    shape=fields(dict(schema=literal(schema),metadata_sha256=SHA,database_sha256=SHA,
+        updated_at=UTC,next_update=UTC,downloaded_at=UTC))
+    def check(value):
+        shape(value)
+        updated=timestamp(value['updated_at'])
+        require(updated<=timestamp(value['downloaded_at']) and updated<timestamp(value['next_update']))
+    return check
+
+
+STATUS2 = fields(dict(schema=literal(2),evidence_class=literal('owned_container_image_scan'),release_ready=literal(False),
+    automated_checks_passed=BOOL,reason=enum('container_scan_unverified','findings_present','inventory_unverified','local_images_checked'),
+    qualification_sha256=SHA,images=mapping(enum(*ROLES),fields(dict(image_id=IMAGE,report_sha256=SHA,vulnerabilities=COUNT,
+        coverage=COVERAGE,findings=sequence(FINDING,1024),finding_details_complete=BOOL)),maximum=3),
+    scanners=literal(['vuln']),vulnerabilities=nullable(COUNT),secrets=literal(None),coverage_complete=literal(False),
+    native_binary_coverage=literal(False),complete_resolved_graph=literal(False),coverage_passed=BOOL,
+    coverage_limitations=literal(list(COVERAGE_LIMITATIONS)),scanner=nullable(SCANNER),
+    databases=nullable(fields(dict(vulnerability=database(2),java=database(1)))),finding_details_complete=BOOL))
+
+
+def STATUS(value):
+    require(type(value) is dict and type(value.get('schema')) is int)
+    if value['schema']==1:
+        STATUS1(value)
+        return
+    STATUS2(value)
+    images=value['images']; full=set(images)==set(ROLES)
+    if value['scanner'] is not None:
+        scanner=value['scanner']
+        require(scanner['archive_sha256']==TRIVY_ARCHIVES[scanner['platform']])
+    total=sum(row['vulnerabilities'] for row in images.values())
+    require(value['vulnerabilities'] is None or (full and value['vulnerabilities']==total))
+    require(full or value['vulnerabilities'] is None)
+    for row in images.values():
+        require(len(row['findings'])==row['vulnerabilities'] if row['finding_details_complete'] else not row['findings'])
+    provenance=value['scanner'] is not None and value['databases'] is not None
+    complete=full and provenance and all(row['finding_details_complete'] for row in images.values())
+    if value['reason']=='container_scan_unverified': require(not value['finding_details_complete'])
+    if value['finding_details_complete']:
+        require(complete and value['vulnerabilities']==total)
+    elif complete:
+        # A later integrity failure can invalidate otherwise complete rows.
+        require(value['reason']=='container_scan_unverified')
+    if not provenance:
+        require(value['reason']=='container_scan_unverified' and not value['finding_details_complete'])
+    coverage=full and all(row['coverage']['os_inventory'] and
+        (role=='redis' or row['coverage']['application_inventory'] is True) for role,row in images.items())
+    if value['coverage_passed']: require(coverage)
+    if value['automated_checks_passed']:
+        require(value['finding_details_complete'] and value['vulnerabilities']==0 and value['coverage_passed']
+            and value['reason']=='local_images_checked')
+    if value['reason']=='local_images_checked': require(value['automated_checks_passed'])
+    if value['reason']=='findings_present': require(value['vulnerabilities'] is not None and total>0)
+    if value['reason']=='inventory_unverified':
+        require(value['vulnerabilities']==0 and not value['coverage_passed'] and not value['automated_checks_passed'])
+
+
 METADATA = fields(dict(repository=literal('bonjin-app/appguard'),candidate_commit=COMMIT,run_id=integer(1),run_attempt=integer(1),
     event=enum('push','workflow_dispatch','pull_request'),head_branch=pattern(r'[A-Za-z0-9][A-Za-z0-9._/-]{0,254}',255),
     workflow_path=literal('.github/workflows/container-readiness.yml')))
@@ -316,7 +398,7 @@ def parse(raw):
     result=json.loads(raw,object_pairs_hook=pairs,parse_constant=invalid)
     budget=[0]
     def bound(value,depth=0):
-        budget[0]+=1; require(depth<=32 and budget[0]<=50000)
+        budget[0]+=1; require(depth<=32 and budget[0]<=200000)
         if type(value) is dict:
             for key,item in value.items(): require(len(key)<=4096); bound(item,depth+1)
         elif type(value) is list:

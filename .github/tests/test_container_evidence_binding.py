@@ -42,6 +42,22 @@ def fixture():
     return raw,json.dumps(status).encode()
 
 
+def detail_fixture():
+    status=json.loads(fixture()[1]); status['schema']=2
+    status['scanner']=dict(name='trivy',version='0.76.1',platform='Linux-x86_64',
+        archive_sha256='c7cbe3137fb8a48a17574bede3dd6beb16742d1e9772929940fc90082c39d9c0',executable_sha256='1'*64)
+    status['databases']={name:dict(schema=schema,metadata_sha256='2'*64,database_sha256='3'*64,
+        updated_at='2026-10-23T00:00:00.123456789Z',next_update='2026-10-24T00:00:00Z',
+        downloaded_at='2026-10-23T00:00:00.123456790Z') for name,schema in (('vulnerability',2),('java',1))}
+    status['finding_details_complete']=True
+    for row in status['images'].values():
+        finding=dict(vulnerability_id='CVE-2026-1234',package='org.example:core',installed_version='1.0.0',
+            fixed_versions=['1.0.1','2.0.0'],severity='LOW',source_class='lang-pkgs',package_type='jar',
+            occurrence_sha256='4'*64)
+        row.update(findings=[finding,copy.deepcopy(finding)],finding_details_complete=True)
+    return status
+
+
 class BindingTests(unittest.TestCase):
     def setUp(self):
         self.temp=tempfile.TemporaryDirectory(); self.addCleanup(self.temp.cleanup)
@@ -221,6 +237,106 @@ class BindingTests(unittest.TestCase):
             with self.assertRaises(ValueError): self.stage()
         self.assertFalse(self.output.exists())
         self.assertFalse(list(self.root.glob('.appguard-binding-*')))
+
+    def test_schema2_complete_findings_preserve_duplicate_rows_and_bytes(self):
+        raw=json.dumps(detail_fixture()).encode(); self.status.write_bytes(raw); self.stage()
+        self.assertEqual((self.output/'image-status.json').read_bytes(),raw)
+        self.assertEqual(len(json.loads(raw)['images']['gateway']['findings']),2)
+
+    def test_schema2_partial_false_observations_can_stage(self):
+        variants=[]
+        partial=detail_fixture(); partial.update(scanner=None,databases=None,images={},vulnerabilities=None,
+            finding_details_complete=False,coverage_passed=False,reason='container_scan_unverified')
+        variants.append(partial)
+        incomplete=detail_fixture(); incomplete['finding_details_complete']=False
+        incomplete['images']['backend'].update(findings=[],finding_details_complete=False)
+        variants.append(incomplete)
+        for index,status in enumerate(variants):
+            self.output=self.root/('partial-'+str(index)); self.status.write_text(json.dumps(status)); self.stage()
+
+    def test_schema2_malformed_nested_fields_and_false_flags_cannot_leak(self):
+        changes=[lambda s:s['scanner'].update(raw='PRIVATE'),
+            lambda s:s['scanner'].update(archive_sha256='0'*64),
+            lambda s:s['databases']['java'].update(schema=True),
+            lambda s:s['databases']['java'].update(updated_at='2026-99-23T00:00:00Z'),
+            lambda s:s['databases']['java'].update(next_update='2026-10-23T00:00:00Z'),
+            lambda s:s['databases']['java'].update(downloaded_at='2026-10-23T00:00:00.123456788Z'),
+            lambda s:s.update(vulnerabilities=5),lambda s:s.update(finding_details_complete=True,scanner=None),
+            lambda s:s['images']['backend'].update(findings=[]),
+            lambda s:s['images']['backend'].update(finding_details_complete=False),
+            lambda s:s['images']['gateway']['findings'][0].update(package='/PRIVATE/path'),
+            lambda s:s['images']['gateway']['findings'][0].update(vulnerability_id='CVE-PRIVATE?token'),
+            lambda s:s['images']['gateway']['findings'][0].update(installed_version='https://PRIVATE'),
+            lambda s:s['images']['gateway']['findings'][0].update(fixed_versions=['1']*33),
+            lambda s:s['images']['gateway']['findings'][0].update(severity='low'),
+            lambda s:s['images']['gateway']['findings'][0].update(source_class='raw'),
+            lambda s:s['images']['gateway']['findings'][0].update(package_type='jar/PRIVATE'),
+            lambda s:s['images']['gateway']['findings'][0].update(occurrence_sha256='PRIVATE'),
+            lambda s:s['images']['gateway']['findings'][0].update(raw='PRIVATE')]
+        for index,change in enumerate(changes):
+            with self.subTest(index=index):
+                status=detail_fixture(); change(status); self.status.write_text(json.dumps(status))
+                with self.assertRaises(ValueError): self.stage()
+                self.assertFalse(self.output.exists())
+
+    def test_schema2_automated_pass_requires_complete_zero_finding_provenance(self):
+        status=detail_fixture()
+        for row in status['images'].values(): row.update(vulnerabilities=0,findings=[])
+        status.update(vulnerabilities=0,reason='local_images_checked',automated_checks_passed=True)
+        self.status.write_text(json.dumps(status)); self.stage()
+        self.output=self.root/'invalid-pass'; status['finding_details_complete']=False
+        self.status.write_text(json.dumps(status))
+        with self.assertRaises(ValueError): self.stage()
+
+    def test_schema2_lexical_and_occurrence_bounds(self):
+        status=detail_fixture()
+        row=status['images']['gateway']; finding=row['findings'][0]
+        finding.update(package='@scope/pkg',installed_version='1!2.3~rc+4:*',fixed_versions=['1']*32,
+            severity='UNKNOWN',source_class='os-pkgs',package_type='a'+'b'*39)
+        self.status.write_text(json.dumps(status)); self.stage()
+        for field,value in [('vulnerability_id','CV-'+'1'*198),('package','a'*201),
+            ('installed_version','1'*201),('fixed_versions',['1'*201]),('package_type','a'*41)]:
+            with self.subTest(field=field):
+                status=detail_fixture(); status['images']['gateway']['findings'][0][field]=value
+                self.status.write_text(json.dumps(status)); self.output=self.root/'invalid-bound'
+                with self.assertRaises(ValueError): self.stage()
+        status=detail_fixture(); row=status['images']['gateway']
+        row['findings']=[copy.deepcopy(row['findings'][0])]*1025; row['vulnerabilities']=1025
+        status['vulnerabilities']=1029; self.status.write_text(json.dumps(status))
+        with self.assertRaises(ValueError): self.stage()
+        row.update(findings=[],finding_details_complete=False); status['finding_details_complete']=False
+        self.status.write_text(json.dumps(status)); self.output=self.root/'bounded-incomplete'; self.stage()
+        self.assertEqual(json.loads((self.output/'image-status.json').read_bytes())['vulnerabilities'],1029)
+
+    def test_schema2_many_short_fixed_versions_fit_bounded_parser(self):
+        status=detail_fixture()
+        for row in status['images'].values():
+            finding=row['findings'][0]
+            finding.update(vulnerability_id='CV-1',package='a',installed_version='1',fixed_versions=['1']*32)
+            row.update(findings=[copy.deepcopy(finding)]*1024,vulnerabilities=1024)
+        status['vulnerabilities']=3072
+        raw=json.dumps(status,separators=(',',':')).encode()
+        self.assertLess(len(raw),module.MAX_BYTES)
+        self.status.write_bytes(raw); self.stage()
+
+    def test_schema2_partial_counts_and_flags_are_consistent(self):
+        changes=[lambda s:s['images'].pop('redis'),
+            lambda s:s.update(automated_checks_passed=True),
+            lambda s:s.update(finding_details_complete=False),
+            lambda s:s.update(scanner=None,databases=None),
+            lambda s:s.update(schema=True),
+            lambda s:s['databases']['vulnerability'].update(downloaded_at='2026-10-23T00:00:00.12345678Z')]
+        for index,change in enumerate(changes):
+            with self.subTest(index=index):
+                status=detail_fixture(); change(status); self.status.write_text(json.dumps(status))
+                with self.assertRaises(ValueError): self.stage()
+        status=detail_fixture(); status.update(finding_details_complete=False,reason='container_scan_unverified')
+        self.status.write_text(json.dumps(status)); self.stage()
+
+    def test_schema2_unverified_integrity_cannot_claim_complete_details(self):
+        status=detail_fixture(); status['reason']='container_scan_unverified'
+        self.status.write_text(json.dumps(status))
+        with self.assertRaises(ValueError): self.stage()
 
     def test_literal_sequences_reject_numeric_bools(self):
         with self.assertRaises(ValueError): module.literal([1,2])([True,2])

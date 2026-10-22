@@ -205,6 +205,105 @@ class ContainerTests(unittest.TestCase):
         self.assertEqual(result['sha256']['artifact_zip'], self.artifact['digest'][7:])
         self.assertEqual(result['sha256']['candidate_manifest'], hashlib.sha256((self.candidate / 'manifest.json').read_bytes()).hexdigest())
         self.assertEqual(result['sha256']['source_archive'], hashlib.sha256((self.candidate / 'source.tar.gz').read_bytes()).hexdigest())
+
+    def image_v2(self, findings=False):
+        self.image.update(schema=2, finding_details_complete=True,
+            scanner={'name': 'trivy', 'version': '0.76.1', 'platform': 'Linux-x86_64',
+                'archive_sha256': 'c7cbe3137fb8a48a17574bede3dd6beb16742d1e9772929940fc90082c39d9c0',
+                'executable_sha256': 'b' * 64}, databases={})
+        for name, schema in (('vulnerability', 2), ('java', 1)):
+            self.image['databases'][name] = dict(schema=schema, metadata_sha256='c' * 64,
+                database_sha256='d' * 64, updated_at='2026-10-23T08:00:00.123456789Z',
+                next_update='2026-10-24T08:00:00Z', downloaded_at='2026-10-23T10:59:00Z')
+        for row in self.image['images'].values():
+            row.update(findings=[], finding_details_complete=True)
+        if findings:
+            record = {'vulnerability_id': 'CVE-2026-10001', 'package': 'org.example:library',
+                'installed_version': '1.0.0', 'fixed_versions': ['1.0.1', '2.0.0'], 'severity': 'HIGH',
+                'source_class': 'lang-pkgs', 'package_type': 'jar', 'occurrence_sha256': 'e' * 64}
+            row = self.image['images']['backend']
+            # Distinct raw occurrences of the same advisory/package must survive.
+            row['findings'] = [record, dict(record, occurrence_sha256='f' * 64, fixed_versions=[])]
+            row['vulnerabilities'] = self.image['vulnerabilities'] = 2
+            self.image.update(automated_checks_passed=False, reason='findings_present')
+            self.run['conclusion'] = self.jobs[0]['conclusion'] = 'failure'
+            next(step for step in self.jobs[0]['steps'] if step['name'] == self.m.SCAN_STEP)['conclusion'] = 'failure'
+
+    def test_legacy_operating_evidence_does_not_claim_finding_details(self):
+        result = self.verify()
+        self.assertTrue(result['technical_gate_verified'])
+        self.assertEqual(result['image_status_schema'], 1)
+        self.assertFalse(result['image_finding_details_verified'])
+
+    def test_schema2_binds_complete_details_without_clearing_image_gate(self):
+        self.image_v2(findings=True); self.seal()
+        result = self.verify()
+        self.assertTrue(result['artifact_verified']); self.assertTrue(result['technical_gate_verified'])
+        self.assertTrue(result['image_finding_details_verified'])
+        self.assertEqual(result['image_status_schema'], 2)
+        self.assertEqual(result['image_vulnerabilities'], 2)
+        self.assertFalse(result['native_binary_coverage']); self.assertFalse(result['release_ready'])
+        self.assertNotIn('org.example:library', json.dumps(result))
+
+    def test_schema2_complete_zero_findings_supported(self):
+        self.image_v2(); self.seal()
+        result = self.verify()
+        self.assertTrue(result['technical_gate_verified']); self.assertTrue(result['image_finding_details_verified'])
+        self.assertEqual(result['image_vulnerabilities'], 0)
+
+    def test_schema2_tool_database_or_incomplete_details_cannot_verify(self):
+        self.image_v2()
+        original = copy.deepcopy(self.image)
+        changes = (lambda x: x['scanner'].update(version='latest'),
+            lambda x: x['scanner'].update(archive_sha256='0' * 64),
+            lambda x: x.update(scanner=None), lambda x: x.update(databases=None),
+            lambda x: x['databases']['java'].update(schema=2),
+            lambda x: x['databases']['java'].update(downloaded_at='2026-10-24T10:00:00Z'),
+            lambda x: x['databases']['vulnerability'].update(next_update='2026-10-22T08:00:00Z'),
+            lambda x: x.update(finding_details_complete=False),
+            lambda x: x['images']['redis'].update(finding_details_complete=False),
+            lambda x: x['databases']['java'].update(extra=MARKER))
+        for change in changes:
+            with self.subTest(change=change):
+                self.image = copy.deepcopy(original); change(self.image); self.seal()
+                result = self.verify()
+                self.assertFalse(result['artifact_verified']); self.assertFalse(result['image_finding_details_verified'])
+                self.assertEqual(result['reason'], 'image_status_unverified')
+
+    def test_schema2_findings_conserve_counts_and_reject_raw_fields(self):
+        self.image_v2(findings=True)
+        original = copy.deepcopy(self.image)
+        changes = (lambda x: x['images']['backend'].update(vulnerabilities=1),
+            lambda x: x.update(vulnerabilities=1),
+            lambda x: x['images']['backend']['findings'][0].update(package=MARKER),
+            lambda x: x['images']['backend']['findings'][0].update(installed_version='https://private.invalid/path'),
+            lambda x: x['images']['backend']['findings'][0].update(fixed_versions=['1.0.1\nSECRET']),
+            lambda x: x['images']['backend']['findings'][0].update(severity='high'),
+            lambda x: x['images']['backend']['findings'][0].update(source_class='private/path'),
+            lambda x: x['images']['backend']['findings'][0].update(package_type='private/path'),
+            lambda x: x['images']['backend']['findings'][0].update(PrimaryURL=MARKER))
+        for change in changes:
+            with self.subTest(change=change):
+                self.image = copy.deepcopy(original); change(self.image); self.seal()
+                result = self.verify()
+                self.assertFalse(result['artifact_verified']); self.assertFalse(result['image_finding_details_verified'])
+                self.assertEqual(result['reason'], 'image_status_unverified')
+
+    def test_schema2_database_nanosecond_ordering_is_exact(self):
+        self.image_v2()
+        row = self.image['databases']['java']
+        row.update(updated_at='2026-10-23T10:59:00.000000002Z',
+            downloaded_at='2026-10-23T10:59:00.000000001Z')
+        self.seal()
+        result = self.verify()
+        self.assertFalse(result['artifact_verified'])
+        row['downloaded_at'] = '2026-10-23T10:59:00.000000003Z'
+        row['next_update'] = '2026-10-23T10:59:00.000000001Z'
+        self.seal()
+        self.assertFalse(self.verify()['artifact_verified'])
+        row['next_update'] = '2026-10-23T10:59:00.000000004Z'
+        self.seal()
+        self.assertTrue(self.verify()['image_finding_details_verified'])
         self.assertGreaterEqual(sum('/runs/42/artifacts?' in p for p in self.calls), 2)
         self.assertGreaterEqual(sum(p.endswith('/attempts/1') for p in self.calls), 2)
         self.assertFalse(any('archive_download' in p or p.endswith('/zip') for p in self.calls))
