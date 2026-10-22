@@ -43,11 +43,56 @@ A callback may already have written/queued an event before returning a rejected
 async result or raising. The SDK does not roll it back, retry it or cancel host
 work. The caller owns idempotency, storage, retention, availability policy and
 whether an audit failure blocks application processing. Fatal/process/cancellation
-`BaseException` signals are not translated by this change. Public exception
-chains are redacted for SDK-handled failures; applications must separately
-control traceback-local logging and their callback's own logs.
+`BaseException` signals are not translated by this change. Callback exceptions
+caught by `emit()` are not chained to `AuditUnavailable`. If the caller invokes
+`emit()` inside its own active `except` handler, Python can attach that ambient
+caller exception as `__context__`. Applications must separately control that
+context, traceback-local logging and their callback's own logs.
 
 ## Verification
 
-Local source, wheel-consumer and independent review results will be recorded
-after execution. Physical devices and real provider evidence remain separate.
+Runtime commit `3d10ec2f65a051fd71fc59c54103f6b39ad4297c` was tested on
+Python 3.11.15 with pytest 9.1.1 and cryptography 50.0.2.
+
+- Baseline SDK: 678 tests passed without failure or skip.
+- First regression run: 16 cases, 11 expected failures and five synchronous
+  controls. Adding thread-pool Futures reproduced two further failures among
+  18 cases before the additional Future guard.
+- Final SDK: **696 tests passed**, no failure or skip, with task-owned loopback
+  Redis and persistence disabled. Owned Redis processes were stopped after use.
+- Reference implementation: **209 tests passed**, no failure or skip.
+- Built wheel installed offline into a fresh environment with hash-locked
+  dependencies: **19 tests passed** (18 functional cases and one import-origin
+  control). All 21 package entries matched committed source and installed bytes;
+  the README metadata matched the package input. No reference checkout module
+  was available to that consumer.
+
+Reviewed wheel SHA-256:
+`c8d2d8a6302ccd6d93c3ab3a78923d13410f9725a284cd8d0eff77393d12a38f`.
+
+Independent review found no scoped runtime blocker. It ran **25 independently
+written edge cases and 31 copied audit cases on each of source and installed
+wheel**, all passing without skip. These are 112 executions of 56 cases per
+target, not 112 distinct cases. Three baseline controls independently produced
+two expected failures and one passing synchronous control. Review covered
+running/cancelled/failed Futures and Tasks, coroutine frame release and ownership,
+validation before callbacks, fixed callback-error output, and uncertain writes.
+It verified all 21 package entries against committed source, wheel and installed
+bytes, nine command/log records and six probe-input hashes. It did not rerun the
+entire SDK/reference suites.
+
+The review identified a documentation overclaim about exception chaining; the
+ambient caller-exception limitation above was corrected and read back. That
+Python behavior was also reproduced on baseline, so no caller exception semantic
+change was made. The final commit changes this guide only.
+
+Review receipt SHA-256:
+`696d15827246c171d8959bbab245827f8b0e4c94179017e527996c0ec34cc8de`.
+Final review readback SHA-256:
+`5306935377bd601a17c5bb1b5df8f9d8ee440228b41c55042444b0c569f82b49`.
+
+Commands, raw reports, source/artifact hashes and integration receipt are retained
+in the main checkout at
+`.superpowers/evidence/2026-10-22-python-audit-callback/` after local integration.
+Counts overlap and must not be added as unique test cases. Physical devices and
+real provider evidence remain separate from these local tests.
