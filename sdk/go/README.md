@@ -85,6 +85,16 @@ verification rejects as unavailable. The request context and existing authentica
 identity remain intact. `VerificationFromContext` reads separate verification
 metadata; downstream authorization is still required.
 
+After installing the capture deadline successfully, the middleware attempts one
+zero-time reset even if the body reader panics. A reset error or panic returns
+fixed 503 `VERIFICATION_UNAVAILABLE` before authentication, key lookup, the clock,
+nonce claim, proof attachment or downstream dispatch. Reset failure takes
+precedence over a simultaneous read error or captured-body overflow; successful
+reset preserves their existing 400/413 handling. This does not repair a wrapper
+or connection that cannot clear its deadline, restore an earlier host deadline,
+close caller-owned input, or guarantee delivery on a closed connection. See the
+[deadline release verification](../../docs/security/go-deadline-release.md).
+
 The middleware captures the entry request context and uses that same scope across
 host callbacks and downstream proof attachment. Cancellation observed after
 evidence, authentication, key lookup, the clock or verification prevents the next

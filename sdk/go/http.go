@@ -154,8 +154,15 @@ func enforceHTTP(ctx context.Context, w http.ResponseWriter, r *http.Request, o 
 	if err = controller.SetReadDeadline(time.Now().Add(o.BodyReadTimeout)); err != nil {
 		return result, nil, failure("VERIFICATION_UNAVAILABLE")
 	}
-	body, err = io.ReadAll(io.LimitReader(r.Body, MaxBodyBytes+1))
-	_ = controller.SetReadDeadline(time.Time{})
+	var resetErr error
+	func() {
+		// Release the installed deadline even when the body reader panics.
+		defer func() { resetErr = controller.SetReadDeadline(time.Time{}) }()
+		body, err = io.ReadAll(io.LimitReader(r.Body, MaxBodyBytes+1))
+	}()
+	if resetErr != nil {
+		return result, nil, failure("VERIFICATION_UNAVAILABLE")
+	}
 	if err != nil || ctx.Err() != nil {
 		return result, nil, invalid()
 	}
