@@ -241,3 +241,11 @@ checked exceptions. Callback failures become `AuditUnavailableException` with
 fixed `AUDIT_UNAVAILABLE`, no original cause or suppressed exception; interruption
 restores the thread flag. Invalid metadata uses `AuditException` with
 `INVALID_AUDIT_EVENT`. The caller owns storage, availability, privacy and retention.
+
+## Request-body time limit boundary
+
+The one-megabyte capture cap does not bound upload duration. The current blocking
+Servlet filter cannot install a portable absolute read deadline. Tomcat idle
+connection/upload timeouts do not stop a progressing slow upload. Deploy behind
+an independently verified absolute upload boundary and prevent direct access
+around it. [Supported .NET deadline and the measured Servlet limitation](../../docs/security/body-capture-deadlines.md).

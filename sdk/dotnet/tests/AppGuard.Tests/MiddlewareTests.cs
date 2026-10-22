@@ -173,7 +173,7 @@ public class MiddlewareTests
     }
     // Test-only one-request HTTP/1 capture. Keep-alive, TLS and H2 require a real
     // host ingress implementation; this fixture never reconstructs parsed fields.
-    static async Task CaptureHeaders(ConnectionContext connection)
+    internal static async Task CaptureHeaders(ConnectionContext connection)
     {
         while(true)
         {
@@ -194,7 +194,7 @@ public class MiddlewareTests
         app.UseAppGuard(Options(s,replay,auth:(c,_)=>ValueTask.FromResult(c.User.FindFirst("sub")?.Value)));
         app.Run(async c=>{using var m=new MemoryStream();await c.Request.Body.CopyToAsync(m);await c.Response.WriteAsync("downstream:"+c.User.FindFirst("sub")!.Value+":"+Convert.ToBase64String(m.ToArray()));});await app.StartAsync();return app;
     }
-    static int Port(WebApplication app)=>new Uri(app.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()!.Addresses.Single()).Port;
+    internal static int Port(WebApplication app)=>new Uri(app.Services.GetRequiredService<IServer>().Features.Get<IServerAddressesFeature>()!.Addresses.Single()).Port;
     static async Task<string> Send(int port,SecurityTests.Signed s,string target,HeaderPair[] extra,bool chunked=false,Func<HeaderPair[],HeaderPair[]>? transform=null,string? contentLength=null)
     {
         using var tcp=new TcpClient();await tcp.ConnectAsync(IPAddress.Loopback,port);var stream=tcp.GetStream();

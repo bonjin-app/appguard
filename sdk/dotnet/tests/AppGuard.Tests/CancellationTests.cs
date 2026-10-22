@@ -50,8 +50,10 @@ public class CancellationTests
         try
         {
             await Bounded(gate.Entered);cancellation.Cancel();
-            // The fixture ignores its token. The SDK does not promise to terminate it.
-            Assert.False(invocation.IsCompleted);gate.Release();await Bounded(invocation);
+            // Body capture now bounds ignored-cancellation reads; host callbacks
+            // still remain pending until their own asynchronous work returns.
+            if(phase!="body")Assert.False(invocation.IsCompleted);
+            gate.Release();await Bounded(invocation);
             Assert.Equal(0,dispatch);Assert.Null(context.Features.Get<IAppGuardVerificationFeature>());
             Assert.Equal(phase=="body"?0:1,auth);
             Assert.Equal(phase is "key" or "replay"?1:0,key);

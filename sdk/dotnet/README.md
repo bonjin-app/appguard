@@ -56,7 +56,8 @@ app.UseAppGuard(new AppGuardOptions(
         context.User.Identity?.IsAuthenticated == true
             ? context.User.FindFirst("sub")?.Value : null),
     resolveKey: (context, subject, parameters, ct) =>
-        trustedKeys.FindAsync(subject, parameters.KeyId, ct)));
+        trustedKeys.FindAsync(subject, parameters.KeyId, ct),
+    bodyReadTimeout: TimeSpan.FromSeconds(30)));
 app.UseAuthorization();
 ```
 
@@ -72,12 +73,39 @@ Singleton duplicates, extra signature metadata, unsupported encodings, Content-L
 
 HTTP failures are compact `{"code":"FIXED_REASON"}`: 400 invalid input, 413 overflow, 401 missing authentication, 403 rejected proof/key/replay, and 503 dependency failure. Expected unknown keys return 403 `KEY_REJECTED`; thrown key callbacks return 503 `KEY_RESOLVER_UNAVAILABLE`; malformed subject callback results return 503 `IDENTITY_UNAVAILABLE`. Clock is read after authentication and key lookup. No token, body, PEM or backend exception text enters a failure response.
 
-The middleware captures `RequestAborted` at invocation entry and uses that token
-through body capture, authentication, key lookup and verification. Cancellation
+The middleware captures `RequestAborted` at invocation entry and observes that
+token during body capture, authentication, key lookup and verification. Cancellation
 observed after those phases prevents further SDK handoff and verification-feature
 publication; no response body is written on its canceled error path. Configure
 intentional token scopes before AppGuard. Replacing the context property inside
 a callback cannot erase cancellation of the captured token.
+
+Body capture has an absolute, monotonic **30-second** deadline by default,
+including the EOF check and final request snapshot. The optional configuration
+uses a separate `AppGuardOptions` overload with required `TimeSpan bodyReadTimeout`
+before the optional clock/transport arguments; any positive value up to five
+minutes is accepted. The original constructor remains available for existing
+compiled consumers. Progress does not reset the deadline. Expiry rejects with
+400 `INVALID_REQUEST` before authentication, key lookup, the trusted clock, replay
+or downstream handling; body overflow still rejects with 413.
+
+Each asynchronous read is independently awaited for the remaining capture time
+and the captured request token. Reads receive a separate body-scoped token;
+expiry or request cancellation requests that token's cancellation asynchronously.
+The middleware does not wait for an uncooperative stream or its cancellation
+callback, and keeps the cancellation source alive until those callbacks finish.
+Late stream/cancellation faults are consumed without publishing private details.
+An outstanding read retains its own unpooled input array, which the SDK never
+reuses or clears. The caller-owned stream stays undisposed. Authentication, key,
+replay and downstream work retain the original request token and do not inherit
+the body deadline.
+
+This bounds awaiting supported asynchronous host I/O; it cannot interrupt a
+`ReadAsync` implementation that blocks synchronously before returning a task,
+force a host operation/callback to stop, or provide a hard real-time guarantee
+under scheduler starvation. Once such a synchronous call returns, the monotonic
+checkpoint still rejects a late body before authentication. Configure host read
+timeouts, concurrency/resource limits and cancellation-aware I/O independently.
 
 After final framing validation and request/body materialization, the middleware
 checks that captured token again before invoking authentication. Cancellation in
@@ -91,7 +119,7 @@ check-and-dispatch guarantee; see the
 The direct verifier checks its supplied token after replay returns, before
 accepting `true` or `false`; observed cancellation throws `OperationCanceledException`
 with that token. Store exceptions keep their fixed `REPLAY_STORE_UNAVAILABLE`
-mapping. No callback is abandoned or forcibly stopped: ignoring cancellation can
+mapping. No authentication, key or replay callback is abandoned or forcibly stopped: ignoring cancellation can
 keep the SDK pending until the callback returns. Configure dependency timeouts,
 cancellation-aware clients and concurrency limits in the host. Work already
 dispatched, token-notification/final-check races and HTTP response delivery remain

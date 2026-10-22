@@ -165,3 +165,12 @@ coercion, late .NET cancellation fault redaction, Git replacement-object provena
 secret-failure artifact publication. This is internal review evidence; it is not
 an external independent security audit. See the per-integration tests and guides
 for the precise supported contracts.
+
+## Absolute upload boundaries
+
+ASP.NET Core now has a configurable absolute body-capture budget (default 30s);
+its callback/controller phases keep the original request cancellation token.
+The current blocking Spring Servlet filter still requires a host-enforced
+absolute upload boundary. Passing body-size and idle-timeout checks does not
+qualify a progressing slow upload. See [implementation, real localhost probes
+and remaining limits](../security/body-capture-deadlines.md).
