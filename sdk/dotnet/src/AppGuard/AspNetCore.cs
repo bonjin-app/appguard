@@ -60,6 +60,9 @@ public sealed class AppGuardMiddleware
             cancellationToken.ThrowIfCancellationRequested();
             Wire.ValidateFraming(headers,(int)captured.Length);
             var request=new RequestData(raw.Method,raw.RawTarget,headers,captured.ToArray());
+            // Final framing, feature getters and body copies may run after the
+            // previous checkpoint; do not start authentication after cancellation.
+            cancellationToken.ThrowIfCancellationRequested();
             string? subject;
             try{subject=await _options.Authenticate(context,cancellationToken).ConfigureAwait(false);}
             catch(Exception){throw new AppGuardException("IDENTITY_UNAVAILABLE");}

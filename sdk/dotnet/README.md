@@ -79,6 +79,15 @@ publication; no response body is written on its canceled error path. Configure
 intentional token scopes before AppGuard. Replacing the context property inside
 a callback cannot erase cancellation of the captured token.
 
+After final framing validation and request/body materialization, the middleware
+checks that captured token again before invoking authentication. Cancellation in
+this handoff window cannot start identity/key lookup, the trusted clock, replay,
+verification-feature publication or downstream handling. Its canceled error path
+sets status 400 without writing a response body and leaves the caller-owned input
+stream undisposed. This is an observed cancellation checkpoint, not an atomic
+check-and-dispatch guarantee; see the
+[body handoff verification](../../docs/security/dotnet-body-handoff.md).
+
 The direct verifier checks its supplied token after replay returns, before
 accepting `true` or `false`; observed cancellation throws `OperationCanceledException`
 with that token. Store exceptions keep their fixed `REPLAY_STORE_UNAVAILABLE`
