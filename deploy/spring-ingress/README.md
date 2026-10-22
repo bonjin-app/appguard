@@ -24,7 +24,7 @@ Upstream sources are the official [Python](https://hub.docker.com/_/python),
 [Temurin](https://hub.docker.com/_/eclipse-temurin) and
 [Redis](https://hub.docker.com/_/redis) images.
 
-The gateway installs hash-pinned uv 0.13.3 from official PyPI wheels and runs
+The gateway installs hash-pinned uv 0.13.4 from official PyPI wheels and runs
 `uv sync --locked --no-dev --extra server --extra redis --no-install-project`.
 It copies the SDK source separately into the final image, avoiding an unlocked
 isolated build backend. Runtime dependencies come from `sdk/python/uv.lock`;

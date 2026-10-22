@@ -190,7 +190,9 @@ def run_scans(candidate, output):
     with tempfile.TemporaryDirectory(prefix='.scan-', dir=output.parent) as temp:
         state = Path(temp)
         reports = state / 'reports'
-        reports.mkdir()
+        # Raw scanner reports can contain matched secret bytes. Keep their
+        # enclosing directory private after it leaves the temporary workspace.
+        reports.mkdir(mode=0o700)
         home = state / 'home'
         home.mkdir()
         config = state / 'empty.yaml'

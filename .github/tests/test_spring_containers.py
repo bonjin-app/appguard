@@ -117,6 +117,103 @@ class ContainerQualificationTests(unittest.TestCase):
                 self.module.bounded_command([sys.executable, '-c', program], timeout=.2, limit=1024)
             self.assertNotIn('PRIVATE', str(error.exception))
 
+    def test_command_failure_retains_only_exit_number_and_fixed_cause_categories(self):
+        program = 'import sys;sys.stderr.write("PRIVATE arbitrary-value permission denied");sys.exit(7)'
+        with self.assertRaises(RuntimeError) as caught:
+            self.module.bounded_command([sys.executable, '-c', program], timeout=3, limit=1024)
+        result = self.module.failure_summary(caught.exception)
+        self.assertEqual(result, {'category': 'nonzero_exit', 'exit_code': 7, 'causes': ['permission_denied']})
+        self.assertNotIn('PRIVATE', json.dumps(result))
+        self.assertNotIn('arbitrary-value', str(caught.exception))
+
+    def test_startup_diagnostics_publish_only_fixed_owned_states_and_constraint_fields(self):
+        records = {IDS[name]: container(name) for name in IDS}
+        records[IDS['redis']]['State'] = {'Running': False, 'ExitCode': 1, 'OOMKilled': False,
+            'Error': 'PRIVATE service value', 'Health': {'Status': 'unhealthy', 'FailingStreak': 3}}
+        records[IDS['redis']]['HostConfig']['MemorySwap'] = -1
+        volume = {'Name': PROJECT + '_redis-data', 'Driver': 'local', 'Options': {},
+            'Labels': {'io.appguard.owner': OWNER, 'com.docker.compose.project': PROJECT, 'io.appguard.scope': 'spring-ingress-v1'}}
+        class DiagnosticDocker(FakeDocker):
+            def call(self, args, **kwargs):
+                if args[0] == 'logs':
+                    return 'PRIVATE request=value append-only file: Permission denied'
+                return super().call(args, **kwargs)
+        result = self.module.startup_diagnostics(DiagnosticDocker(records, volume=volume), PROJECT, OWNER, ValueError('PRIVATE'))
+        self.assertTrue(result['complete'])
+        self.assertEqual(result['discovered_containers'], 3)
+        self.assertTrue(result['volume_owned_valid'])
+        redis = result['services']['redis']
+        self.assertTrue(redis['present'])
+        self.assertFalse(redis['running'])
+        self.assertEqual(redis['exit_code'], 1)
+        self.assertEqual(redis['health'], 'unhealthy')
+        self.assertEqual(redis['limits']['swap_bytes'], -1)
+        self.assertFalse(redis['constraints']['swap_bounded'])
+        self.assertEqual(redis['log_causes'], ['permission_denied'])
+        self.assertEqual(set(result), {'schema','complete','budget_exhausted','discovered_containers',
+            'ownership_rejections','metadata_errors','failure','services','volume_owned_valid'})
+        self.assertNotIn('PRIVATE', json.dumps(result))
+        self.assertNotIn(OWNER, json.dumps(result))
+        self.assertNotIn(PROJECT, json.dumps(result))
+
+    def test_startup_diagnostics_skip_foreign_logs_and_survive_unavailable_daemon(self):
+        record = container('backend')
+        record['Config']['Labels']['io.appguard.owner'] = 'foreign'
+        class ForeignDocker(FakeDocker):
+            def call(self, args, **kwargs):
+                if args[0] == 'logs':
+                    raise AssertionError('must not read a foreign container log')
+                return super().call(args, **kwargs)
+        result = self.module.startup_diagnostics(ForeignDocker({IDS['backend']: record}), PROJECT, OWNER, RuntimeError('PRIVATE'))
+        self.assertEqual(result['ownership_rejections'], 1)
+        self.assertFalse(result['services']['backend']['present'])
+        self.assertFalse(result['complete'])
+        self.assertEqual(set(result['services']['backend']), {'present','running','exit_code','oom_killed',
+            'state_error_present','health','health_failures','restart_count','constraints','limits','log_causes'})
+        class UnavailableDocker:
+            def call(self, args, **kwargs):
+                raise OSError('PRIVATE daemon failure')
+        result = self.module.startup_diagnostics(UnavailableDocker(), PROJECT, OWNER, OSError('PRIVATE'))
+        self.assertFalse(result['complete'])
+        self.assertGreater(result['metadata_errors'], 0)
+        self.assertNotIn('PRIVATE', json.dumps(result))
+
+    def test_startup_diagnostic_budget_exhaustion_makes_no_daemon_call(self):
+        class UnusedDocker:
+            def call(self, args, **kwargs):
+                raise AssertionError('diagnostic deadline already expired')
+        with patch.object(self.module.time, 'monotonic', side_effect=[0,13,13]):
+            result = self.module.startup_diagnostics(UnusedDocker(), PROJECT, OWNER, ValueError('PRIVATE'))
+        self.assertTrue(result['budget_exhausted'])
+        self.assertFalse(result['complete'])
+        self.assertNotIn('PRIVATE', json.dumps(result))
+
+    def test_startup_subphase_stops_at_the_failed_component_boundary(self):
+        records = {name: container(name) for name in IDS}
+        volume = {'Name': PROJECT + '_redis-data', 'Driver': 'local', 'Options': {},
+            'Labels': {'io.appguard.owner': OWNER, 'com.docker.compose.project': PROJECT, 'io.appguard.scope': 'spring-ingress-v1'}}
+        for failure, phase in [('compose','startup_compose_up'),('records','startup_runtime_inspection'),
+                ('volume','startup_volume_inspection'),('readiness','startup_readiness'),('effective','startup_effective_restrictions')]:
+            class StartupDocker(FakeDocker):
+                version = 'test-version'
+                def call(self, args, **kwargs):
+                    if args[0] == 'compose':
+                        if failure == 'compose':
+                            raise RuntimeError('PRIVATE')
+                        return ''
+                    return super().call(args, **kwargs)
+            report = {'checks': {}}
+            def failed():
+                raise ValueError('PRIVATE')
+            with self.subTest(failure=failure), \
+                    patch.object(self.module, 'records_for', side_effect=lambda *args: failed() if failure == 'records' else records), \
+                    patch.object(self.module, 'inspect_volume', side_effect=lambda *args: failed() if failure == 'volume' else volume), \
+                    patch.object(self.module, 'wait_ready', side_effect=lambda *args: failed() if failure == 'readiness' else None), \
+                    patch.object(self.module, 'effective_restrictions', side_effect=lambda *args: failed() if failure == 'effective' else None):
+                with self.assertRaises((ValueError, RuntimeError)):
+                    self.module.run_startup(StartupDocker({}, volume=volume), ['compose'], report, PROJECT, OWNER)
+            self.assertEqual(report['phase'], phase)
+
     def test_successful_command_stops_owned_grandchild_after_redirected_output(self):
         # The command exits successfully and closes its pipe, but its child
         # still belongs to our process group despite redirecting both streams.

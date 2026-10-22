@@ -35,6 +35,50 @@ CHECKS = ('resource_and_isolation_inspection', 'effective_process_restrictions',
           'absolute_upload_deadline_zero_dispatch', 'malformed_zero_dispatch',
           'redis_outage_denied', 'redis_recovery', 'redis_restart_replay_retained',
           'owned_container_cleanup', 'provenance_unchanged')
+STARTUP_PHASES = frozenset(('startup_compose_up', 'startup_runtime_inspection', 'startup_volume_inspection',
+    'startup_readiness', 'startup_effective_restrictions'))
+CAUSE_SNIPPETS = (
+    ('permission_denied', (b'permission denied',)),
+    ('read_only_filesystem', (b'read-only file system',)),
+    ('disk_full', (b'no space left on device',)),
+    ('port_unavailable', (b'port is already allocated', b'address already in use')),
+    ('dependency_unhealthy', (b'dependency failed to start', b'is unhealthy')),
+    ('container_runtime_failure', (b'oci runtime create failed', b'failed to create task')),
+    ('memory_allocation_failed', (b'could not reserve enough space', b'cannot allocate memory')),
+    ('native_thread_unavailable', (b'unable to create native thread',)),
+    ('gateway_start_failed', (b'spring_ingress_host_failed',)),
+    ('backend_start_failed', (b'appguard_backend_start_failed',)),
+)
+
+
+def safe_causes(value):
+    data = value.encode('utf-8') if type(value) is str else bytes(value)
+    data = data.lower()
+    return [name for name, snippets in CAUSE_SNIPPETS if any(snippet in data for snippet in snippets)]
+
+
+class CommandFailure(RuntimeError):
+    def __init__(self, category, exit_code, output):
+        super().__init__('owned command failed')
+        self.category = category
+        self.exit_code = exit_code if type(exit_code) is int and -128 <= exit_code <= 255 else None
+        self.causes = safe_causes(output)
+
+
+def failure_summary(error):
+    if isinstance(error, CommandFailure):
+        return {'category': error.category, 'exit_code': error.exit_code, 'causes': error.causes}
+    if isinstance(error, KeyboardInterrupt):
+        category = 'cancelled'
+    elif isinstance(error, (KeyError, TypeError)):
+        category = 'metadata_invalid'
+    elif isinstance(error, ValueError):
+        category = 'invariant_failed'
+    elif isinstance(error, OSError):
+        category = 'io_failed'
+    else:
+        category = 'unclassified'
+    return {'category': category, 'exit_code': None, 'causes': []}
 
 
 def require(condition):
@@ -65,7 +109,7 @@ def bounded_command(command, *, timeout=30, limit=2097152, env=None, cwd=None):
             selector.register(child.stdout, selectors.EVENT_READ)
             while child.poll() is None or selector.get_map():
                 if time.monotonic() >= deadline:
-                    raise RuntimeError('owned command exceeded bound')
+                    raise CommandFailure('timeout', child.poll(), output)
                 for event, _ in selector.select(min(.05, max(0, deadline - time.monotonic()))):
                     part = os.read(event.fd, min(65536, limit - len(output) + 1))
                     if not part:
@@ -73,9 +117,9 @@ def bounded_command(command, *, timeout=30, limit=2097152, env=None, cwd=None):
                     else:
                         output.extend(part)
                         if len(output) > limit:
-                            raise RuntimeError('owned command exceeded bound')
+                            raise CommandFailure('output_limit', child.poll(), output)
             if child.returncode != 0:
-                raise RuntimeError('owned command failed')
+                raise CommandFailure('nonzero_exit', child.returncode, output)
         return output.decode('utf-8', errors='strict')
     finally:
         # Docker's CLI plugins also belong to this newly created process group.
@@ -457,6 +501,184 @@ def effective_restrictions(docker, records, project, owner):
     require(len(namespaces) == 1)
 
 
+def run_startup(docker, compose, receipt, project, owner):
+    """Keep the existing startup sequence, with a phase at every boundary."""
+    receipt['phase'] = 'startup_compose_up'
+    docker.call([*compose, 'up', '--detach', '--no-build', 'gateway', 'redis', 'backend'], timeout=90)
+    receipt['phase'] = 'startup_runtime_inspection'
+    records = records_for(docker, project, owner)
+    inspected = validate_runtime(records, project, owner)
+    receipt['phase'] = 'startup_volume_inspection'
+    inspect_volume(docker, project + '_redis-data', project, owner)
+    receipt['checks']['resource_and_isolation_inspection'] = True
+    receipt['containers'] = inspected
+    receipt['docker_server_version'] = docker.version
+    receipt['phase'] = 'startup_readiness'
+    wait_ready(docker, records['gateway']['Id'], records['backend']['Id'], project, owner)
+    receipt['phase'] = 'startup_effective_restrictions'
+    effective_restrictions(docker, records, project, owner)
+    receipt['checks']['effective_process_restrictions'] = True
+    return records, inspected
+
+
+def diagnostic_number(value, minimum=-1, maximum=9223372036854775807):
+    return value if type(value) is int and minimum <= value <= maximum else None
+
+
+def diagnostic_constraints(record, name, project, gateway):
+    """Independent observations, not a replacement for runtime validation."""
+    config = record.get('Config') or {}
+    host = record.get('HostConfig') or {}
+    published = (record.get('NetworkSettings') or {}).get('Ports') or {}
+    bindings = host.get('PortBindings') or {}
+    memory, swap, pids, cpus = (diagnostic_number(host.get(key)) for key in ('Memory','MemorySwap','PidsLimit','NanoCpus'))
+    user = config.get('User')
+    constraints = {
+        'image_id_valid': type(record.get('Image')) is str and IMAGE_ID.fullmatch(record['Image']) is not None,
+        'nonroot_user': type(user) is str and re.fullmatch(r'[1-9][0-9]{0,8}:[1-9][0-9]{0,8}',user) is not None,
+        'root_readonly': host.get('ReadonlyRootfs') is True,
+        'not_privileged': host.get('Privileged') is False,
+        'all_capabilities_dropped': host.get('CapDrop') == ['ALL'],
+        'no_added_capabilities': not host.get('CapAdd'),
+        'no_new_privileges': 'no-new-privileges:true' in (host.get('SecurityOpt') or []),
+        'private_pid_ipc': host.get('PidMode') != 'host' and host.get('IpcMode') != 'host',
+        'no_device_passthrough': not host.get('Devices') and not host.get('DeviceRequests'),
+        'memory_bounded': memory is not None and 67108864 <= memory <= 1073741824,
+        'swap_bounded': memory is not None and swap == memory,
+        'pids_bounded': pids is not None and 1 <= pids <= 256,
+        'cpu_bounded': cpus is not None and 0 < cpus <= 2000000000,
+        'tmpfs_bounded': False, 'expected_mounts': False,
+        'network_namespace_expected': False, 'publication_expected': False,
+    }
+    try:
+        tmpfs = host.get('Tmpfs') or {}
+        tmpfs_ok = '/tmp' in tmpfs and set(tmpfs) <= {'/tmp','/data'}
+        for options in tmpfs.values():
+            parts = set(options.split(','))
+            sizes = [part[5:] for part in parts if part.startswith('size=')]
+            tmpfs_ok = tmpfs_ok and {'noexec','nosuid','nodev'} <= parts and len(sizes) == 1
+            tmpfs_ok = tmpfs_ok and sizes[0].isdigit() and 0 < int(sizes[0]) <= 16777216
+        constraints['tmpfs_bounded'] = bool(tmpfs_ok)
+        allowed = {'gateway': {'frontend.pem','frontend.key','server-ca.pem','ingress-client.pem','ingress-client.key'},
+            'backend': {'backend.p12','trust.p12','backend-password','enrolled.pem'}, 'redis': {'/data'}}[name]
+        observed, mounts_ok = set(), True
+        for mount in record.get('Mounts') or []:
+            target = mount.get('Destination','')
+            if mount.get('Type') == 'tmpfs':
+                mounts_ok = mounts_ok and target in tmpfs
+            elif name == 'backend' and target == '/run/appguard/counters.json':
+                mounts_ok = mounts_ok and mount.get('Type') == 'bind' and mount.get('RW') is True
+            elif name == 'redis' and mount.get('Type') == 'volume':
+                mounts_ok = mounts_ok and target == '/data' and mount.get('Name') == project + '_redis-data'
+                mounts_ok = mounts_ok and mount.get('Driver') == 'local' and mount.get('RW') is True
+                observed.add('/data')
+            else:
+                mounts_ok = mounts_ok and mount.get('Type') == 'bind' and mount.get('RW') is False
+                mounts_ok = mounts_ok and target.startswith('/run/secrets/') and target[len('/run/secrets/'):] in allowed
+                observed.add(target[len('/run/secrets/'):])
+        constraints['expected_mounts'] = bool(mounts_ok and observed == allowed)
+        mode = host.get('NetworkMode','')
+        if name == 'gateway':
+            constraints['network_namespace_expected'] = type(mode) is str and not mode.startswith(('container:','host','none'))
+            if set(bindings) == {'8443/tcp'} and set(published) == {'8443/tcp'} and len(bindings['8443/tcp']) == len(published['8443/tcp']) == 1:
+                configured, actual = bindings['8443/tcp'][0], published['8443/tcp'][0]
+                port = actual.get('HostPort','')
+                constraints['publication_expected'] = (configured.get('HostIp') == actual.get('HostIp') == '127.0.0.1'
+                    and port.isdigit() and 1 <= int(port) <= 65535 and configured.get('HostPort') in {'','0',port})
+        else:
+            constraints['network_namespace_expected'] = gateway is not None and mode == 'container:' + gateway
+            constraints['publication_expected'] = not bindings and not any(published.values())
+    except (AttributeError, TypeError, KeyError, ValueError, IndexError):
+        pass
+    return constraints, {'memory_bytes':memory,'swap_bytes':swap,'pids':pids,'nano_cpus':cpus}
+
+
+def empty_startup_diagnostics(error):
+    constraint_names = ('image_id_valid','nonroot_user','root_readonly','not_privileged','all_capabilities_dropped',
+        'no_added_capabilities','no_new_privileges','private_pid_ipc','no_device_passthrough','memory_bounded',
+        'swap_bounded','pids_bounded','cpu_bounded','tmpfs_bounded','expected_mounts',
+        'network_namespace_expected','publication_expected')
+    return {'schema':1,'complete':False,'budget_exhausted':False,'discovered_containers':0,
+        'ownership_rejections':0,'metadata_errors':0,'failure':failure_summary(error),
+        'services':{name:{'present':False,'running':None,'exit_code':None,'oom_killed':None,
+            'state_error_present':None,'health':None,'health_failures':None,'restart_count':None,
+            'constraints':{key:None for key in constraint_names},
+            'limits':{key:None for key in ('memory_bytes','swap_bytes','pids','nano_cpus')},'log_causes':[]}
+            for name in ('gateway','backend','redis')},'volume_owned_valid':None}
+
+
+def startup_diagnostics(docker, project, owner, error):
+    """Twelve-second read budget plus bounded CLI cleanup; fixed schema only."""
+    result = empty_startup_diagnostics(error)
+    deadline = time.monotonic() + 12
+    def read(args, limit=262144):
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            result['budget_exhausted'] = True
+            raise RuntimeError('diagnostic bound exhausted')
+        return docker.call(args, timeout=min(2,remaining), limit=limit)
+    records = {}
+    try:
+        identifiers = read(['ps','--all','--quiet','--no-trunc','--filter','label=com.docker.compose.project='+project,
+            '--filter','label=io.appguard.owner='+owner,'--filter','label=io.appguard.scope='+SCOPE],8192).splitlines()
+        require(len(identifiers) <= 8 and len(identifiers) == len(set(identifiers))
+                and all(ID.fullmatch(value) is not None for value in identifiers))
+        result['discovered_containers'] = len(identifiers)
+        for identifier in identifiers:
+            try:
+                rows = json.loads(read(['container','inspect',identifier]))
+                require(type(rows) is list and len(rows) == 1 and rows[0].get('Id') == identifier)
+                record = rows[0]
+                try:
+                    inspect_owned(record,project,owner)
+                except (ValueError,KeyError,TypeError):
+                    result['ownership_rejections'] += 1
+                    continue
+                name = record['Config']['Labels'].get('com.docker.compose.service')
+                require(name in result['services'] and name not in records)
+                records[name] = record
+            except (OSError,RuntimeError,ValueError,KeyError,TypeError):
+                result['metadata_errors'] += 1
+    except (OSError,RuntimeError,ValueError,KeyError,TypeError):
+        result['metadata_errors'] += 1
+    gateway = records.get('gateway',{}).get('Id')
+    for name,record in records.items():
+        try:
+            state = record.get('State') or {}
+            health = state.get('Health') or {}
+            health_status = health.get('Status','none')
+            constraints,limits = diagnostic_constraints(record,name,project,gateway)
+            summary = {'present':True,'running':state.get('Running') if type(state.get('Running')) is bool else None,
+                'exit_code':diagnostic_number(state.get('ExitCode'),0,255),
+                'oom_killed':state.get('OOMKilled') if type(state.get('OOMKilled')) is bool else None,
+                'state_error_present':bool(state.get('Error')),
+                'health':health_status if health_status in {'none','starting','healthy','unhealthy'} else 'unknown',
+                'health_failures':diagnostic_number(health.get('FailingStreak'),0,1000000),
+                'restart_count':diagnostic_number(record.get('RestartCount'),0,1000000),
+                'constraints':constraints,'limits':limits,'log_causes':[]}
+            result['services'][name] = summary
+            try:
+                summary['log_causes'] = safe_causes(read(['logs','--tail','80',record['Id']],65536))
+            except (OSError,RuntimeError,ValueError):
+                result['metadata_errors'] += 1
+        except (OSError,RuntimeError,ValueError,KeyError,TypeError,AttributeError):
+            result['metadata_errors'] += 1
+    try:
+        name = project + '_redis-data'
+        rows = json.loads(read(['volume','inspect',name],32768))
+        require(type(rows) is list and len(rows) == 1)
+        record = rows[0]
+        require(type(record) is dict)
+        labels = record.get('Labels') or {}
+        result['volume_owned_valid'] = (record.get('Name') == name and record.get('Driver') == 'local'
+            and not record.get('Options') and labels.get('com.docker.compose.project') == project
+            and labels.get('io.appguard.owner') == owner and labels.get('io.appguard.scope') == SCOPE)
+    except (OSError,RuntimeError,ValueError,KeyError,TypeError,AttributeError):
+        result['metadata_errors'] += 1
+    result['complete'] = not (result['budget_exhausted'] or result['metadata_errors'] or result['ownership_rejections'])
+    return result
+
+
 def redis_values(docker, identifier, section):
     text = docker.call(['exec', identifier, 'redis-cli', '-h', '127.0.0.1', '-p', '6379', '--raw', 'INFO', section], limit=32768)
     values = {}
@@ -611,17 +833,7 @@ def _qualify(output, executable, context, java_home):
             receipt['phase'] = 'image_build'
             docker.call([*compose, 'build', '--builder', context, '--pull', 'gateway', 'redis', 'backend'], timeout=1200, limit=8388608)
             require(source_hashes() == pins)
-            receipt['phase'] = 'startup'
-            docker.call([*compose, 'up', '--detach', '--no-build', 'gateway', 'redis', 'backend'], timeout=90)
-            records = records_for(docker, project, owner)
-            inspected = validate_runtime(records, project, owner)
-            inspect_volume(docker, project + '_redis-data', project, owner)
-            receipt['checks']['resource_and_isolation_inspection'] = True
-            receipt['containers'] = inspected
-            receipt['docker_server_version'] = docker.version
-            wait_ready(docker, records['gateway']['Id'], records['backend']['Id'], project, owner)
-            effective_restrictions(docker, records, project, owner)
-            receipt['checks']['effective_process_restrictions'] = True
+            records, inspected = run_startup(docker, compose, receipt, project, owner)
             port = inspected['gateway_port']
             tls = ssl.create_default_context(cafile=str(private / 'server-ca.pem'))
             receipt['phase'] = 'signed_requests'
@@ -688,6 +900,15 @@ def _qualify(output, executable, context, java_home):
             require(validate_runtime({name: current[name] for name in records}, project, owner) == inspected)
             completed = True
             receipt['phase'] = 'completed'
+        except BaseException as error:
+            if docker is not None and receipt['phase'] in STARTUP_PHASES:
+                receipt['startup_diagnostics'] = empty_startup_diagnostics(error)
+                if not isinstance(error, KeyboardInterrupt):
+                    try:
+                        receipt['startup_diagnostics'] = startup_diagnostics(docker,project,owner,error)
+                    except Exception:
+                        receipt['startup_diagnostics']['metadata_errors'] = 1
+            raise
         finally:
             if docker is not None:
                 receipt['checks']['owned_container_cleanup'] = cleanup_owned(docker, project, owner)

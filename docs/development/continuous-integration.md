@@ -35,7 +35,7 @@ pull request and manual dispatch only. It has four jobs without a version matrix
 
 | Job | Intended checks | Toolchain |
 | --- | --- | --- |
-| Core server | Frozen Python/Node installs, Python/reference/Node/Java suites, package consumers, live cross-process Redis replay | Ubuntu 24.04; Python 3.11, uv 0.13.3, Node 22.23.2, Temurin Java 17; runner Maven |
+| Core server | Frozen Python/Node installs, Python/reference/Node/Java suites, package consumers, live cross-process Redis replay | Ubuntu 24.04; Python 3.11, uv 0.13.4, Node 22.23.2, Temurin Java 17; runner Maven |
 | Extended server | Runner lifecycle tests; Go tests/race/vet/build; .NET locked restore/tests/build/package; PHP strict Composer lock validation/install and tests | Ubuntu 24.04; Go 1.27.3, .NET SDK 10.0.402, PHP 8.5.11 requested (8.5.12 observed in the first run), Composer 2.10.3 |
 | JavaScript clients | CLI tests/local tarball; frozen Expo install, tests, TypeScript and relocated tarball verification | Ubuntu 24.04; Node 22.23.2; Expo dependencies from package-lock.json |
 | Apple | Host Swift package tests, reporting Xcode and Swift versions | macOS 15 hosted image and its installed Xcode/Swift |

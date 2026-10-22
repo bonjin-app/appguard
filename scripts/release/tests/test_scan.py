@@ -2,6 +2,7 @@ import hashlib
 import importlib.util
 import io
 import json
+import os
 from pathlib import Path
 import tarfile
 import tempfile
@@ -13,6 +14,25 @@ SPEC = importlib.util.spec_from_file_location('scan', Path(__file__).resolve().p
 
 
 class ScanTests(unittest.TestCase):
+    def test_raw_finding_directory_remains_owner_only_after_publication(self):
+        m = self.module()
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp).resolve()
+            (base / 'candidate/source').mkdir(parents=True)
+            (base / 'candidate/manifest.json').write_text(json.dumps({'sha256': {}}))
+            fake = base / 'scanner'
+            fake.write_text('#!/bin/sh\necho PRIVATE_FINDING\nexit 7\n')
+            fake.chmod(0o700)
+            previous = os.umask(0o022)
+            try:
+                with patch.object(m, 'install_tool', return_value=fake), patch.object(
+                        m, 'export_maven', return_value={'name': 'maven-runtime', 'returncode': 127}):
+                    self.assertEqual(m.run_scans(base / 'candidate', base / 'reports'), 1)
+            finally:
+                os.umask(previous)
+            self.assertIn('PRIVATE_FINDING', (base / 'reports/syft.log').read_text())
+            self.assertEqual((base / 'reports').stat().st_mode & 0o077, 0)
+
     def test_public_summary_reports_counts_without_private_errors_or_metadata(self):
         m = self.module()
         result = m.public_check_summary({'automated_checks_passed': False, 'error': 'PRIVATE_ERROR',

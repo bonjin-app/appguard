@@ -172,3 +172,16 @@ A maintained security fork or independently reviewed patch would be a separate
 maintenance/security commitment, not evidence that these upstream releases are
 fixed. Until a reviewed resolution exists, these HIGH findings remain open and
 the source vulnerability gate remains failed.
+
+## Newly observed uv build-tool finding
+
+The expanded candidate at `fb91e90` exposed
+[GHSA-hq85-5cpj-mr62](https://github.com/astral-sh/uv/security/advisories/GHSA-hq85-5cpj-mr62)
+in uv 0.13.3. The scan database classified it CRITICAL; the maintainer advisory
+classifies it High. Versions before 0.13.4 trust an affected emSign root in the
+bundled CA store. The official fix removes that root. CI and the container's
+private build stage now pin 0.13.4, with official PyPI wheel hashes. uv is not
+copied into the final gateway image. Historical verification records retain
+the version actually used; they are not evidence for the corrected build.
+A fresh source/image scan is required to verify remediation, and the two
+unfixed Expo tool findings remain separate. No finding is suppressed.
