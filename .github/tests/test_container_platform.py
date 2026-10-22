@@ -21,6 +21,14 @@ def block(ids, arch='arm64', *, pid1=True):
 
 
 class PlatformTests(unittest.TestCase):
+    def test_legacy_fixture_is_isolated_from_the_physical_arm_host(self):
+        case=image_scan.ContainerScanTests();case.setUp();self.addCleanup(case.doCleanups)
+        with patch.object(image_scan.module.platform,'system',return_value='Linux'), \
+                patch.object(image_scan.module.platform,'machine',return_value='aarch64'):
+            result=case.run_scan()
+        self.assertTrue(result['automated_checks_passed'])
+        self.assertEqual(result['scanner']['platform'],'Linux-x86_64')
+
     def observe(self, arch='arm64', change=None, system='Linux', machine=None):
         module = qualification.load_module()
         records = {role: qualification.container(role) for role in qualification.IDS}
@@ -104,7 +112,7 @@ class PlatformTests(unittest.TestCase):
         case.runner=runner
         with patch.object(image_scan.module.platform,'system',return_value='Linux'), \
                 patch.object(image_scan.module.platform,'machine',return_value='aarch64' if arch=='arm64' else 'x86_64'):
-            return case,case.run_scan()
+            return case,case.run_scan(host=('Linux','aarch64' if arch=='arm64' else 'x86_64'))
 
     def test_native_arm_scanner_uses_verified_receipt_and_actual_image_platforms(self):
         case,result=self.scanner()

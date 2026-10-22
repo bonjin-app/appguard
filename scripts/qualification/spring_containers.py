@@ -94,6 +94,40 @@ def failure_summary(error):
     return {'category': category, 'exit_code': None, 'causes': []}
 
 
+def qualification_diagnostic(error):
+    """Bounded own-code locations and fixed enums; never exception/log text."""
+    phases = STARTUP_PHASES | {'preflight','certificates','daemon_and_builder','image_build',
+        'signed_requests','redis_restart','backend_bypass','upload_deadline','malformed_framing',
+        'sustained_containers','completed'}
+    functions = {'main','qualify','_qualify','__init__','helpers','source_hashes','generate_certificates',
+        'require','bounded_command','call','platform_environment','observe_runtime_platform','qualification_override',
+        'run_startup','records_for','validate_runtime','wait_ready','effective_restrictions','runtime_version_readback',
+        'inspect_container','restart_redis','run_operational','restart_backend','cleanup_owned','publish'}
+    categories = {'timeout','output_limit','nonzero_exit','cancelled','metadata_invalid','invariant_failed','io_failed','unclassified'}
+    try: observed = failure_summary(error)
+    except Exception: observed = {}
+    category, code, causes = (observed.get(key) for key in ('category','exit_code','causes'))
+    category = category if type(category) is str and category in categories else 'unclassified'
+    code = code if type(code) is int and -128 <= code <= 255 else None
+    allowed_causes = {name for name,_ in CAUSE_SNIPPETS}
+    causes = [name for name in (causes if type(causes) is list else [])
+        if type(name) is str and name in allowed_causes]
+    causes = sorted(set(causes))
+    phase, frames, trace, walked = 'preflight', [], error.__traceback__, 0
+    while trace is not None and walked < 64:
+        walked += 1
+        if trace.tb_frame.f_code.co_filename == __file__:
+            receipt = trace.tb_frame.f_locals.get('receipt')
+            if type(receipt) is dict:
+                candidate = receipt.get('phase')
+                phase = candidate if type(candidate) is str and candidate in phases else 'unknown'
+            name, line = trace.tb_frame.f_code.co_name, trace.tb_lineno
+            frames.append(dict(function=name if name in functions else 'unknown',
+                line=line if type(line) is int and 1 <= line <= 100000 else 0))
+        trace = trace.tb_next
+    return dict(schema=1,phase=phase,frames=frames[-4:],failure=dict(category=category,exit_code=code,causes=causes))
+
+
 def require(condition):
     if not condition:
         raise ValueError('container qualification invariant failed')
@@ -1574,8 +1608,9 @@ def main():
         output = helpers().new_output(args.output)
         with cancellation_scope():
             qualify(output, executable, args.docker_context, java, args.soak_seconds, args.soak_concurrency,args.platform)
-    except (Exception, KeyboardInterrupt):
+    except (Exception, KeyboardInterrupt) as error:
         print('SPRING_CONTAINER_QUALIFICATION_FAILED', file=sys.stderr)
+        print('SPRING_CONTAINER_DIAGNOSTIC ' + json.dumps(qualification_diagnostic(error),sort_keys=True,separators=(',',':')),file=sys.stderr)
         return 1
     print('SPRING_CONTAINER_QUALIFICATION_PASSED')
     return 0

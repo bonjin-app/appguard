@@ -68,7 +68,15 @@ class ContainerSoakTests(unittest.TestCase):
                     capture_output=True, text=True, timeout=5)
                 self.assertEqual(result.returncode, 1)
                 self.assertFalse(output.exists())
-                self.assertEqual(result.stderr, 'SPRING_CONTAINER_QUALIFICATION_FAILED\n')
+                lines=result.stderr.splitlines()
+                self.assertEqual(len(lines),2)
+                self.assertEqual(lines[0],'SPRING_CONTAINER_QUALIFICATION_FAILED')
+                self.assertTrue(lines[1].startswith('SPRING_CONTAINER_DIAGNOSTIC '))
+                diagnostic=json.loads(lines[1].split(' ',1)[1])
+                self.assertEqual(set(diagnostic),{'schema','phase','frames','failure'})
+                self.assertEqual(diagnostic['schema'],1)
+                self.assertEqual(diagnostic['phase'],'preflight')
+                self.assertEqual(diagnostic['failure'],{'category':'invariant_failed','exit_code':None,'causes':[]})
 
     def test_actual_stats_normalize_units_and_drop_names_and_unrelated_fields(self):
         result = self.module.normalize_stats(stats_rows(), IDS)

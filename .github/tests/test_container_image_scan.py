@@ -106,7 +106,7 @@ class ContainerScanTests(unittest.TestCase):
         return code, b'private scanner output SECRET'
 
     def run_scan(self, transform=None, mutate=False, *, version='0.76.1', database_change=None, integrity_change=None,
-                 version_noise=False):
+                 version_noise=False, host=('Linux','x86_64')):
         self.scans, self.mutate = 0, mutate
         self.version, self.database_change, self.integrity_change = version, database_change, integrity_change
         self.version_noise = version_noise
@@ -125,6 +125,8 @@ class ContainerScanTests(unittest.TestCase):
         with patch.object(module.Publication, '__enter__', enter), \
                 patch.object(module, 'install_tool', side_effect=install), \
                 patch.object(module, 'bounded_command', side_effect=self.runner), \
+                patch.object(module.platform,'system',return_value=host[0]), \
+                patch.object(module.platform,'machine',return_value=host[1]), \
                 patch.dict(os.environ, {'TRIVY_TOKEN': 'SECRET', 'DOCKER_HOST': 'tcp://secret'}):
             return module.scan(self.receipt, self.output)
 
@@ -783,9 +785,7 @@ class ContainerScanTests(unittest.TestCase):
         self.assertFalse(result['automated_checks_passed'])
 
     def test_diagnostic_arm64_pin_does_not_expand_production_host_contract(self):
-        with patch.object(module.platform, 'system', return_value='Linux'), \
-                patch.object(module.platform, 'machine', return_value='aarch64'):
-            result = self.run_scan()
+        result = self.run_scan(host=('Linux','aarch64'))
         self.assertFalse(result['automated_checks_passed'])
         self.assertIsNone(result['scanner'])
         self.assertEqual(self.scans, 0)

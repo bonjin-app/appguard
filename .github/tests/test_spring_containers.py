@@ -1,6 +1,8 @@
 """Container qualifier boundaries; real Docker integration runs on an owned CI runner."""
+import contextlib
 import copy
 import importlib.util
+import io
 import json
 import os
 from pathlib import Path
@@ -96,6 +98,100 @@ class FakeDocker:
 class ContainerQualificationTests(unittest.TestCase):
     def setUp(self):
         self.module = load_module()
+
+    def test_main_failure_emits_fixed_bounded_diagnostic_without_exception_or_config(self):
+        module=self.module
+        errors=(ValueError('PRIVATE raw exception /path?token=SECRET'),
+            module.CommandFailure('nonzero_exit',3,b'PRIVATE raw command config'),
+            module.CommandFailure('PRIVATE-category',3,b'PRIVATE raw command config'))
+        for error in errors:
+            with self.subTest(error=type(error).__name__), tempfile.TemporaryDirectory() as directory:
+                root=Path(directory).resolve();(root/'bin').mkdir();(root/'bin/keytool').touch()
+                arguments=['qualifier','--java-home',str(root),'--docker',sys.executable,
+                    '--docker-context','default','--output',str(root/'out')]
+                with patch.object(sys,'argv',arguments),patch.object(module,'qualify',side_effect=error), \
+                        contextlib.redirect_stderr(io.StringIO()) as stderr:
+                    result=module.main()
+                self.assertEqual(result,1)
+                self.assertEqual(stderr.getvalue().splitlines()[0],'SPRING_CONTAINER_QUALIFICATION_FAILED')
+                lines=[line for line in stderr.getvalue().splitlines() if line.startswith('SPRING_CONTAINER_DIAGNOSTIC ')]
+                self.assertEqual(len(lines),1)
+                value=json.loads(lines[0].split(' ',1)[1])
+                self.assertEqual(set(value),{'schema','phase','frames','failure'})
+                self.assertLessEqual(len(value['frames']),4)
+                self.assertTrue(all(set(row)=={'function','line'} and type(row['line']) is int for row in value['frames']))
+                self.assertNotIn('PRIVATE',stderr.getvalue());self.assertNotIn('SECRET',stderr.getvalue())
+                self.assertLessEqual(len(lines[0]),2048)
+                self.assertEqual(value['failure']['category'],'unclassified' if getattr(error,'category',None)=='PRIVATE-category'
+                    else 'nonzero_exit' if isinstance(error,module.CommandFailure) else 'invariant_failed')
+
+    def test_diagnostic_locates_owned_qualifier_phase_without_serializing_receipt(self):
+        module=self.module;published=[]
+        class Output:
+            def publish(self,raw):published.append(json.loads(raw))
+        def command(args,**kwargs):
+            self.assertEqual(args[0],'git')
+            return 'a'*40 if args[1:]==['rev-parse','HEAD'] else ''
+        with patch.object(module,'helpers',return_value=object()),patch.object(module,'source_hashes',return_value={}), \
+                patch.object(module,'bounded_command',side_effect=command), \
+                patch.object(module,'generate_certificates',side_effect=ValueError('PRIVATE')), \
+                patch.object(module.os,'getuid',return_value=10001),patch.object(module.os,'getgid',return_value=10001):
+            try:module._qualify(Output(),Path(sys.executable),'default',Path(sys.prefix))
+            except ValueError as error:value=module.qualification_diagnostic(error)
+            else:self.fail('owned certificate fixture must fail')
+        self.assertEqual(value['phase'],'certificates')
+        self.assertTrue(any(row['function']=='_qualify' for row in value['frames']))
+        self.assertNotIn('PRIVATE',json.dumps(value));self.assertNotIn('source_sha256',json.dumps(value))
+        self.assertFalse(published[0]['technical_verification'])
+
+    def test_diagnostic_bounds_frames_and_redacts_unknown_own_locations(self):
+        module=self.module
+        # Only the synthetic owned-code frames have the qualifier's exact filename.
+        namespace={}
+        exec(compile('def require(depth, phase):\n'
+            '    receipt={"phase":phase,"private":"PRIVATE key/config"}\n'
+            '    if depth: return require(depth-1, phase)\n'
+            '    raise ValueError("PRIVATE error")\n'
+            'def private_function():\n'
+            '    receipt={"phase":"PRIVATE phase"}\n'
+            '    raise ValueError("PRIVATE error")\n',module.__file__,'exec'),namespace)
+        for depth,phase in ((10,'image_build'),(10,['PRIVATE phase'])):
+            with self.subTest(depth=depth,phase=phase):
+                try:namespace['require'](depth,phase)
+                except ValueError as error:value=module.qualification_diagnostic(error)
+                self.assertEqual(value['phase'],'image_build' if type(phase) is str else 'unknown')
+                self.assertEqual(len(value['frames']),4)
+                self.assertTrue(all(row['function']=='require' and type(row['line']) is int
+                    and 1<=row['line']<=100000 for row in value['frames']))
+                self.assertNotIn('PRIVATE',json.dumps(value))
+        try:namespace['private_function']()
+        except ValueError as error:value=module.qualification_diagnostic(error)
+        self.assertEqual(value['phase'],'unknown')
+        self.assertEqual(value['frames'],[{'function':'unknown','line':7}])
+        self.assertNotIn(module.__file__,json.dumps(value))
+
+    def test_diagnostic_failure_fields_have_fixed_types_and_output_size(self):
+        module=self.module
+        known=[name for name,_ in module.CAUSE_SNIPPETS]
+        fixtures=(
+            {'category':['PRIVATE'],'exit_code':True,'causes':{'PRIVATE':'permission_denied'}},
+            {'category':'PRIVATE','exit_code':256,'causes':['PRIVATE',False,{},*known]*1000},
+            {'category':'timeout','exit_code':-128,'causes':['permission_denied','permission_denied']},
+        )
+        for fields in fixtures:
+            with self.subTest(category=fields['category']):
+                error=module.CommandFailure('nonzero_exit',1,b'')
+                for name,value in fields.items():setattr(error,name,value)
+                value=module.qualification_diagnostic(error)
+                self.assertEqual(set(value['failure']),{'category','exit_code','causes'})
+                self.assertEqual(value['failure']['category'],'timeout' if fields['category']=='timeout' else 'unclassified')
+                self.assertEqual(value['failure']['exit_code'],-128 if fields['category']=='timeout' else None)
+                self.assertEqual(value['failure']['causes'],sorted(set(name for name in
+                    (fields['causes'] if type(fields['causes']) is list else [])
+                    if type(name) is str and name in known)))
+                encoded=json.dumps(value,sort_keys=True,separators=(',',':'))
+                self.assertLessEqual(len(encoded),2048)
+                self.assertNotIn('PRIVATE',encoded)
 
     def test_gateway_alpine_pin_and_binary_wheels_cover_both_linux_architectures(self):
         import tomllib
