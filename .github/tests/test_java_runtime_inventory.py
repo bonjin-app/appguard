@@ -115,6 +115,29 @@ class RuntimeInventoryTests(unittest.TestCase):
             self.assertFalse(result['release_ready'])
             self.assertFalse(result['native_binary_coverage'])
 
+    def test_valid_unverified_java_result_is_retained_without_completing_inventory(self):
+        raw = feature_protocol(failed=('headless_font',), code=2)
+        parsed = self.m.parse_features(raw)
+        self.assertEqual(parsed['exit_code'], 2)
+        self.assertFalse(parsed['passed'])
+        with tempfile.TemporaryDirectory() as directory:
+            fake = self.fake(missing=False)
+            def call(command, **kwargs):
+                if command[3] == 'exec' and 'AppGuardRuntimeProbe' in command[-1]: return raw
+                return fake(command, **kwargs)
+            with patch.object(self.m, 'bounded_command', side_effect=call):
+                result = self.m.inspect_runtime(self.image, 'linux/amd64', Path(directory).resolve()/'out', features=True)
+            self.assertEqual(result['features'], parsed)
+            self.assertTrue(result['features']['checks']['mtls_loopback'])
+            self.assertFalse(result['features']['checks']['headless_font'])
+            self.assertFalse(result['inventory_complete'])
+            self.assertFalse(result['native_checks_passed'])
+            self.assertNotIn('runtime_features_passed', result['checks'])
+            for flag in ('release_ready', 'coverage_complete', 'native_binary_coverage'):
+                self.assertFalse(result[flag])
+            self.assertTrue(result['cleanup'])
+            self.assertTrue(fake.removed)
+
     def test_malformed_feature_output_never_passes_or_leaks_and_still_cleans_owned_container(self):
         with tempfile.TemporaryDirectory() as directory:
             fake = self.fake(missing=False)
@@ -147,7 +170,8 @@ class RuntimeInventoryTests(unittest.TestCase):
 
     def test_feature_cli_preserves_exit_semantics_and_does_not_inject_host_environment(self):
         for response, expected in ((feature_protocol(), 0),
-                (feature_protocol(failed=('headless_font',)), 1), ('SECRET failure\n', 2)):
+                (feature_protocol(failed=('headless_font',)), 1),
+                (feature_protocol(failed=('headless_font',), code=2), 2), ('SECRET failure\n', 2)):
             with tempfile.TemporaryDirectory() as directory:
                 fake = self.fake(missing=False)
                 def call(command, **kwargs):

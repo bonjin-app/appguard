@@ -339,3 +339,9 @@ actual reporting/support boundaries.
 The two existing upstream advisories remain visible. The unmerged node-forge
 proposals require further cryptographic review; a suggested patch is not treated
 as a released fix. See [the current advisory record](../security/dependency-advisories-2026-10-22.md).
+
+A framed Java exit2 result with an exact, internally consistent failed feature
+object is retained as partial diagnostics. It still makes the inventory incomplete,
+returns CLI exit2 and cannot approve runtime compatibility. Unknown exit statuses,
+malformed output and any exit2 success claim remain rejected. This preserves a
+valid failed-check record without reclassifying JVM/resource failures as complete.

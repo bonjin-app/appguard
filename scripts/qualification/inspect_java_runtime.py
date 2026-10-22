@@ -145,7 +145,7 @@ def protocol(raw):
 def parse_features(raw):
     require(type(raw) is str and 0 < len(raw.encode()) <= MAX_FEATURE_BYTES and raw.endswith('\n'))
     rows = raw.splitlines()
-    require(len(rows) == 3 and rows[0] == 'FEATURE_BEGIN' and re.fullmatch(r'FEATURE_EXIT\t[01]', rows[2]))
+    require(len(rows) == 3 and rows[0] == 'FEATURE_BEGIN' and re.fullmatch(r'FEATURE_EXIT\t[012]', rows[2]))
     code = int(rows[2].split('\t')[1])
     value = _json(rows[1].encode())
     require(type(value) is dict and set(value) == {'schema', 'checks', 'passed'}
@@ -153,7 +153,7 @@ def parse_features(raw):
         and type(value['checks']) is dict and set(value['checks']) == FEATURE_CHECKS
         and all(type(flag) is bool for flag in value['checks'].values())
         and type(value['passed']) is bool and value['passed'] is all(value['checks'].values())
-        and code == (0 if value['passed'] else 1))
+        and (code == 0 if value['passed'] else code in (1, 2)))
     return dict(schema=1, checks={key: value['checks'][key] for key in sorted(FEATURE_CHECKS)},
         passed=value['passed'], exit_code=code)
 
@@ -446,6 +446,9 @@ def inspect_runtime(image, platform, output, docker_context='default', features=
             report['checks']['native_providers_verified'] = all(row['provider_verified'] for row in providers.values())
             if features:
                 report['features'] = parse_features(call(['exec', identifier, '/bin/sh', '-c', FEATURE_SCRIPT], timeout=120))
+                # Retain strictly validated partial diagnostics, but an unverified
+                # JVM/resource outcome must never complete the inventory.
+                require(report['features']['exit_code'] in (0, 1))
                 report['checks']['runtime_features_passed'] = report['features']['passed']
             owned(validate=True)
             require(records(['image', 'inspect', image]).get('Id') == image)

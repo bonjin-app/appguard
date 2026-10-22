@@ -45,9 +45,21 @@
 
 - [x] Write RED parser/lifecycle tests for valid failing check preservation, contradiction, malformed/extra/duplicate checks and command failure; implement minimal strict integration; run GREEN.
 - [x] Build both `baseline` and `debian-probe` targets from fixed image digests with identical compiled probe classes; pass feature flag in all four native jobs.
-- [x] Run appropriate full suites/actionlint; independent security review before commit and actual exact-commit CI.
+- [x] Run appropriate full suites/actionlint and independent security review before commit.
+- [ ] Review actual exact-commit native CI; preserve measured and incomplete failures.
 - [ ] Inspect actual native artifacts and preserve failing feature evidence. Fix diagnosed tool failures; do not install guessed dependencies or downgrade acceptance criteria to conceal runtime differences.
 
 ## Completion boundary
 
 These bounded probes exercise selected functionality. They do not establish every JNI/dlopen path, GUI/audio hardware behavior, complete dependency or license closure, external approval, real provider accounts, sustained operation or production readiness. The broader production goal remains active.
+
+## Native CI follow-up
+
+The initial exact-commit run2222c32 measured all ten baseline checks passing on
+both native architectures, but both Debian collections were incomplete. Original
+artifacts retained `features:null`, so the Linux cause was not distinguishable.
+A strict exit2 partial-result regression was first RED, then fixed to retain only
+validated ten-boolean diagnostic objects while preserving incomplete/exit2 and
+all false approval flags. Do not weaken VirtualMachineError or cleanup handling.
+The subsequent native run must establish the actual retained result; the suspected
+font initialization failure is not established by the first run alone.
