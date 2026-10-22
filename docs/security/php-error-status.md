@@ -63,3 +63,74 @@ Laravel/Symfony, FPM/Apache, hosted ingress, multi-worker replay, Linux/Windows,
 external security audit, remote CI or production deployment. No provider or
 physical-device action is part of this stage; the separate device candidate and
 its pending hardware verification remain unchanged.
+
+## Local verification and review correction (2026-10-22)
+
+The final reviewed runtime is `18461e10c444465ae75c00fc7946ea401738e2f8` on local-main
+base `514d0558c2fc3dbe24eb784626e7fa1878a979ba`. PHP 8.5.11 CLI ran with `-n`; no newly installed
+toolchain or PHP 8.2/8.3 execution is claimed. Composer used task-private
+home/cache directories, disabled network access, plugins and install scripts,
+and the unchanged zero-external-package dependency lock.
+
+The baseline passed 539 assertions and five raw loopback requests. Corrected
+constructor regressions first produced 35 expected status failures and 22
+passing controls. The initial constructor fix passed 57 scenarios, 596 total
+assertions and five HTTP requests. Independent review then reproduced a real
+ordinary-subclass gap on PHP 8.5.11, without Reflection or deserialization.
+Four added scenarios reproduced three inherited-field bypasses and an escaped
+uninitialized-property error against that intermediate runtime. All four
+failed as expected, with the existing 57 controls passing.
+
+The final response-boundary normalization fixed all four. Final source
+verification passed 61 response scenarios, 600 total assertions and five raw
+loopback requests. The assertion/scenario/request counts overlap and must not
+be added as independent attack classes. The final Composer-installed consumer
+passed the same 61 scenarios and seven raw HTTP requests with its own autoloader.
+Earlier baseline consumer evidence retains35 status failures and four wrong
+HTTP responses, with controls passing, before the original fix.
+
+The final local archive SHA-256 is
+`dc8e743814630cafa334b7d536a2838620b1cd2a601b5883eb67b95f221e4b2f`. All nine entries match final Git, actual
+installed bytes and retained package snapshots. Reflection confirms actual
+error/adapter/verifier classes load from the consumer's vendor directory.
+Composer lock distribution reference and SHA-1 integrity values match the
+local archive; SHA-256 is checked separately. The final archive/install uses
+a separate directory/reference from the intermediate package to prevent stale
+cache identity. The local `0.0.0-dev` version is test repository metadata, not
+a published SDK release or tracked manifest change.
+
+All intermediate packages and three setup/fixture errors are retained: an
+unsupported task-only Composer version spelling, two initial positive controls
+missing the HTTP signature envelope, and a consumer description missing for
+strict manifest validation. Only environment or fixtures were corrected; product
+code changed after the corrected RED. The independent subclass finding is a
+product issue fixed before integration, and is distinct from these fixture errors.
+
+Raw logs,final and intermediate archives, frozen consumer inputs, conformance
+fixtures, package/lock hashes and independent review evidence are retained under
+`.superpowers/evidence/2026-10-22-php-error-status/` in the main checkout.
+The final record commit changes only this document, leaving reviewed SDK and
+archive bytes unchanged.
+
+The inherited-readonly version gate is also supported by the [official PHP property manual](https://www.php.net/manual/en/language.oop5.properties.php#language.oop5.properties.readonly-properties); this documentation check does not add an executed older-runtime claim.
+
+Independent security review confirmed the P2 subclass publication finding is
+resolved, with no unresolved findings in this bounded scope. Fresh final review
+runs passed 600 source assertions plus five HTTP requests, strict Composer
+validation, 61 installed response scenarios and seven installed HTTP requests.
+The original independent subclass reproduction now returns 400 with fixed
+`INVALID_REQUEST` and no dependency calls.
+
+The reviewer also passed 31 independently written assertions: 24 phase-failure,
+signed-retry and replay checks; four downstream exception identity/replay checks;
+and three real signature-tamper, genuine retry and replay checks. Downstream
+application exceptions still propagate by exact object identity; tampered input
+does not consume a nonce. These are assertions with controls, not 31 distinct
+attack classes. All nine final package entries, lock distribution integrity and
+vendor autoload origins were checked independently. Intermediate findings, RED
+and fixture failures remain retained rather than counted as final successes.
+
+Independent review receipt SHA-256:
+`d00bf5cd993aa8573ae2f1c354fad314d17fa4cb2da5482f20cdfdff54b8d8a2`.
+No remote CI, deployment, framework/container, distributed replay, external audit
+or physical-device verification is claimed by these local results.
