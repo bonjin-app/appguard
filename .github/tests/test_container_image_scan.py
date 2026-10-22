@@ -782,6 +782,14 @@ class ContainerScanTests(unittest.TestCase):
             result = module.scan(self.receipt, self.output)
         self.assertFalse(result['automated_checks_passed'])
 
+    def test_diagnostic_arm64_pin_does_not_expand_production_host_contract(self):
+        with patch.object(module.platform, 'system', return_value='Linux'), \
+                patch.object(module.platform, 'machine', return_value='aarch64'):
+            result = self.run_scan()
+        self.assertFalse(result['automated_checks_passed'])
+        self.assertIsNone(result['scanner'])
+        self.assertEqual(self.scans, 0)
+
 
 if __name__ == '__main__':
     unittest.main()

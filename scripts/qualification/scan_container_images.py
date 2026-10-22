@@ -452,6 +452,113 @@ def cooperative_termination():
         signal.signal(signal.SIGTERM, original)
 
 
+class TrivySession:
+    """Fixed diagnostic commands share one private executable and DB snapshot.
+
+    The production three-service policy below remains separate. Bounds cover
+    elapsed time, input image size, files and output; host RSS is not hard capped.
+    """
+    seconds = 2760
+    max_image_bytes = 2 * 1024 * 1024 * 1024
+
+    def __init__(self, state):
+        self.state = Path(state)
+        self.deadline = time.monotonic() + self.seconds
+        self.frozen = {}
+        self.scanner = self.databases = None
+
+    def prepare(self, *, require_docker=True):
+        require(type(require_docker) is bool)
+        home = self.state / 'home'; home.mkdir(mode=0o700)
+        docker = self.state / 'docker'; docker.mkdir(mode=0o700)
+        private_file(docker / 'config.json', b'{}')
+        self.config = self.state / 'empty.json'; private_file(self.config, b'{}')
+        self.ignore = self.state / 'empty.ignore'; private_file(self.ignore, b'')
+        self.env = {key: os.environ[key] for key in ('PATH', 'SYSTEMROOT', 'SSL_CERT_FILE', 'SSL_CERT_DIR') if key in os.environ}
+        self.env.update(HOME=str(home), XDG_CONFIG_HOME=str(home), XDG_CACHE_HOME=str(self.state / 'cache'),
+            DOCKER_CONFIG=str(docker), DOCKER_CONTEXT='default', TRIVY_SKIP_VERSION_CHECK='true',
+            TRIVY_DISABLE_TELEMETRY='true', TRIVY_CACHE_DIR=str(self.state / 'cache/trivy'))
+        for path in (docker / 'config.json', self.config, self.ignore):
+            # file_identity excludes empty files; the empty ignore has an exact
+            # separately checked identity instead of an unbounded content read.
+            if path == self.ignore:
+                self.ignore_stamp = path.stat()
+            else:
+                self.frozen[path] = (MAX_METADATA, file_identity(path, MAX_METADATA))
+        if require_docker:
+            code, raw = self.command(['docker', '--context', 'default', 'context', 'inspect', 'default'])
+            require(code == 0); context_endpoint(raw)
+        host = (platform.system(), platform.machine())
+        require(host in TOOLS['trivy'] and TOOLS['trivy'][host]['version'] == '0.76.1')
+        # Keep the reviewed checksum/extraction helper, but give its network
+        # reads an owned process-group wall deadline in this diagnostic path.
+        installer = ("import sys; from pathlib import Path; sys.path.insert(0,sys.argv[1]); "
+            "from scan import install_tool; install_tool('trivy',Path(sys.argv[2]))")
+        code, _ = self.command([sys.executable, '-c', installer,
+            str(Path(__file__).resolve().parents[1] / 'release'), str(self.state)], timeout=660)
+        require(code == 0)
+        self.trivy = self.state / 'trivy'
+        executable = file_identity(self.trivy, MAX_EXECUTABLE)
+        self.frozen[self.trivy] = (MAX_EXECUTABLE, executable)
+        code, raw = self.command([str(self.trivy), 'version', '--format', 'json', '--config', str(self.config), '--quiet'])
+        require(code == 0 and _json(raw).get('Version') == '0.76.1')
+        self.scanner = dict(name='trivy', version='0.76.1', platform='-'.join(host),
+            archive_sha256=TOOLS['trivy'][host]['sha256'], executable_sha256=executable['sha256'])
+        for flag in ('--download-db-only', '--download-java-db-only'):
+            code, _ = self.command([str(self.trivy), 'image', '--config', str(self.config), flag,
+                '--timeout', '10m'], timeout=660)
+            require(code == 0)
+        self.databases, pins = database_identities(Path(self.env['TRIVY_CACHE_DIR']))
+        self.frozen.update(pins)
+        self.verify()
+
+    def verify(self):
+        verify_files(self.frozen)
+        before = self.ignore_stamp; now = self.ignore.lstat()
+        require(stat.S_ISREG(now.st_mode) and now.st_size == 0 and
+            (now.st_dev, now.st_ino, now.st_mtime_ns, now.st_ctime_ns) ==
+            (before.st_dev, before.st_ino, before.st_mtime_ns, before.st_ctime_ns))
+
+    def command(self, command, *, timeout=30, **kwargs):
+        self.verify()
+        remaining = self.deadline - time.monotonic(); require(remaining > 0)
+        try:
+            return bounded_command(command, env=self.env, cwd=self.state, timeout=min(timeout, remaining), **kwargs)
+        finally:
+            self.verify()
+
+    def docker(self, args):
+        code, raw = self.command(['docker', '--context', 'default', *args])
+        require(code == 0)
+        return raw
+
+    def image_identity(self, image, architecture):
+        rows = _json(b'{"rows":' + self.docker(['image', 'inspect', image]) + b'}')['rows']
+        require(type(rows) is list and len(rows) == 1 and type(rows[0]) is dict)
+        row = rows[0]
+        require(row.get('Id') == image and row.get('Os') == 'linux' and row.get('Architecture') == architecture
+            and type(row.get('Size')) is int and 0 < row['Size'] <= self.max_image_bytes)
+        return {key: row[key] for key in ('Id', 'Os', 'Architecture', 'Size')}
+
+    def report(self, publication, name, target, *, rootfs=False):
+        command = [str(self.trivy), 'rootfs' if rootfs else 'image']
+        if not rootfs: command += ['--image-src', 'docker']
+        command += ['--config', str(self.config), '--ignorefile', str(self.ignore), '--list-all-pkgs',
+            '--scanners', 'vuln', '--severity', 'UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL',
+            '--skip-db-update', '--skip-java-db-update', '--offline-scan', '--parallel', '2',
+            '--exit-code', '1', '--format', 'json', '--timeout', '1m' if rootfs else '10m']
+        with publication.report(name + '.json') as descriptor:
+            identity = os.fstat(descriptor)
+            code, log = self.command(command + ['--output', '/dev/fd/' + str(descriptor), str(target)],
+                timeout=75 if rootfs else 660, report=descriptor, pass_fds=(descriptor,))
+            pin = publication.read(name + '.json')
+            require(pin['stamp'][:2] == (identity.st_dev, identity.st_ino))
+        publication.write(name + '.log', log)
+        document = pin['json']
+        require(type(document.get('Trivy')) is dict and document['Trivy'].get('Version') == '0.76.1')
+        return code, document, pin
+
+
 def scan(receipt, output, docker_context='default'):
     require(docker_context == 'default')
     receipt = _path(receipt)
@@ -485,7 +592,8 @@ def scan(receipt, output, docker_context='default'):
             require(code == 0)
             context_endpoint(raw)
             host = (platform.system(), platform.machine())
-            require(host in TOOLS['trivy'] and TOOLS['trivy'][host]['version'] == '0.76.1')
+            require(host in {('Linux', 'x86_64'), ('Darwin', 'arm64')}
+                and host in TOOLS['trivy'] and TOOLS['trivy'][host]['version'] == '0.76.1')
             trivy = install_tool('trivy', state)
             executable = file_identity(trivy, MAX_EXECUTABLE)
             frozen[trivy] = (MAX_EXECUTABLE, executable)

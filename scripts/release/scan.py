@@ -28,6 +28,7 @@ TOOLS = {
     },
     'trivy': {
         ('Linux', 'x86_64'): {'version': '0.76.1', 'url': 'https://github.com/aquasecurity/trivy/releases/download/v0.76.1/trivy_0.76.1_Linux-64bit.tar.gz', 'sha256': 'c7cbe3137fb8a48a17574bede3dd6beb16742d1e9772929940fc90082c39d9c0'},
+        ('Linux', 'aarch64'): {'version': '0.76.1', 'url': 'https://github.com/aquasecurity/trivy/releases/download/v0.76.1/trivy_0.76.1_Linux-ARM64.tar.gz', 'sha256': 'e174dff2a6dba5e3ae41f8d0537a6324405bd08132497340304c6b20e0f16a1f'},
         ('Darwin', 'arm64'): {'version': '0.76.1', 'url': 'https://github.com/aquasecurity/trivy/releases/download/v0.76.1/trivy_0.76.1_macOS-ARM64.tar.gz', 'sha256': '11a9b6cd2752011b54f01ea4bd0dbfa9f0c41dc6538d5a3f9d23955f471bf4e5'},
     },
 }

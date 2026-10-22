@@ -2,6 +2,7 @@
 import copy
 import contextlib
 import importlib.util
+import inspect
 import io
 import json
 import os
@@ -71,6 +72,48 @@ class RuntimeInventoryTests(unittest.TestCase):
         spec = importlib.util.spec_from_file_location('java_native_inventory', SCRIPT)
         cls.m = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(cls.m)
+
+    def closure_fixture(self):
+        spec = importlib.util.spec_from_file_location('dependency_test_fixture', Path(__file__).with_name('test_java_runtime_dependencies.py'))
+        module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
+        return module.DependencyClosureTests().fixture()
+
+    def test_explicit_dependency_closure_reads_fixed_owned_files_and_binds_schema3(self):
+        self.assertIn('dependency_closure', inspect.signature(self.m.inspect_runtime).parameters)
+        _, _, _, protocol, packages = self.closure_fixture()
+        fake = self.fake(missing=False)
+        def call(command, **kwargs):
+            if command[3] == 'exec' and 'CLOSURE' in command[-1]: return protocol
+            if command[3] == 'exec' and command[-1] == self.m.INVENTORY_SCRIPT:
+                raw = inventory(missing=False).replace('2.39-0ubuntu8.6', '2.41-12+deb13u4')
+                extra = ''.join('PACKAGE\t{name}\t{version}\t{architecture}\tinstalled\n'.format(**row) for row in packages[:-1])
+                return raw.replace('FILE\trelease', extra + 'FILE\trelease', 1)
+            return fake(command, **kwargs)
+        with tempfile.TemporaryDirectory() as directory, patch.object(self.m, 'bounded_command', side_effect=call):
+            result = self.m.inspect_runtime(self.image, 'linux/amd64', Path(directory).resolve()/'out', dependency_closure=True)
+        self.assertEqual(result['schema'], 3)
+        self.assertTrue(result['inventory_complete'])
+        self.assertTrue(result['dependency_closure']['verified'])
+        self.assertTrue(result['checks']['dependency_closure_verified'])
+        self.assertTrue(result['cleanup']); self.assertTrue(fake.removed)
+        for flag in ('release_ready', 'native_binary_coverage', 'coverage_complete'): self.assertFalse(result[flag])
+
+    def test_requested_missing_or_invalid_closure_cannot_complete_and_still_cleans(self):
+        self.assertIn('dependency_closure', inspect.signature(self.m.inspect_runtime).parameters)
+        for failure in (ValueError('SECRET'), 'SECRET malformed\n'):
+            fake = self.fake(missing=False)
+            def call(command, **kwargs):
+                if command[3] == 'exec' and 'CLOSURE' in command[-1]:
+                    if isinstance(failure, Exception): raise failure
+                    return failure
+                return fake(command, **kwargs)
+            with tempfile.TemporaryDirectory() as directory, patch.object(self.m, 'bounded_command', side_effect=call):
+                result = self.m.inspect_runtime(self.image, 'linux/amd64', Path(directory).resolve()/'out', dependency_closure=True)
+            self.assertEqual(result['schema'], 3)
+            self.assertFalse(result['inventory_complete']); self.assertFalse(result['native_checks_passed'])
+            self.assertIsNone(result['dependency_closure'])
+            self.assertTrue(result['cleanup']); self.assertTrue(fake.removed)
+            self.assertNotIn('SECRET', json.dumps(result))
 
     def test_feature_protocol_preserves_measured_font_failure_and_all_attempted_checks(self):
         result = self.m.parse_features(feature_protocol(failed=('headless_font',)))

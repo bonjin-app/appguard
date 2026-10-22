@@ -345,3 +345,69 @@ object is retained as partial diagnostics. It still makes the inventory incomple
 returns CLI exit2 and cannot approve runtime compatibility. Unknown exit statuses,
 malformed output and any exit2 success claim remain rejected. This preserves a
 valid failed-check record without reclassifying JVM/resource failures as complete.
+
+
+## Signed Debian dependency comparison (diagnostic)
+
+The additional `debian-closure` target in
+`scripts/qualification/java-runtime-probe.Dockerfile` keeps the whole pinned vendor
+JRE and adds the measured native-library and font providers. It does not replace
+`deploy/spring-ingress/Dockerfile.backend` or change a production image.
+
+The dependency lock fixes the past UTC snapshot `20261022T200000Z` for both Debian
+`trixie` and `trixie-security`, their InRelease SHA-256 values, and each supported
+architecture's direct package versions and archive hashes. APT must verify the
+signed metadata with the pinned base image's Debian archive keyring. The installer
+checks both InRelease hashes before installation, verifies downloaded package
+identities and direct archive hashes, then installs without downloading more
+archives. It records downloaded archive and installed package manifests and keeps
+package copyright and dpkg metadata. Historical-source expiry handling does not
+disable signature verification. Local parser tests do not establish successful
+APT signature verification, dependency resolution or installation on Linux.
+
+On a native Linux amd64 or arm64 host, build the diagnostic targets, resolve their
+exact local image IDs, and use fresh private output directories. For the closure
+image, selected feature and dependency evidence can be collected with:
+
+```sh
+python3 scripts/qualification/inspect_java_runtime.py \
+  --image sha256:<exact-local-image-id> --platform linux/arm64 \
+  --docker-context default --features --dependency-closure \
+  --output /new/private/native-closure
+```
+
+This explicit dependency flag selects schema3 and requires the fixed installation
+manifests. Missing, contradictory or mismatched evidence makes collection
+incomplete. Default schema1 and feature-only schema2 remain available.
+
+The separate image comparison uses one pinned scanner and frozen database session
+for both exact image IDs:
+
+```sh
+python3 scripts/qualification/scan_diagnostic_images.py \
+  --image sha256:<exact-baseline-image-id> \
+  --image sha256:<exact-closure-image-id> --platform linux/arm64 \
+  --docker-context default --output /new/private/image-comparison
+```
+
+The paired CI jobs run native checks against these same image IDs and bind the
+native and scanner reports by their hashes, image IDs and platform. The comparison
+also requires valid, equal whole-JRE tree digests. Results from a separate rebuild
+cannot substitute for these reports. Scanner operation never
+executes an image's binaries. Raw scanner output stays private; the diagnostic
+artifact contains bounded fixed-schema measurements and every projected finding
+occurrence, with truncation or inconsistent evidence treated as incomplete.
+
+A separate metadata-only Debian13 calibration fixture declares a known vulnerable
+OpenSSL version and requires the expected Debian advisory and fixed version from
+the same scanner/database session. It is a scanner control, not an installed
+runtime or application. Its finding count must never be reported as a runtime
+finding count. A passing control establishes the selected Debian feed behavior;
+it does not establish every advisory, Ubuntu feed coverage or equivalent vendor
+severity policies. An uncalibrated zero cannot establish a clean image.
+
+These commands and CI jobs remain diagnostic. Native/linkage/feature failures,
+unverified calibration and every unsuppressed target finding remain visible.
+Release, complete dependency/native coverage, legal approval and external audit
+flags remain false. Actual Linux installation, native behavior and scan results
+must be checked from the exact candidate's retained CI artifacts.

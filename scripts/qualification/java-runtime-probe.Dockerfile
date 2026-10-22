@@ -28,3 +28,12 @@ RUN set -eu; \
     ldconfig
 USER 10001:10001
 ENTRYPOINT ["/opt/java/openjdk/bin/java"]
+
+# A separate measured dependency addition; the incomplete comparison above is
+# retained. Preserve every vendor JRE byte, installed package record and notice.
+FROM debian-probe AS debian-closure
+USER 0:0
+COPY scripts/qualification/java-runtime-dependencies.lock /usr/share/appguard-java-runtime/dependencies.lock
+COPY scripts/qualification/install_java_runtime_dependencies.sh /usr/local/libexec/appguard-install-java-runtime-dependencies
+RUN timeout 600 /bin/sh /usr/local/libexec/appguard-install-java-runtime-dependencies install && ldconfig
+USER 10001:10001

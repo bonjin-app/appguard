@@ -20,6 +20,7 @@ import time
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from spring_containers import bounded_command, cancellation_scope, validate_local_context
 from scan_container_images import Publication, _json, _path
+from java_runtime_dependencies import CLOSURE_SCRIPT, parse_closure, read_lock
 
 ROOT = '/opt/java/openjdk'
 SCOPE = 'java-runtime-inventory-v1'
@@ -370,15 +371,15 @@ def validate_container(record, image, owner):
     return record['Id']
 
 
-def inspect_runtime(image, platform, output, docker_context='default', features=False):
+def inspect_runtime(image, platform, output, docker_context='default', features=False, dependency_closure=False):
     require(type(image) is str and IMAGE.fullmatch(image) and platform in ('linux/amd64', 'linux/arm64') and docker_context == 'default')
-    require(type(features) is bool)
+    require(type(features) is bool and type(dependency_closure) is bool)
     output = _path(output, new=True)
     parent = output.parent.stat()
     require(parent.st_uid == os.getuid() and not parent.st_mode & 0o022)
     architecture = platform.split('/')[1]
     owner = secrets.token_hex(16); name = 'appguard-java-audit-' + owner
-    report = dict(schema=2 if features else 1, evidence_class='owned_java_runtime_inventory', image_id=image, platform=platform,
+    report = dict(schema=3 if dependency_closure else 2 if features else 1, evidence_class='owned_java_runtime_inventory', image_id=image, platform=platform,
         inventory_complete=False, native_checks_passed=False, cleanup=False, release_ready=False,
         native_binary_coverage=False, coverage_complete=False, reason='inventory_unverified',
         limitations=['ldd resolves declared loader dependencies, not every dlopen/JNI path or native vulnerability',
@@ -386,6 +387,7 @@ def inspect_runtime(image, platform, output, docker_context='default', features=
             'whole JRE byte identity does not prove Java features or license completeness',
             'no external approval, production or physical-hardware evidence'])
     if features: report['features'] = None
+    if dependency_closure: report['dependency_closure'] = None
     with Publication(output) as publication, tempfile.TemporaryDirectory(prefix='appguard-java-audit-') as temporary:
         state = Path(temporary).resolve(); state.chmod(0o700)
         home = state/'home'; home.mkdir(mode=0o700)
@@ -444,6 +446,10 @@ def inspect_runtime(image, platform, output, docker_context='default', features=
                         row = by_hash[dependency['path_sha256']]
                         dependency.update(sha256=row['sha256'], providers=row['providers'])
             report['checks']['native_providers_verified'] = all(row['provider_verified'] for row in providers.values())
+            if dependency_closure:
+                report['dependency_closure'] = parse_closure(call([*prefix, CLOSURE_SCRIPT], timeout=30),
+                    read_lock(), architecture, report['packages'])
+                report['checks']['dependency_closure_verified'] = report['dependency_closure']['verified']
             if features:
                 report['features'] = parse_features(call(['exec', identifier, '/bin/sh', '-c', FEATURE_SCRIPT], timeout=120))
                 # Retain strictly validated partial diagnostics, but an unverified
@@ -491,9 +497,11 @@ def main(argv=None):
     parser.add_argument('--docker-context', choices=('default',), default='default')
     parser.add_argument('--output', required=True)
     parser.add_argument('--features', action='store_true', help='Run baked-in Java feature probe in diagnostic images')
+    parser.add_argument('--dependency-closure', action='store_true', help='Require fixed-snapshot dependency evidence in diagnostic image')
     try:
         args = parser.parse_args(argv)
-        with cancellation_scope(): result = inspect_runtime(args.image, args.platform, args.output, args.docker_context, features=args.features)
+        with cancellation_scope(): result = inspect_runtime(args.image, args.platform, args.output, args.docker_context,
+            features=args.features, dependency_closure=args.dependency_closure)
         print(json.dumps({key: result[key] for key in ('inventory_complete', 'native_checks_passed', 'cleanup', 'reason')}, sort_keys=True))
         return 0 if result['native_checks_passed'] else 1 if result['inventory_complete'] and result['cleanup'] else 2
     except (Exception, KeyboardInterrupt):
