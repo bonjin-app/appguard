@@ -1,8 +1,10 @@
 # AppGuard
 
+[English](README.md) | [한국어](README.ko.md) | [日本語](README.ja.md) | [简体中文](README.zh-CN.md)
+
 Framework-independent, self-hostable app security. Apache-2.0 licensed.
 
-**Status: experimental client/server SDKs and Build/CLI implemented locally.** There are no published SDKs or production security claims. Android/iOS signing interoperates with Spring Boot, Python, Node.js, ASP.NET Core, Go and PHP using one draft protocol. Framework bridges package the native signing boundary; Python additionally provides explicit local enrollment and optional experimental Apple/Google verification backends. See the [approved design](docs/superpowers/specs/2026-10-20-appguard-foundation-design.md) and the [server](docs/security/server-sdk-verification.md), [native](docs/security/mobile-foundation-verification.md), [bridge/Build](docs/security/client-bridges-build-verification.md), [extended server](docs/security/extended-server-verification.md) and [provider](docs/security/provider-verification.md) evidence boundaries.
+**Status: experimental client/server SDKs and Build/CLI implemented locally.** No SDK packages have been published to package registries, and no production security claims are made. Android/iOS signing interoperates with Spring Boot, Python, Node.js, ASP.NET Core, Go and PHP using one draft protocol. Framework bridges package the native signing boundary; Python additionally provides explicit local enrollment and optional experimental Apple/Google verification backends. See the [approved design](docs/superpowers/specs/2026-10-20-appguard-foundation-design.md) and the [server](docs/security/server-sdk-verification.md), [native](docs/security/mobile-foundation-verification.md), [bridge/Build](docs/security/client-bridges-build-verification.md), [extended server](docs/security/extended-server-verification.md) and [provider](docs/security/provider-verification.md) evidence boundaries.
 
 See the [completed local milestone and remaining roadmap](docs/security/local-milestone-verification.md) and [subsequent boundary hardening](docs/security/hardening-verification.md) for verification, fixes and explicit deferred scope.
 
@@ -11,6 +13,289 @@ Android/iOS tamper, root and hook hints with explicit unavailable states. These
 observations supplement server checks; they do not establish device integrity.
 The [framework risk bridge stage](docs/security/risk-bridges-verification.md) exposes
 the same reports through Unity, Expo/React Native and Flutter async APIs.
+
+<a id="installation"></a>
+## Installation
+
+Packages are **experimental and not published to npm, PyPI, Maven Central,
+NuGet, Packagist or pub.dev**. Build/install from this checkout; the versions
+below are local artifact identities, not registry releases. Choose the SDKs you
+need. Installing a client SDK does not install a server integration automatically.
+
+The shell examples use macOS/Linux syntax. Install each selected platform's
+normal toolchain first, activate your Python virtual environment when using pip,
+and replace `/path/to/...` and `/absolute/path/to/...` with your own paths.
+Android/iOS builds require their SDKs; iOS builds require macOS and Xcode.
+
+```sh
+git clone https://github.com/bonjin-app/appguard.git
+cd appguard
+export APPGUARD_REPO="$PWD"
+umask 077
+export APPGUARD_PACKAGES="$(mktemp -d)"
+```
+
+| Component | Requirements | Install guide |
+| --- | --- | --- |
+| Spring Boot | Java 17, Maven; Boot 3.5 Servlet/MVC | [Starter](#install-spring) |
+| Python | Python 3.11+; FastAPI, Django ASGI or Flask through ASGI | [Python SDK](#install-python) |
+| Node.js | Node 22+; ESM; Express, Fastify or NestJS/Express | [Node SDK](#install-node) |
+| ASP.NET Core | .NET SDK 10.0.402 / ASP.NET Core 10 | [.NET SDK](#install-dotnet) |
+| Go | Go 1.26+; `net/http` | [Go module](#install-go) |
+| PHP | 64-bit PHP 8.2+, OpenSSL/hash/JSON, Composer | [PHP SDK](#install-php) |
+| Android | Java 17, Android SDK 36/build-tools 35.0.0; app API 26+ | [Android AAR](#install-android) |
+| Apple | SwiftPM; iOS 15+ / macOS 13+ | [Apple package](#install-apple) |
+| Unity | Unity 6000; Android 26+ / iOS 15+ | [Staged UPM package](#install-unity) |
+| Expo / React Native | Expo SDK 58 + Expo Modules; Node 22.13+; Android 26+ / iOS 16.4+ | [Native npm package](#install-expo) |
+| Flutter | Flutter 3.27+, Dart >=3.6 and <4.0; Android 26+ / iOS 15+ | [Staged Flutter plugin](#install-flutter) |
+| Build / CLI | Node 22+ and the selected app's build tools | [CLI](#install-cli) |
+
+<a id="install-spring"></a>
+### Spring Boot
+
+Build and install the starter into your local Maven repository:
+
+```sh
+mvn -f "$APPGUARD_REPO/sdk/spring-boot/pom.xml" install
+```
+
+Add this dependency to your application's `pom.xml`:
+
+```xml
+<dependency>
+  <groupId>io.appguard</groupId>
+  <artifactId>appguard-spring-boot-starter</artifactId>
+  <version>0.1.0-SNAPSHOT</version>
+</dependency>
+```
+
+For Gradle Kotlin DSL, use the local Maven repository:
+
+```kotlin
+repositories { mavenLocal(); mavenCentral() }
+dependencies { implementation("io.appguard:appguard-spring-boot-starter:0.1.0-SNAPSHOT") }
+```
+
+Enable AppGuard and supply your application's `IdentityResolver` and `ReplayStore`
+beans. Authentication and authorization remain application responsibilities.
+See [Spring Boot configuration](sdk/spring-boot/README.md). The live Redis test
+is skipped unless a dedicated disposable `APPGUARD_REDIS_URL` is supplied.
+
+<a id="install-python"></a>
+### Python — FastAPI, Django and Flask
+
+In your application's virtual environment, choose the matching extras:
+
+```sh
+python3 -m pip install "$APPGUARD_REPO/sdk/python[fastapi,redis]"
+python3 -m pip install "$APPGUARD_REPO/sdk/python[django,redis]"
+python3 -m pip install "$APPGUARD_REPO/sdk/python[flask,redis]"
+```
+
+Use `appguard.fastapi.AppGuardMiddleware`,
+`appguard.django.protect_django`, or `appguard.flask.protect_flask` as appropriate.
+Django uses its ASGI app; Flask must run through the supplied ASGI bridge rather
+than plain WSGI. Supply trusted authentication/key lookup, replay storage and raw
+request evidence. See [Python integration](sdk/python/README.md).
+
+<a id="install-node"></a>
+### Node.js — Express, Fastify and NestJS
+
+```sh
+npm pack "$APPGUARD_REPO/sdk/node" --ignore-scripts --pack-destination "$APPGUARD_PACKAGES"
+cd /path/to/node-app
+npm install "$APPGUARD_PACKAGES/appguard-server-0.0.0-experimental.0.tgz"
+```
+
+Import `expressMiddleware`, `installFastify`, or `nestMiddleware` from
+`@appguard/server`. Supply your own framework, authenticator, enrolled-key lookup
+and replay store. ESM is supported; CommonJS `require` is not. NestJS uses its
+Express platform. See [Node integration and install order](sdk/node/README.md).
+
+<a id="install-dotnet"></a>
+### .NET / ASP.NET Core
+
+```sh
+(cd "$APPGUARD_REPO/sdk/dotnet" && ./scripts/verify.sh)
+cd /path/to/dotnet-app
+dotnet add package AppGuard.Experimental --version 0.0.0-experimental.1 \
+  --source "$APPGUARD_REPO/sdk/dotnet/artifacts"
+```
+
+The package targets .NET 10. Provide trusted original-header capture through
+`IAppGuardRawHeadersFeature`, authentication, key lookup and a replay store.
+Parsed Kestrel headers alone are insufficient. See [ASP.NET Core integration](sdk/dotnet/README.md).
+
+<a id="install-go"></a>
+### Go
+
+In an existing Go module, use a local replacement:
+
+```sh
+cd /path/to/go-app
+go mod edit -require=github.com/bonjin-app/appguard/sdk/go@v0.0.0
+go mod edit -replace=github.com/bonjin-app/appguard/sdk/go="$APPGUARD_REPO/sdk/go"
+```
+
+`v0.0.0` here is a local replacement placeholder, not a published version. Import
+`github.com/bonjin-app/appguard/sdk/go` in your code, then run `go mod tidy`.
+The middleware needs a trusted pre-parser `EvidenceSource`; parsed `http.Header`
+cannot reconstruct that evidence. See [Go integration](sdk/go/README.md).
+
+<a id="install-php"></a>
+### PHP
+
+```sh
+cd /path/to/php-app
+composer config repositories.appguard path "$APPGUARD_REPO/sdk/php"
+composer require "appguard/server:*@dev"
+```
+
+Load `vendor/autoload.php` and configure `AppGuard\HttpAdapter` with trusted
+raw ingress evidence, authentication/key callbacks and an atomic replay backend.
+This is a native callback adapter; Laravel/Symfony/FPM integration is not claimed.
+See [PHP integration](sdk/php/README.md).
+
+<a id="install-android"></a>
+### Android — Kotlin / Java
+
+```sh
+(cd "$APPGUARD_REPO/sdk/android" && ./gradlew --no-daemon assembleRelease)
+```
+
+Add the generated local AAR to the app's Gradle dependencies; adapt the absolute
+path to your checkout:
+
+```kotlin
+dependencies {
+    implementation(files("/absolute/path/to/appguard/sdk/android/build/outputs/aar/appguard-android-release.aar"))
+}
+```
+
+Set the app's minimum SDK to 26+. The SDK supplies Keystore-backed signing and
+optional local risk hints; it does not send HTTP requests or enroll keys for you.
+See [Android setup and key policy](sdk/android/README.md).
+
+Google Play Integrity acquisition is a separate optional module:
+
+```sh
+(cd "$APPGUARD_REPO/sdk/android-play-integrity" && ./gradlew --no-daemon assembleRelease)
+```
+
+Its AAR is `sdk/android-play-integrity/build/outputs/aar/appguard-android-play-integrity-release.aar`.
+When consuming that AAR directly, also add the official
+`com.google.android.play:integrity:1.6.0` dependency. Google project/distribution
+configuration and authenticated server verification are separate requirements.
+See [Play Integrity module](sdk/android-play-integrity/README.md).
+
+<a id="install-apple"></a>
+### iOS / macOS — Swift
+
+In Xcode, choose **File → Add Package Dependencies → Add Local**, select
+`$APPGUARD_REPO/sdk/apple`, and add the `AppGuardApple` product to your app target.
+For a Swift package, the local dependency is:
+
+```swift
+.package(path: "/absolute/path/to/appguard/sdk/apple")
+```
+
+Import `AppGuardApple`. Configure the app's signing/entitlements and authenticated
+key enrollment separately; App Attest needs matching app/environment setup.
+See [Apple SDK integration](sdk/apple/README.md).
+
+<a id="install-unity"></a>
+### Unity
+
+Stage a standalone source package, then build its native dependencies:
+
+```sh
+python3 "$APPGUARD_REPO/sdk/unity/Tools~/stage.py" --destination "$APPGUARD_PACKAGES/unity"
+(cd "$APPGUARD_PACKAGES/unity" && python3 Tools~/build-native.py --platform all)
+```
+
+Choose `--platform android` or `--platform ios` instead of `all` when appropriate.
+For Android, configure `JAVA_HOME` for Java 17 and `ANDROID_HOME` for Android
+SDK 36 with build-tools 35.0.0. For iOS, install Xcode on macOS.
+In Unity Package Manager, select **Add package from disk** and choose the staged
+`$APPGUARD_PACKAGES/unity/package.json`. Native builds are required; adding this
+repository's C# source alone is insufficient. See [Unity installation](sdk/unity/README.md).
+
+<a id="install-expo"></a>
+### Expo / React Native
+
+```sh
+npm --prefix "$APPGUARD_REPO/sdk/expo" ci --ignore-scripts
+(cd "$APPGUARD_REPO/sdk/expo" && npm pack --pack-destination "$APPGUARD_PACKAGES")
+cd /path/to/expo-app
+npx expo install "$APPGUARD_PACKAGES/appguard-expo-0.0.0-experimental.1.tgz"
+```
+
+Merge `"@appguard/expo"` into your existing `expo.plugins` list, then rebuild your
+development/native app and install iOS pods as appropriate. Packing stages native
+sources and compiles TypeScript; do not bypass its `prepack` step. React Native
+apps require Expo Modules integration. Expo Go and web are unsupported, and an
+OTA update cannot add this native module. See [Expo / React Native installation](sdk/expo/README.md).
+
+<a id="install-flutter"></a>
+### Flutter
+
+```sh
+python3 "$APPGUARD_REPO/sdk/flutter/tool/pack.py" --output "$APPGUARD_PACKAGES/appguard_flutter.tar.gz"
+mkdir "$APPGUARD_PACKAGES/flutter"
+tar -xzf "$APPGUARD_PACKAGES/appguard_flutter.tar.gz" -C "$APPGUARD_PACKAGES/flutter"
+```
+
+Merge a path dependency into the consuming app's `pubspec.yaml`, replacing the
+example path with the expanded value of `$APPGUARD_PACKAGES/flutter`:
+
+```yaml
+dependencies:
+  appguard_flutter:
+    path: /absolute/path/to/staged/flutter
+flutter:
+  config:
+    enable-swift-package-manager: false
+```
+
+Run `flutter pub get` in the app, install iOS pods where needed, and rebuild it.
+The plugin currently uses CocoaPods; the setting above selects it per project
+rather than changing global Flutter settings. Set Android minSdk 26 and iOS
+15.0+. See [Flutter installation](sdk/flutter/README.md).
+
+<a id="install-cli"></a>
+### Build / CLI
+
+Run directly from the checkout with Node 22+:
+
+```sh
+node "$APPGUARD_REPO/tools/cli/bin/appguard.js" init --project /path/to/app --app-id your-app
+node "$APPGUARD_REPO/tools/cli/bin/appguard.js" doctor --project /path/to/app --check
+node "$APPGUARD_REPO/tools/cli/bin/appguard.js" build --project /path/to/app --dry-run
+```
+
+Or install a local tarball in your project's development dependencies:
+
+```sh
+npm pack "$APPGUARD_REPO/tools/cli" --ignore-scripts --pack-destination "$APPGUARD_PACKAGES"
+cd /path/to/app
+npm install --save-dev "$APPGUARD_PACKAGES/appguard-cli-0.0.0-experimental.0.tgz"
+npx --no-install appguard --help
+```
+
+The CLI covers Android R8, Expo export, Flutter Android APK obfuscation and
+explicit encrypted mapping retention. It does not install SDKs, configure
+Apple/Google accounts or select signing credentials. iOS/Unity build adapters,
+a console and AI analytics remain outside this CLI's implemented scope.
+See [CLI commands and limits](tools/cli/README.md).
+
+### After installation
+
+Connect your existing authentication and resource authorization, enroll trusted
+public keys, preserve exact request bytes and configure a long-lived shared
+atomic replay store. Configure provider services only if you adopt those optional
+backends. Local root/hook/tamper hints and obfuscation are supporting defenses,
+not proof of device integrity. Follow each SDK's integration guide before
+protecting production traffic.
 
 ## Architecture
 
