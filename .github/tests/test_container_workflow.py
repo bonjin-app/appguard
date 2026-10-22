@@ -9,9 +9,9 @@ import unittest
 WORKFLOW = Path(__file__).resolve().parents[1] / 'workflows/container-readiness.yml'
 
 
-def qualification_script():
+def step_script(name):
     lines = WORKFLOW.read_text().splitlines()
-    start = lines.index('      - name: Build and exercise the owned container deployment')
+    start = lines.index('      - name: ' + name)
     run = next(index for index in range(start + 1, len(lines)) if lines[index] == '        run: |')
     body = []
     for line in lines[run + 1:]:
@@ -19,6 +19,10 @@ def qualification_script():
             break
         body.append(line[10:] if line else '')
     return '\n'.join(body)
+
+
+def qualification_script():
+    return step_script('Build and exercise the owned container deployment')
 
 
 class ContainerWorkflowTests(unittest.TestCase):
@@ -54,6 +58,66 @@ class ContainerWorkflowTests(unittest.TestCase):
                 self.assertEqual(arguments[position:position + 4],
                                  ['--soak-seconds', seconds, '--soak-concurrency', concurrency])
                 self.assertEqual(arguments[:5], ['run', '--frozen', '--project', 'sdk/python', 'python'])
+
+    def test_fixed_artifact_layout_and_step_order(self):
+        text=WORKFLOW.read_text()
+        names=[line.split('name: ',1)[1] for line in text.splitlines() if line.startswith('      - name: ')]
+        self.assertEqual(names,['Checkout exact candidate','Set up Python 3.11','Set up pinned uv 0.13.4',
+            'Set up Temurin 17','Frozen tooling and focused container safety tests',
+            'Build and exercise the owned container deployment','Scan the exact runtime images without suppressions',
+            'Prepare fixed-schema container evidence','Retain fixed-schema operating and image status only'])
+        self.assertIn('python3 .github/tests/test_container_evidence_binding.py -v',text)
+        upload=text.split('      - name: Retain fixed-schema operating and image status only',1)[1]
+        self.assertIn("if: always() && steps.container_evidence.outcome == 'success'",upload)
+        self.assertIn('name: owned-container-readiness-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}',upload)
+        paths=upload.split('          path: |\n',1)[1].split('          if-no-files-found:',1)[0]
+        self.assertEqual(paths.splitlines(),[
+            '            ${{ runner.temp }}/appguard-private-container-evidence/bound/'+name
+            for name in ('receipt.json','image-status.json','binding.json')])
+        self.assertIn('if-no-files-found: error',upload)
+        self.assertNotIn('/status.json',upload)
+        stage=text.split('      - name: Prepare fixed-schema container evidence',1)[1].split('      - name:',1)[0]
+        self.assertIn('if: always()',stage)
+        self.assertIn('id: container_evidence',stage)
+        self.assertNotIn('${{',step_script('Prepare fixed-schema container evidence'))
+
+    def test_stage_quotes_metadata_and_propagates_failure(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root=Path(temporary).resolve(); marker=root/'arguments'
+            command=root/'python3'
+            command.write_text('#!/bin/sh\nprintf "%s\\n" "$@" > "$ARGV_MARKER"\nexit 17\n')
+            command.chmod(0o755)
+            env=dict(os.environ,PATH=str(root)+os.pathsep+os.environ['PATH'],RUNNER_TEMP=str(root),ARGV_MARKER=str(marker),
+                APPGUARD_REPOSITORY='bonjin-app/appguard',APPGUARD_COMMIT='a'*40,APPGUARD_RUN_ID='123',
+                APPGUARD_RUN_ATTEMPT='1',APPGUARD_EVENT='pull_request',APPGUARD_HEAD_BRANCH='branch; $(exit 0)',
+                APPGUARD_WORKFLOW_PATH='.github/workflows/container-readiness.yml')
+            result=subprocess.run(['bash','-euo','pipefail','-c',step_script('Prepare fixed-schema container evidence')],
+                env=env,capture_output=True,timeout=10)
+            self.assertEqual(result.returncode,17)
+            args=marker.read_text().splitlines()
+            self.assertEqual(args[args.index('--head-branch')+1],'branch; $(exit 0)')
+            self.assertEqual(args[args.index('--output')+1],str(root/'appguard-private-container-evidence/bound'))
+            self.assertEqual((root/'appguard-private-container-evidence').stat().st_mode & 0o777,0o700)
+
+    def test_preexisting_private_parent_stops_before_producer(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root=Path(temporary).resolve(); marker=root/'called'
+            parent=root/'appguard-private-container-evidence'; parent.mkdir()
+            sentinel=parent/'keep'; sentinel.write_text('preserved')
+            command=root/'python3'; command.write_text('#!/bin/sh\ntouch "$ARGV_MARKER"\n')
+            command.chmod(0o755)
+            env=dict(os.environ,PATH=str(root)+os.pathsep+os.environ['PATH'],RUNNER_TEMP=str(root),ARGV_MARKER=str(marker),
+                APPGUARD_REPOSITORY='bonjin-app/appguard',APPGUARD_COMMIT='a'*40,APPGUARD_RUN_ID='123',
+                APPGUARD_RUN_ATTEMPT='1',APPGUARD_EVENT='push',APPGUARD_HEAD_BRANCH='main',
+                APPGUARD_WORKFLOW_PATH='.github/workflows/container-readiness.yml')
+            script=step_script('Prepare fixed-schema container evidence')
+            self.assertIn('mkdir -m 700 "$RUNNER_TEMP/appguard-private-container-evidence"',script)
+            result=subprocess.run(['bash','-euo','pipefail','-c',script],env=env,capture_output=True,timeout=10)
+            self.assertNotEqual(result.returncode,0)
+            self.assertFalse(marker.exists())
+            self.assertEqual(sentinel.read_text(),'preserved')
+            upload=WORKFLOW.read_text().split('      - name: Retain fixed-schema operating and image status only',1)[1]
+            self.assertIn("if: always() && steps.container_evidence.outcome == 'success'",upload)
 
 
 if __name__ == '__main__':

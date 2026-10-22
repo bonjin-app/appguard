@@ -23,6 +23,34 @@ CHECKS = ('signed_fidelity', 'replay_rejected', 'backend_bypass_rejected',
 
 
 class AssessmentTests(unittest.TestCase):
+    def test_actual_container_verifier_through_assessor_accepts_sustained_and_denies_short(self):
+        import assess
+        import functools
+        import verify_container
+        import test_verify_container as container_fixture
+        for seconds, expected in ((1800, 'pass'), (30, 'blocked')):
+            with self.subTest(seconds=seconds):
+                helper = container_fixture.ContainerTests()
+                helper.setUp()
+                self.addCleanup(helper.doCleanups)
+                other = helper.base / 'scan-fixture'
+                other.mkdir()
+                _, scans = self.fixture(other)
+                if seconds == 30:
+                    op = helper.receipt['operational']
+                    op['requested_seconds'] = seconds
+                    op['soak'].update(requested_seconds=seconds, elapsed_seconds=30.1, requests_per_second=20 / 30.1)
+                    op['resources']['samples'] = 8
+                    helper.seal()
+                actual = functools.partial(verify_container.verify_container, fetch=helper.fetch, now=container_fixture.NOW)
+                with patch.object(verify_container, 'verify_container', side_effect=actual):
+                    report = assess.assess(helper.candidate, scans, helper.base / 'assessment', COMMIT,
+                                          container_run_id=42, container_artifact=helper.archive)
+                self.assertEqual(self.gate(report, 'owned_container_ci')['state'], expected)
+                self.assertFalse(report['release_ready'])
+                self.assertEqual(self.gate(report, 'consumer_container_graph')['state'], 'pending_external')
+                self.assertEqual(self.gate(report, 'external_security_audit')['state'], 'pending_external')
+
     def test_actual_hosted_verifier_accepts_preserved_source_modes_through_assessor(self):
         import assess
         import verify_hosted
@@ -83,11 +111,13 @@ class AssessmentTests(unittest.TestCase):
     def test_hosted_failure_wrong_candidate_and_late_mutation_cannot_pass(self):
         import assess
         import verify_hosted
-        for mode in ('failed', 'wrong_commit', 'wrong_manifest', 'mutation'):
+        for mode in ('failed', 'wrong_commit', 'wrong_manifest', 'mutation',
+                     'missing_report', 'contradictory_report', 'private_exception'):
             with self.subTest(mode=mode), tempfile.TemporaryDirectory() as temporary:
                 base = Path(temporary).resolve()
                 candidate, scans = self.fixture(base)
                 def failed(source, commit, repository, run, output):
+                    if mode == 'private_exception': raise RuntimeError(MARKER)
                     output.mkdir()
                     report = {'technical_gate_verified': mode != 'failed', 'candidate_commit': COMMIT,
                         'sha256': {'candidate_manifest': hashlib.sha256((source / 'manifest.json').read_bytes()).hexdigest(),
@@ -95,12 +125,112 @@ class AssessmentTests(unittest.TestCase):
                     if mode == 'wrong_commit': report['candidate_commit'] = 'b' * 40
                     if mode == 'wrong_manifest': report['sha256']['candidate_manifest'] = 'c' * 64
                     if mode == 'mutation': (candidate / 'source/docs/input.txt').write_bytes(b'mutated')
-                    (output / 'hosted.json').write_text(json.dumps(report))
+                    if mode != 'missing_report':
+                        persisted = dict(report)
+                        if mode == 'contradictory_report': persisted['technical_gate_verified'] = False
+                        (output / 'hosted.json').write_text(json.dumps(persisted))
                     return report
                 with patch.object(verify_hosted, 'verify_hosted', side_effect=failed):
                     report = assess.assess(candidate, scans, base / 'assessment', COMMIT, hosted_run_id=123)
                 self.assertEqual(self.gate(report, 'hosted_ci')['state'], 'blocked')
                 self.assertFalse(report['release_ready'])
+
+    def test_container_gate_binds_live_verifier_result_and_preserves_other_gates(self):
+        import assess
+        import types
+        verifier_module = types.ModuleType('verify_container')
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary).resolve()
+            candidate, scans = self.fixture(base)
+            artifact = base / 'untrusted.zip'
+            artifact.write_bytes(b'untrusted artifact bytes')
+            def verified(source, commit, run, zip_path, output):
+                self.assertEqual(run, 456)
+                self.assertEqual(zip_path, artifact)
+                output.mkdir()
+                result = {'technical_gate_verified': True, 'artifact_verified': True,
+                    'candidate_commit': commit, 'run_id': run,
+                    'sha256': {'candidate_manifest': hashlib.sha256((source / 'manifest.json').read_bytes()).hexdigest(),
+                        'source_archive': hashlib.sha256((source / 'source.tar.gz').read_bytes()).hexdigest(),
+                        'artifact_zip': hashlib.sha256(zip_path.read_bytes()).hexdigest()}}
+                (output / 'container.json').write_text(json.dumps(result))
+                return result
+            verifier_module.verify_container = verified
+            with patch.dict(sys.modules, {'verify_container': verifier_module}):
+                report = assess.assess(candidate, scans, base / 'assessment', COMMIT,
+                                      container_run_id=456, container_artifact=artifact)
+            self.assertEqual(self.gate(report, 'owned_container_ci')['state'], 'pass')
+            self.assertFalse(report['release_ready'])
+            for gate in ('consumer_container_graph', 'deployment_ingress', 'external_security_audit',
+                         'license_notice_approval', 'release_publication_approval'):
+                self.assertEqual(self.gate(report, gate)['state'], 'pending_external')
+            self.assertIn('container_verification', report['sha256'])
+
+    def test_container_failure_mismatch_and_late_input_changes_cannot_pass(self):
+        import assess
+        import types
+        for mode in ('denied', 'artifact_denied', 'wrong_commit', 'wrong_run', 'wrong_manifest',
+                     'wrong_archive', 'wrong_zip', 'zip_mutation', 'candidate_mutation', 'scan_mutation',
+                     'missing_report', 'contradictory_report', 'private_exception'):
+            with self.subTest(mode=mode), tempfile.TemporaryDirectory() as temporary:
+                base = Path(temporary).resolve()
+                candidate, scans = self.fixture(base)
+                artifact = base / 'untrusted.zip'
+                artifact.write_bytes(b'untrusted artifact bytes')
+                verifier_module = types.ModuleType('verify_container')
+                def failed(source, commit, run, zip_path, output):
+                    if mode == 'private_exception': raise RuntimeError(MARKER)
+                    output.mkdir()
+                    result = {'technical_gate_verified': mode != 'denied', 'artifact_verified': mode != 'artifact_denied',
+                        'candidate_commit': commit, 'run_id': run,
+                        'sha256': {'candidate_manifest': hashlib.sha256((source / 'manifest.json').read_bytes()).hexdigest(),
+                            'source_archive': hashlib.sha256((source / 'source.tar.gz').read_bytes()).hexdigest(),
+                            'artifact_zip': hashlib.sha256(zip_path.read_bytes()).hexdigest()}}
+                    if mode == 'wrong_commit': result['candidate_commit'] = 'b' * 40
+                    if mode == 'wrong_run': result['run_id'] = 457
+                    for kind in ('manifest', 'archive', 'zip'):
+                        if mode == 'wrong_' + kind:
+                            result['sha256'][{'manifest': 'candidate_manifest', 'archive': 'source_archive', 'zip': 'artifact_zip'}[kind]] = 'c' * 64
+                    if mode == 'zip_mutation': artifact.write_bytes(b'mutated')
+                    if mode == 'candidate_mutation': (candidate / 'source/docs/input.txt').write_bytes(b'mutated')
+                    if mode == 'scan_mutation': (scans / 'status.json').write_text('{}')
+                    if mode != 'missing_report':
+                        persisted = dict(result)
+                        if mode == 'contradictory_report': persisted['technical_gate_verified'] = False
+                        (output / 'container.json').write_text(json.dumps(persisted))
+                    return result
+                verifier_module.verify_container = failed
+                with patch.dict(sys.modules, {'verify_container': verifier_module}):
+                    report = assess.assess(candidate, scans, base / 'assessment', COMMIT,
+                                          container_run_id=456, container_artifact=artifact)
+                self.assertEqual(self.gate(report, 'owned_container_ci')['state'], 'blocked')
+                self.assertFalse(report['release_ready'])
+                self.assertNotIn(MARKER, json.dumps(report))
+
+    def test_container_arguments_are_paired_and_typed(self):
+        import assess
+        for kwargs in ({'container_run_id': 456}, {'container_artifact': Path('/absent')},
+                       {'container_run_id': True, 'container_artifact': Path('/absent')},
+                       {'container_run_id': 0, 'container_artifact': Path('/absent')}):
+            with self.subTest(kwargs=kwargs), tempfile.TemporaryDirectory() as temporary:
+                base = Path(temporary).resolve()
+                candidate, scans = self.fixture(base)
+                with self.assertRaises(assess.AssessmentError):
+                    assess.assess(candidate, scans, base / 'assessment', COMMIT, **kwargs)
+                self.assertFalse((base / 'assessment').exists())
+
+    def test_container_cli_requires_pair_without_leaking_paths(self):
+        for extra in (('--container-run-id', '456'), ('--container-artifact', MARKER)):
+            with self.subTest(extra=extra), tempfile.TemporaryDirectory() as temporary:
+                base = Path(temporary).resolve()
+                candidate, scans = self.fixture(base)
+                result = subprocess.run([sys.executable, str(SCRIPT), '--candidate', str(candidate),
+                    '--scans', str(scans), '--output', str(base / 'assessment'), '--expected-commit', COMMIT,
+                    *extra], capture_output=True, text=True, timeout=10)
+                self.assertEqual(result.returncode, 1)
+                self.assertNotIn(MARKER, result.stdout + result.stderr)
+                self.assertNotIn(str(base), result.stdout + result.stderr)
+                self.assertFalse((base / 'assessment').exists())
 
     def fixture(self, base):
         helper = publication_fixture.PublicationTests()

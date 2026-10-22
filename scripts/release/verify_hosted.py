@@ -54,8 +54,9 @@ API_PREFIX = '/repos/' + REPOSITORY + '/'
 # https://docs.github.com/en/rest/git/trees#get-a-tree
 _SHA1 = re.compile(r'[0-9a-f]{40}\Z')
 _ENDPOINT = re.compile(
-    re.escape(API_PREFIX) + r'(?:actions/runs(?:/[1-9][0-9]*(?:/attempts/[1-9][0-9]*(?:/jobs)?)?)?'
-    r'|contents/\.github/workflows/verify\.yml|git/(?:commits|trees)/[0-9a-f]{40})(?:\?[a-z0-9_=&]+)?\Z')
+    re.escape(API_PREFIX) + r'(?:actions/runs(?:/[1-9][0-9]*(?:/attempts/[1-9][0-9]*(?:/jobs)?|/artifacts)?)?'
+    r'|actions/artifacts/[1-9][0-9]*|contents/\.github/workflows/(?:verify|container-readiness)\.yml'
+    r'|git/(?:commits|trees)/[0-9a-f]{40})(?:\?[a-z0-9_=&]+)?\Z')
 
 
 class HostedError(ValueError):

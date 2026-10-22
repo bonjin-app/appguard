@@ -156,6 +156,67 @@ gate can pass from its result; scans, external approvals and deployment gates
 remain independent. Original input identities/hashes are checked again after
 networking. External approvals are not inferred from the result.
 
+### Owned container artifact verification
+
+The separate container verifier accepts a local artifact ZIP as **untrusted
+bytes**. Live public GitHub metadata must authenticate its exact digest, size,
+run, repository and candidate before any receipt can affect readiness. It does
+not accept a saved verifier report, a token, an alternate API host or an artifact
+download URL. Download the original immutable artifact through GitHub separately;
+recompressing or editing it changes its digest and cannot pass verification.
+
+```sh
+python3 scripts/release/verify_container.py --candidate /absolute/path/to/candidate \
+  --expected-commit EXACT_COMMIT --run-id NUMERIC_CONTAINER_RUN_ID \
+  --artifact /absolute/path/to/original-artifact.zip --output /absolute/new/container
+
+python3 scripts/release/assess.py --candidate /absolute/path/to/candidate \
+  --scans /absolute/path/to/scans --expected-commit EXACT_COMMIT \
+  --hosted-run-id NUMERIC_SDK_RUN_ID \
+  --container-run-id NUMERIC_CONTAINER_RUN_ID \
+  --container-artifact /absolute/path/to/original-artifact.zip \
+  --output /absolute/new/assessment --check
+```
+
+Both assessor container arguments are required together. Missing, malformed,
+changed, expired or ambiguous evidence remains unverified. The verifier binds
+all distributed source bytes and modes, the container workflow, current run and
+attempt, required steps, the latest applicable main push or manual run, and a
+uniquely named artifact. Version 1 accepts only attempt 1: GitHub artifact
+metadata identifies its run but has no run-attempt field. Use a new run rather
+than rerunning failed jobs when collecting this evidence.
+
+The artifact contains exactly `binding.json`, `receipt.json` and
+`image-status.json` at its root. The name includes the commit, run ID and attempt.
+Only bounded fixed-schema JSON is staged; raw logs, configuration, certificates,
+request bodies and reports are not uploaded. ZIP entries are validated without
+general extraction, and receipt/source/image hashes and operating measurements
+are checked independently of self-declared success flags.
+The upload runs only after staging validation succeeds; a rejected or preexisting
+staging directory cannot be uploaded by a later unconditional cleanup step.
+Verifier output is finalized in private staging before exclusive publication;
+existing results are preserved. Cooperative cancellation rolls back owned
+output, but SIGKILL, host failure or a compromised host cannot guarantee cleanup.
+Both staging tools require an existing output parent owned by the current user
+with no group or other write permission. Use a private evidence directory;
+writing directly into a shared writable directory is rejected. These controls
+assume a trusted current-user process and operating system.
+
+The `owned_container_ci` technical gate requires at least 1800 requested and
+observed seconds with exactly eight synthetic workers, successful normal/replay
+outcomes, matching counters, resource continuity, no OOM or unintended restart,
+backend recovery with replay retention, and cleanup. A normal 30-second push
+run can provide authentic artifact observations but cannot pass this sustained
+gate. Sampled measurements do not establish continuous peaks, absence of leaks,
+long-term capacity or an operator SLA.
+
+An image-scan failure is compatible with authentic operating observations only
+when it represents validated positive vulnerability counts and all required
+functional and evidence steps succeeded. Those vulnerabilities remain blocking
+scan findings. Passing the owned operating gate never clears image findings,
+native dependency coverage, the consumer graph, actual production deployment,
+licenses or external approvals. Every result retains `release_ready: false`.
+
 ## Image scan coverage
 
 The container scanner checks exact locally built image IDs. It requires OS
