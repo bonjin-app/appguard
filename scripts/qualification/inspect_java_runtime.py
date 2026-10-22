@@ -19,8 +19,8 @@ import time
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 from spring_containers import bounded_command, cancellation_scope, validate_local_context
-from scan_container_images import Publication, _json, _path
-from java_runtime_dependencies import CLOSURE_SCRIPT, parse_closure, read_lock
+from scan_container_images import _json, _path
+from java_runtime_dependencies import CLOSURE_SCRIPT, parse_closure, read_lock, private_publication, check_private_parent
 
 ROOT = '/opt/java/openjdk'
 SCOPE = 'java-runtime-inventory-v1'
@@ -388,7 +388,7 @@ def inspect_runtime(image, platform, output, docker_context='default', features=
             'no external approval, production or physical-hardware evidence'])
     if features: report['features'] = None
     if dependency_closure: report['dependency_closure'] = None
-    with Publication(output) as publication, tempfile.TemporaryDirectory(prefix='appguard-java-audit-') as temporary:
+    with private_publication(output) as publication, tempfile.TemporaryDirectory(prefix='appguard-java-audit-') as temporary:
         state = Path(temporary).resolve(); state.chmod(0o700)
         home = state/'home'; home.mkdir(mode=0o700)
         docker_config = state/'docker'; docker_config.mkdir(mode=0o700)
@@ -482,7 +482,9 @@ def inspect_runtime(image, platform, output, docker_context='default', features=
             report.update(inventory_complete=False, native_checks_passed=False, reason='output_limit')
             raw = (json.dumps(report, indent=2, sort_keys=True, allow_nan=False) + '\n').encode()
         require(len(raw) <= MAX_REPORT)
+        check_private_parent(publication)
         publication.write('java-runtime.json', raw); publication.publish()
+        check_private_parent(publication)
     return report
 
 

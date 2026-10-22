@@ -1,5 +1,7 @@
+import contextlib
 import hashlib
 import importlib.util
+import io
 import json
 import os
 import subprocess
@@ -7,6 +9,7 @@ import tempfile
 import sys
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[2]
 MODULE = ROOT/'scripts/qualification/java_runtime_dependencies.py'
@@ -273,6 +276,72 @@ else:
             release_ready=False,external_approval=False,native_binary_coverage=False,coverage_complete=False,complete_resolved_graph=False)
         documents['diagnostic']=json.dumps(scan).encode()
         return module,lock,images,documents
+
+    def comparison_cli_fixture(self, root):
+        module, _, images, documents = self.comparison_fixture()
+        paths = dict(baseline=root/'native/baseline/java-runtime.json',
+            debian_closure=root/'native/debian-closure/java-runtime.json', diagnostic=root/'scan/diagnostic.json')
+        for role, path in paths.items():
+            path.parent.mkdir(mode=0o700, parents=True, exist_ok=True); path.write_bytes(documents[role])
+        return module, ['compare', '--input', str(root), '--output', str(root/'bound'),
+            '--baseline-image', images['baseline'], '--closure-image', images['debian_closure'], '--platform', 'linux/amd64']
+
+    @contextlib.contextmanager
+    def parent_policy_fixture(self, policy, *, deny=False):
+        publication = __import__('scan_container_images').Publication
+        original_enter, original_fstat = publication.__enter__, os.fstat
+        state = {'deny': deny}
+        def enter(value):
+            result = original_enter(value)
+            state['descriptor'] = value.parent_fd
+            return result
+        def fstat(descriptor):
+            value = original_fstat(descriptor)
+            if state['deny'] and descriptor == state.get('descriptor'):
+                fields = list(value)
+                fields[4 if policy == 'owner' else 0] = value.st_uid + 1 if policy == 'owner' else value.st_mode | 0o022
+                return os.stat_result(fields)
+            return value
+        with patch.object(publication, '__enter__', new=enter), patch.object(os, 'fstat', side_effect=fstat):
+            yield publication, state
+
+    def test_comparison_parent_descriptor_handoff_denies_before_output_writes(self):
+        for policy in ('owner', 'mode'):
+            with self.subTest(policy=policy), tempfile.TemporaryDirectory() as directory:
+                root = Path(directory).resolve(); module, args = self.comparison_cli_fixture(root)
+                with self.parent_policy_fixture(policy, deny=True) as (publication, _):
+                    original_write, writes = publication.write, []
+                    def write(value, name, raw):
+                        writes.append(name); return original_write(value, name, raw)
+                    with patch.object(publication, 'write', new=write), contextlib.redirect_stdout(io.StringIO()) as stdout:
+                        code = module.main(args)
+                self.assertEqual(code, 2)
+                self.assertFalse(json.loads(stdout.getvalue())['artifact_bindings_verified'])
+                self.assertFalse(json.loads(stdout.getvalue())['release_ready'])
+                self.assertEqual(writes, [])
+                self.assertFalse((root/'bound').exists())
+
+    def test_comparison_parent_descriptor_final_policy_failure_rolls_back_output(self):
+        for policy in ('owner', 'mode'):
+            for phase in ('before_publish', 'after_publish'):
+                with self.subTest(policy=policy, phase=phase), tempfile.TemporaryDirectory() as directory:
+                    root = Path(directory).resolve(); module, args = self.comparison_cli_fixture(root)
+                    with self.parent_policy_fixture(policy) as (publication, state):
+                        original_write, original_publish = publication.write, publication.publish
+                        def write(value, name, raw):
+                            original_write(value, name, raw)
+                            if phase == 'before_publish': state['deny'] = True
+                        def publish(value):
+                            original_publish(value)
+                            if phase == 'after_publish': state['deny'] = True
+                        with patch.object(publication, 'write', new=write), \
+                                patch.object(publication, 'publish', new=publish), \
+                                contextlib.redirect_stdout(io.StringIO()) as stdout:
+                            code = module.main(args)
+                    self.assertEqual(code, 2)
+                    self.assertFalse(json.loads(stdout.getvalue())['artifact_bindings_verified'])
+                    self.assertFalse(json.loads(stdout.getvalue())['release_ready'])
+                    self.assertFalse((root/'bound').exists())
 
     def test_comparison_binds_same_image_ids_platform_source_and_three_original_report_hashes(self):
         module,lock,images,documents=self.comparison_fixture()

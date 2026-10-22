@@ -378,6 +378,64 @@ class RuntimeInventoryTests(unittest.TestCase):
             self.assertEqual((output/'java-runtime.json').stat().st_mode & 0o777, 0o600)
             self.assertTrue(fake.removed)
 
+    @contextlib.contextmanager
+    def parent_policy_fixture(self, policy, *, deny=False):
+        publication = __import__('scan_container_images').Publication
+        original_enter, original_fstat = publication.__enter__, os.fstat
+        state = {'deny': deny}
+        def enter(value):
+            result = original_enter(value)
+            state['descriptor'] = value.parent_fd
+            return result
+        def fstat(descriptor):
+            value = original_fstat(descriptor)
+            if state['deny'] and descriptor == state.get('descriptor'):
+                fields = list(value)
+                fields[4 if policy == 'owner' else 0] = value.st_uid + 1 if policy == 'owner' else value.st_mode | 0o022
+                return os.stat_result(fields)
+            return value
+        with patch.object(publication, '__enter__', new=enter), patch.object(os, 'fstat', side_effect=fstat):
+            yield publication, state
+
+    def test_parent_descriptor_handoff_denies_before_private_state_or_docker(self):
+        for policy in ('owner', 'mode'):
+            with self.subTest(policy=policy), tempfile.TemporaryDirectory() as directory:
+                target = Path(directory).resolve()/'out'
+                with self.parent_policy_fixture(policy, deny=True), \
+                        patch.object(self.m, 'bounded_command', side_effect=self.fake(missing=False)) as command, \
+                        patch.object(self.m.tempfile, 'TemporaryDirectory', wraps=tempfile.TemporaryDirectory) as temporary, \
+                        contextlib.redirect_stdout(io.StringIO()) as stdout:
+                    code = self.m.main(['--image', self.image, '--platform', 'linux/amd64', '--output', str(target)])
+                self.assertEqual(code, 2)
+                self.assertFalse(json.loads(stdout.getvalue())['inventory_complete'])
+                self.assertFalse(json.loads(stdout.getvalue())['native_checks_passed'])
+                temporary.assert_not_called(); command.assert_not_called()
+                self.assertFalse(target.exists())
+
+    def test_parent_descriptor_final_policy_failure_rolls_back_and_keeps_owned_cleanup(self):
+        for policy in ('owner', 'mode'):
+            for phase in ('before_publish', 'after_publish'):
+                with self.subTest(policy=policy, phase=phase), tempfile.TemporaryDirectory() as directory:
+                    target = Path(directory).resolve()/'out'; fake = self.fake(missing=False)
+                    with self.parent_policy_fixture(policy) as (publication, state):
+                        original_publish = publication.publish
+                        def publish(value):
+                            original_publish(value)
+                            if phase == 'after_publish': state['deny'] = True
+                        def call(command, **kwargs):
+                            raw = fake(command, **kwargs)
+                            if phase == 'before_publish' and command[3] == 'ps': state['deny'] = True
+                            return raw
+                        with patch.object(publication, 'publish', new=publish), \
+                                patch.object(self.m, 'bounded_command', side_effect=call), \
+                                contextlib.redirect_stdout(io.StringIO()) as stdout:
+                            code = self.m.main(['--image', self.image, '--platform', 'linux/amd64', '--output', str(target)])
+                    self.assertEqual(code, 2)
+                    self.assertFalse(json.loads(stdout.getvalue())['inventory_complete'])
+                    self.assertFalse(json.loads(stdout.getvalue())['native_checks_passed'])
+                    self.assertTrue(fake.removed)
+                    self.assertFalse(target.exists())
+
     def test_incomplete_probe_and_cancellation_still_remove_only_owned_container(self):
         for failure in (ValueError('SECRET'), KeyboardInterrupt()):
             with tempfile.TemporaryDirectory() as directory:

@@ -3,6 +3,7 @@
 Build-time APT verification is recorded, not independently repeated by this
 parser. This is never native vulnerability closure or production approval.
 """
+from contextlib import contextmanager
 import hashlib
 import os
 from pathlib import Path
@@ -61,6 +62,20 @@ def require(value):
 
 def sha(raw):
     return hashlib.sha256(raw).hexdigest()
+
+
+def check_private_parent(publication):
+    publication.check_parent()
+    parent = os.fstat(publication.parent_fd)
+    require(parent.st_uid == os.getuid() and not parent.st_mode & 0o022)
+
+
+@contextmanager
+def private_publication(output):
+    from scan_container_images import Publication
+    with Publication(output) as publication:
+        check_private_parent(publication)
+        yield publication
 
 
 def read_lock():
@@ -244,7 +259,7 @@ def compare_reports(documents, images, platform, lock_raw):
 def main(argv=None):
     import argparse
     import json
-    from scan_container_images import Publication, _path, file_identity, verify_files
+    from scan_container_images import _path, file_identity, verify_files
     class Parser(argparse.ArgumentParser):
         def error(self, message): raise ValueError('java_comparison_unverified')
     parser = Parser(description='Bind three fixed diagnostic reports to the same immutable images; never approve release.')
@@ -271,9 +286,11 @@ def main(argv=None):
         value = compare_reports(documents, dict(baseline=args.baseline_image, debian_closure=args.closure_image), args.platform, lock_raw)
         raw = (json.dumps(value, sort_keys=True, indent=2, allow_nan=False) + '\n').encode()
         require(len(raw) <= 16384)
-        with Publication(output) as publication:
+        with private_publication(output) as publication:
             publication.write('comparison.json', raw)
-            verify_files(pins); publication.publish(); verify_files(pins)
+            verify_files(pins); check_private_parent(publication)
+            publication.publish()
+            verify_files(pins); check_private_parent(publication)
         print('{"artifact_bindings_verified":true,"release_ready":false}')
         return 0
     except (Exception, KeyboardInterrupt):
