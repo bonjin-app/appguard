@@ -60,3 +60,30 @@ initial failing parser/integration/workflow/installer/comparison regression was
 observed before its implementation, followed by focused and full tooling checks.
 The shell archive tests use owned bytes with fake Linux metadata commands; they
 do not substitute for real APT signature verification or dependency solving.
+
+## First actual build boundary and canonical keyring correction
+
+At candidate `a3d86ab87583604d979e728dede10f0da7fb8b71`, native workflow
+`39857167553` produced baseline and incomplete Debian evidence, while both
+closure builds and both paired-job closure builds stopped at the installer RUN
+step with `java_dependency_install_unverified` after 0.081–0.133 seconds, before
+any APT output. No closure installation or runtime artifact was produced.
+
+The actual Debian inventory reports contain `debian-archive-keyring` version
+`2025.1`. [Debian13 release notes](https://www.debian.org/releases/trixie/release-notes/upgrading.html#adding-apt-internet-sources)
+document `.gpg` compatibility symlinks to canonical `.pgp` files. The installer
+selected `.gpg` while its hash guard correctly refused symlinks. An owned local
+fixture exercising that actual guard reproduces the exact exit2/fixed message;
+the canonical regular file passes. These observations establish a deterministic
+source incompatibility, without claiming a retained live leaf diagnostic or
+excluding later APT failures.
+
+The correction selects only `/usr/share/keyrings/debian-archive-keyring.pgp`
+for the initial hash, subsequent checks, both Signed-By declarations and fixed
+container readback. The regular/non-symlink guard, keyring identity checks,
+APT signature verification, fixed release hashes and package/archive pins stay
+in force. A regression requires the canonical regular file to pass with the
+legacy symlink present and denies missing, symlinked or changed canonical files.
+Real signature verification, solve, installation and runtime success still need
+a fresh exact-candidate CI run. Original failure evidence remains incomplete
+and is not rewritten as successful evidence.

@@ -28,7 +28,7 @@ printf 'CLOSURE\t1\n'
 for key in lock keyring debian debian-security archives installed verification; do
   case "$key" in
     lock) file="$root/dependencies.lock";;
-    keyring) file=/usr/share/keyrings/debian-archive-keyring.gpg;;
+    keyring) file=/usr/share/keyrings/debian-archive-keyring.pgp;;
     debian|debian-security) file="$root/$key.InRelease";;
     archives) file="$root/apt-archives.tsv";;
     installed) file="$root/installed-packages.tsv";;

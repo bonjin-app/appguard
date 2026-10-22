@@ -130,6 +130,26 @@ class DependencyClosureTests(unittest.TestCase):
                 self.assertNotEqual(result.returncode,0,mutation)
                 self.assertEqual(result.stdout,b'')
 
+    def test_real_shell_canonical_keyring_ignores_legacy_link_but_refuses_missing_symlink_or_tamper(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root=Path(directory);canonical=root/'debian-archive-keyring.pgp'
+            content=b'owned public canonical keyring fixture\n';canonical.write_bytes(content)
+            legacy=root/'debian-archive-keyring.gpg';legacy.symlink_to(canonical.name)
+            command=['/bin/sh',str(INSTALLER),'check-keyring',str(root),sha(content)]
+            valid=subprocess.run(command,capture_output=True,timeout=5)
+            self.assertEqual(valid.returncode,0,valid.stderr.decode())
+            self.assertEqual(valid.stdout,b'')
+            for state in ('missing','symlink','tamper'):
+                canonical.unlink()
+                if state=='symlink':
+                    target=root/'other-public-keyring';target.write_bytes(content);canonical.symlink_to(target.name)
+                elif state=='tamper':canonical.write_bytes(b'changed public keyring fixture\n')
+                rejected=subprocess.run(command,capture_output=True,timeout=5)
+                self.assertNotEqual(rejected.returncode,0,state)
+                self.assertEqual(rejected.stdout,b'')
+                self.assertNotIn(b'owned public',rejected.stderr)
+                if not canonical.exists() and not canonical.is_symlink():canonical.write_bytes(content)
+
     def test_short_malformed_and_bounded_protocols_have_fixed_validation_errors(self):
         module, raw, _, _, packages = self.fixture()
         for value in ('CLOSURE\t1\n','CLOSURE\t1\nHASH\tlock\t'+'a'*64+'\n','x'*262145+'\n'):

@@ -5,6 +5,13 @@ export LC_ALL=C
 
 fail() { printf '%s\n' 'java_dependency_install_unverified' >&2; exit 2; }
 hash_file() { test -f "$1" && test ! -L "$1" || fail; sha256sum "$1" | cut -d ' ' -f 1; }
+canonical_keyring() {
+  test "$#" = 1 || fail
+  # Trixie ships .gpg as a compatibility symlink. Select the fixed canonical
+  # regular file; never relax the non-symlink guard or follow arbitrary links.
+  hash_file "$1/debian-archive-keyring.pgp" > /dev/null
+  printf '%s/debian-archive-keyring.pgp\n' "$1"
+}
 
 check_lock() {
   test "$#" = 2 && test -f "$1" && test ! -L "$1" || fail
@@ -81,6 +88,11 @@ check_downloads() {
 }
 
 case "${1-}" in
+  check-keyring)
+    test "$#" = 3 || fail
+    selected_keyring=$(canonical_keyring "$2")
+    test "$(hash_file "$selected_keyring")" = "$3" || fail
+    exit;;
   check-lock) test "$#" = 3 || fail; check_lock "$2" "$3"; exit;;
   check-releases) test "$#" = 5 || fail; check_releases "$2" "$3" "$4" "$5"; exit;;
   check-downloads)
@@ -102,7 +114,7 @@ test ! -e "$state" || fail
 mkdir -m 755 "$state"
 arch=$(dpkg --print-architecture)
 check_lock "$lock" "$arch" > "$state/direct.tsv"
-keyring=/usr/share/keyrings/debian-archive-keyring.gpg
+keyring=$(canonical_keyring /usr/share/keyrings)
 keyring_hash=$(hash_file "$keyring")
 lock_hash=$(hash_file "$lock")
 mkdir -m 755 "$state/archives" "$state/lists"
@@ -123,7 +135,7 @@ URIs: http://snapshot.debian.org/archive/debian/20261022T200000Z/
 Suites: trixie
 Components: main
 Architectures: $arch
-Signed-By: /usr/share/keyrings/debian-archive-keyring.gpg
+Signed-By: $keyring
 Check-Valid-Until: no
 
 Types: deb
@@ -131,7 +143,7 @@ URIs: http://snapshot.debian.org/archive/debian-security/20261022T200000Z/
 Suites: trixie-security
 Components: main
 Architectures: $arch
-Signed-By: /usr/share/keyrings/debian-archive-keyring.gpg
+Signed-By: $keyring
 Check-Valid-Until: no
 SOURCES
 
