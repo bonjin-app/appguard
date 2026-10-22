@@ -209,6 +209,23 @@ class AssessmentTests(unittest.TestCase):
             self.assertEqual(self.gate(report, 'external_security_audit')['state'], 'pending_external')
             self.assertNotIn(MARKER, (base / 'assessment/assessment.json').read_text())
 
+    def test_core_diagnostics_remain_private_unverified_reference_data(self):
+        with tempfile.TemporaryDirectory() as temp:
+            base = Path(temp).resolve()
+            candidate, scans = self.fixture(base)
+            qualification = self.qualification(base)
+            receipt = json.loads(qualification.read_text())
+            receipt['core_diagnostics'] = {'schema': 1, 'observations': [
+                {'stage': 'signed_fidelity', 'status': 504, 'error_code': 'BACKEND_TIMEOUT'},
+                {MARKER: MARKER}], 'release_ready': True}
+            qualification.write_text(json.dumps(receipt))
+            report = self.run_cli(base, candidate, scans, '--qualification', qualification, '--check', expected_code=2)
+            self.assertEqual(self.gate(report, 'local_spring_ingress')['state'], 'referenced_unverified')
+            self.assertEqual(report['sha256']['qualification_report'], hashlib.sha256(qualification.read_bytes()).hexdigest())
+            self.assertFalse(report['release_ready'])
+            self.assertEqual(self.gate(report, 'external_security_audit')['state'], 'pending_external')
+            self.assertNotIn(MARKER, (base / 'assessment/assessment.json').read_text())
+
     def test_invalid_qualification_cannot_upgrade_any_gate(self):
         for mode in ('schema_bool', 'commit', 'class', 'profile', 'time', 'checks_bool',
                      'checks_missing', 'hash', 'cleanup_int', 'nonfinite', 'limits_bool', 'approved'):

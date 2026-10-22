@@ -218,7 +218,12 @@ is incomplete, so zero Redis OS-package findings do not certify the Redis binary
 
 The gateway profile now uses the official Python 3.11.17 Alpine 3.24 image to
 reduce unrelated operating-system packages. Both supported architecture
-manifests/configs and required locked musl wheels were checked; that metadata
-does not substitute for the subsequent actual build, operating and image scan.
-The Noble backend remains unchanged. Updated versions or smaller images alone
-do not establish zero findings or complete native coverage.
+manifests/configs and required locked musl wheels were checked. The subsequent
+[actual image run at `1d5b59d`](https://github.com/bonjin-app/appguard/actions/runs/39780605078)
+passed all 12 operating checks and runtime/package readbacks. Its unsuppressed
+scan reported zero gateway package findings, zero Redis OS-package findings and
+31 backend findings, with required inventories present. The vulnerability gate
+remains failed and native Redis/JVM dependency closure remains incomplete.
+The Noble backend preserves the verified dual-architecture inputs. Updated
+versions or smaller images alone do not establish complete native coverage or
+release approval.

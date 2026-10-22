@@ -37,6 +37,26 @@ outage denial and recovery. It rechecks source/artifact hashes after cleanup.
 Its original eight transport checks and receipt fields remain compatible;
 operating evidence appears in the optional `operational` block.
 
+The first 1,800-second, eight-worker run at `1d5b59d` failed its strict zero-error
+gate: 79,758 exchanges included 24 signed-response fidelity mismatches and 20
+unexpected replay responses, with no transport exceptions. All owned children
+settled and source/artifact provenance remained unchanged. This is retained as
+failed evidence, not a passing endurance result. Its aggregate counters do not
+identify each failed response or establish a security bypass.
+
+The optional process-local backend counter file previously forced disk
+durability after every verification stage. Removing that unnecessary operation
+preserves synchronous snapshots, exact counts and file protections; these
+snapshots do not promise crash durability. A controlled 60-second comparison
+improved measured throughput from 40.98 to 170.10 exchanges/second, with zero
+errors in both short runs. That comparison does not establish the cause of the
+historical failures. A separate attempt also failed before its first core
+check and remains unexplained; a subsequent observed attempt passed. Fixed
+status/error-code diagnostics now distinguish response outcomes without storing
+request bodies, tokens, headers or arbitrary exception text. Equivalent-duration
+clean-commit verification is required after the changes. Timed local results
+remain distinct from a deployed container's resource limits and operating SLA.
+
 The standalone process fixture deliberately uses nonpersistent Redis. It does
 not claim replay retention across losing that Redis process. Its backend restart
 check verifies nonce retention in the still-running Redis. The container profile

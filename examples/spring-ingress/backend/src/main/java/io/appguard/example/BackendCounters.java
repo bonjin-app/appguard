@@ -8,7 +8,7 @@ import java.nio.file.*;
 import java.nio.file.attribute.PosixFilePermission;
 import java.util.*;
 
-/** Optional owner-only local qualification snapshots. No HTTP metrics endpoint or request data. */
+/** Optional owner-only process-local snapshots, without crash durability. No HTTP metrics endpoint or request data. */
 final class BackendCounters {
     private final Path file;
     private final Map<String,Long> values=new LinkedHashMap<>();
@@ -30,7 +30,9 @@ final class BackendCounters {
         if(file==null)return;
         StringJoiner json=new StringJoiner(",","{","}\n");values.forEach((name,value)->json.add("\""+name+"\":"+value));
         try(FileChannel channel=FileChannel.open(file,StandardOpenOption.WRITE,LinkOption.NOFOLLOW_LINKS)){
-            channel.truncate(0);ByteBuffer data=StandardCharsets.US_ASCII.encode(json.toString());while(data.hasRemaining())channel.write(data);channel.force(false);
+            // Process-local measurement only: closing publishes the completed write
+            // to readers without serializing requests on forced disk durability.
+            channel.truncate(0);ByteBuffer data=StandardCharsets.US_ASCII.encode(json.toString());while(data.hasRemaining())channel.write(data);
         }
     }
 }

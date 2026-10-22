@@ -40,6 +40,7 @@ QUALIFICATION_ARTIFACTS = frozenset(('sdk_jar', 'example_pom', 'ingress_source')
 QUALIFICATION_EXTENSIONS = frozenset((
     'metrics', 'sources', 'release_ready', 'limitations', 'owned_process_cleanup',
     'exampleclasses_sha256', 'provenance_unchanged', 'source_matches_commit', 'source_sha256', 'operational',
+    'core_diagnostics',
 ))
 _SCAN_REASONS = frozenset((
     'candidate_unverified', 'scan_evidence_unverified', 'source_coverage_unverified',

@@ -7,6 +7,7 @@ receipt proves this local topology only, not a production deployment or audit.
 import argparse
 import base64
 from concurrent.futures import ThreadPoolExecutor, wait
+from contextvars import ContextVar
 from datetime import datetime, timedelta, timezone
 import hashlib
 import json
@@ -209,35 +210,139 @@ def replay_denied(response):
         return False
 
 
+
+class OutcomeMetrics:
+    """Fixed, bounded classification; never retain an input body or error text."""
+    codes=('BACKEND_TIMEOUT','BACKEND_UNAVAILABLE','UPLOAD_TIMEOUT','INVALID_REQUEST',
+        'INGRESS_OVERLOADED','APPLICATION_UNAVAILABLE','REPLAY_DETECTED','REPLAY_STORE_UNAVAILABLE',
+        'INVALID_TIME','INVALID_SIGNATURE','DIGEST_MISMATCH','KEY_REJECTED','UNSUPPORTED_PROFILE',
+        'AUTHENTICATION_REQUIRED','IDENTITY_UNAVAILABLE','KEY_RESOLVER_UNAVAILABLE')
+
+    def __init__(self):
+        self.counts={role:{'statuses':[0]*500,'missing_status':0,'invalid_status':0,
+            'error_codes':{code:0 for code in self.codes},'unrecognized_error_body':0,'transport_errors':0}
+            for role in ('normal','replay')}
+
+    def observe(self,role,response):
+        values=self.counts[role];status,body=response
+        if status is None:
+            values['missing_status']+=1
+            return
+        if type(status) is not int or not 100 <= status <= 599:
+            values['invalid_status']+=1
+            return
+        values['statuses'][status-100]+=1
+        if status<400:
+            return
+        code=safe_error_code((status,body))
+        if code in values['error_codes']:
+            values['error_codes'][code]+=1
+        else:
+            values['unrecognized_error_body']+=1
+
+    def transport_error(self,role):
+        self.counts[role]['transport_errors']+=1
+
+    def merge(self,other):
+        for role,values in self.counts.items():
+            incoming=other.counts[role]
+            values['statuses']=[a+b for a,b in zip(values['statuses'],incoming['statuses'])]
+            for name in ('missing_status','invalid_status','unrecognized_error_body','transport_errors'):
+                values[name]+=incoming[name]
+            for code in self.codes:values['error_codes'][code]+=incoming['error_codes'][code]
+
+    def report(self):
+        result={'schema':1}
+        for role,values in self.counts.items():
+            result[role]={name:values[name] for name in ('missing_status','invalid_status','unrecognized_error_body','transport_errors')}
+            result[role]['statuses']=[{'status':index+100,'count':count}
+                for index,count in enumerate(values['statuses']) if count]
+            result[role]['error_codes']=values['error_codes'].copy()
+        return result
+
+
+def safe_error_code(response):
+    status,body=response
+    if type(status) is int and 400<=status<=599 and type(body) is bytes and len(body)<=256:
+        try:
+            parsed=json.loads(body)
+            if type(parsed) is dict and set(parsed)=={'code'} and type(parsed['code']) is str and parsed['code'] in OutcomeMetrics.codes:
+                return parsed['code']
+        except (ValueError,UnicodeError):
+            pass
+    return None
+
+
+class CoreExchangeDiagnostics:
+    """Last four core outcomes only, with no request, body or exception text."""
+    def __init__(self):
+        self.owner_thread=threading.get_ident();self.stage='signed_fidelity'
+        self.exchanges_observed=0;self.last_exchanges=[]
+
+    def observe(self,response,error,seconds):
+        category=None
+        if error is not None:
+            category=('timeout' if isinstance(error,TimeoutError) else
+                'tls_error' if isinstance(error,ssl.SSLError) else
+                'os_error' if isinstance(error,OSError) else
+                'assertion_error' if isinstance(error,AssertionError) else
+                'interrupted' if isinstance(error,(KeyboardInterrupt,SystemExit)) else 'other_error')
+        status=response[0] if response is not None else None
+        status=status if type(status) is int and 100<=status<=599 else None
+        milliseconds=seconds*1000
+        require(math.isfinite(milliseconds) and milliseconds>=0)
+        self.exchanges_observed+=1
+        self.last_exchanges.append({'ordinal':self.exchanges_observed,'stage':self.stage,'status':status,
+            'error_code':safe_error_code(response) if response is not None else None,
+            'exception_category':category,'elapsed_ms':milliseconds})
+        del self.last_exchanges[:-4]
+
+    def report(self):
+        return {'schema':1,'scope':'last four root-thread core HTTP exchanges; excludes operational probes',
+            'exchanges_observed':self.exchanges_observed,'last_exchanges':[value.copy() for value in self.last_exchanges]}
+
+
+_core_exchange_observer=ContextVar('spring_qualification_core_exchange_observer',default=None)
+
+
+def core_stage(stage):
+    require(stage is None or stage in CHECKS[:-1])
+    observer=_core_exchange_observer.get()
+    if observer is not None and observer.owner_thread==threading.get_ident():
+        observer.stage=stage
+
+
 def run_soak(seconds, concurrency, port, context, signer, sample_resources=None):
     validate_soak_options(seconds,concurrency);require(seconds>0)
     started=time.monotonic();deadline=started+seconds;cancel=threading.Event()
     def worker(index):
         metrics={name:0 for name in ('signed_requests','replay_requests','fidelity_failures','replay_failures','transport_errors')}
-        latency=LatencyMetrics()
+        latency=LatencyMetrics();outcomes=OutcomeMetrics()
         while not cancel.is_set() and time.monotonic()<deadline:
             target='/v1/items?worker='+str(index)+'&x=%2f&x=%2F'
             body=b'\x00\xff\r\n'+secrets.token_bytes(32)
             request=wire(target,signer.headers(target,body),body)
             for replay in (False,True):
                 metrics['replay_requests' if replay else 'signed_requests']+=1
-                begin=time.monotonic()
+                begin=time.monotonic();role='replay' if replay else 'normal'
                 try:
                     response=exchange(port,context,request)
+                    outcomes.observe(role,response)
                     if replay:
                         metrics['replay_failures']+=not replay_denied(response)
                     else:
                         metrics['fidelity_failures']+=response!=(200,body)
                 except (OSError,ValueError):
                     metrics['transport_errors']+=1
+                    outcomes.transport_error(role)
                 finally:
                     latency.observe(time.monotonic()-begin)
             # Avoid unbounded hot spinning if a local endpoint fails immediately.
             if metrics['transport_errors']:
                 time.sleep(.01)
-        return metrics,latency
+        return metrics,latency,outcomes
     result={name:0 for name in ('signed_requests','replay_requests','fidelity_failures','replay_failures','transport_errors')}
-    latency=LatencyMetrics()
+    latency=LatencyMetrics();outcomes=OutcomeMetrics()
     with ThreadPoolExecutor(max_workers=concurrency) as pool:
         pending={pool.submit(worker,index) for index in range(concurrency)}
         try:
@@ -245,16 +350,16 @@ def run_soak(seconds, concurrency, port, context, signer, sample_resources=None)
                 if sample_resources is not None:sample_resources()
                 finished,pending=wait(pending,timeout=1)
                 for future in finished:
-                    metrics,samples=future.result()
+                    metrics,samples,observed=future.result()
                     for name,value in metrics.items():result[name]+=value
-                    latency.merge(samples)
+                    latency.merge(samples);outcomes.merge(observed)
         finally:
             cancel.set()
     elapsed=time.monotonic()-started
     requests=result['signed_requests']+result['replay_requests']
     errors=result['fidelity_failures']+result['replay_failures']+result['transport_errors']
     return result|{'requested_seconds':seconds,'concurrency':concurrency,'elapsed_seconds':elapsed,
-        'requests_per_second':requests/elapsed,'error_rate':errors/requests if requests else 1.,'latency':latency.report()}
+        'requests_per_second':requests/elapsed,'error_rate':errors/requests if requests else 1.,'latency':latency.report(),'outcomes':outcomes.report()}
 
 
 def require_soak_success(result):
@@ -500,6 +605,21 @@ def wire(target, headers, body, chunked=False):
 
 
 def exchange(port, context, data, hostname='api.example.test', drip=None):
+    observer=_core_exchange_observer.get()
+    if observer is None or observer.stage is None or observer.owner_thread!=threading.get_ident():
+        return _exchange(port,context,data,hostname,drip)
+    begin=time.monotonic();response=None;error=None
+    try:
+        response=_exchange(port,context,data,hostname,drip)
+        return response
+    except BaseException as failure:
+        error=failure
+        raise
+    finally:
+        observer.observe(response,error,time.monotonic()-begin)
+
+
+def _exchange(port, context, data, hostname='api.example.test', drip=None):
     import h11
     with socket.create_connection(('127.0.0.1', port), timeout=4) as raw:
         with context.wrap_socket(raw, server_hostname=hostname) as connection:
@@ -549,6 +669,15 @@ def counters(path):
 
 
 def qualify(output, maven, java_home, redis_server, soak_seconds=0, soak_concurrency=8):
+    diagnostics=CoreExchangeDiagnostics()
+    token=_core_exchange_observer.set(diagnostics)
+    try:
+        return _qualify(output,maven,java_home,redis_server,soak_seconds,soak_concurrency,diagnostics)
+    finally:
+        _core_exchange_observer.reset(token)
+
+
+def _qualify(output, maven, java_home, redis_server, soak_seconds, soak_concurrency, diagnostics):
     validate_soak_options(soak_seconds,soak_concurrency)
     import redis
     started=datetime.now(timezone.utc)
@@ -662,11 +791,13 @@ def qualify(output, maven, java_home, redis_server, soak_seconds=0, soak_concurr
                     ('/v1/items?',b'',False),('/v1/items?x=%2f&y=%2F',b'chunked',True)]:
                 require(exchange(gateway_port,context,wire(target,signer.headers(target,body),body,chunked))==(200,body))
             receipt['checks']['signed_fidelity']=True
+            core_stage('replay_rejected')
             request=wire('/v1/items',signer.headers('/v1/items',b'replay'),b'replay')
             require(exchange(gateway_port,context,request)==(200,b'replay'))
             status,rejection=exchange(gateway_port,context,request)
             require(status==403 and json.loads(rejection)=={'code':'REPLAY_DETECTED'})
             receipt['checks']['replay_rejected']=True
+            core_stage('backend_bypass_rejected')
             baseline=counters(count_file)
             for ctx,hostname in [(context,'backend.example.test'),(direct,'wrong.example.test')]:
                 try:
@@ -688,6 +819,7 @@ def qualify(output, maven, java_home, redis_server, soak_seconds=0, soak_concurr
                     pass
             require(counters(count_file)==baseline)
             receipt['checks']['backend_bypass_rejected']=True
+            core_stage('absolute_upload_deadline')
             body=b'12345678';target='/v1/items'
             request=wire(target,signer.headers(target,body),body)
             require(exchange(backend_port,direct,request,'backend.example.test',drip=.25)==(200,body))
@@ -700,6 +832,7 @@ def qualify(output, maven, java_home, redis_server, soak_seconds=0, soak_concurr
             require(exchange(gateway_port,context,head)[0] in {408,504})
             require(counters(count_file)==baseline and client.dbsize()==keys)
             receipt['checks']['absolute_upload_deadline']=True
+            core_stage('malformed_framing_rejected')
             malformed=[request.replace(b'Signature: ',b'Signature: appguard=:AAAA:\r\nSignature: ',1),
                 request.replace(b'Content-Length: 8',b'Content-Length: 8\r\nContent-Length: 8'),
                 request.replace(b'Content-Length: 8',b'Content-Length: 8\r\nTransfer-Encoding: chunked'),
@@ -713,6 +846,7 @@ def qualify(output, maven, java_home, redis_server, soak_seconds=0, soak_concurr
                     pass
             require(counters(count_file)==baseline and client.dbsize()==keys)
             receipt['checks']['malformed_framing_rejected']=True
+            core_stage('backend_failure_bounded')
             # A separate gateway targets an owned, immediately closed port.
             failure_port=free_port();unavailable_port=free_port()
             failure=spawn([sys.executable,str(ROOT/'examples/spring-ingress/ingress.py')],gateway_env|{
@@ -722,9 +856,11 @@ def qualify(output, maven, java_home, redis_server, soak_seconds=0, soak_concurr
             require(exchange(failure_port,context,wire(target,signer.headers(target,body),body))[0] in {502,504})
             require(time.monotonic()-begin<3.5 and counters(count_file)==baseline)
             receipt['checks']['backend_failure_bounded']=True
+            core_stage('healthy_recovery')
             require(exchange(gateway_port,context,wire(target,signer.headers(target,body),body))==(200,body))
             receipt['checks']['healthy_recovery']=True
             receipt['metrics']={'runtime_jars':len(jars),'backend_counters':counters(count_file)}
+            core_stage(None)
             if soak_seconds:
                 operational_probes(receipt['operational'],soak_seconds,soak_concurrency,spawn,owners,run_id,
                     {'redis':redis_process,'backend':backend_process,'gateway':gateway},client,redis_run_id,redis_command,
@@ -759,6 +895,7 @@ def qualify(output, maven, java_home, redis_server, soak_seconds=0, soak_concurr
                     receipt['operational']['provenance_unchanged']=False
                 receipt['checks']={name:False for name in CHECKS}
                 receipt['checks']['owned_process_cleanup']=settled
+            receipt['core_diagnostics']=diagnostics.report()
             (output/'receipt.json').write_text(json.dumps(receipt,indent=2,sort_keys=True)+'\n')
     require(all(receipt['checks'].values()))
     if soak_seconds:require(receipt['operational']['passed'] and all(receipt['operational']['checks'].values()))

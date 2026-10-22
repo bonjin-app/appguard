@@ -1,5 +1,6 @@
 """Guard the local qualifier's ownership, wire format and evidence boundaries."""
 import importlib.util
+from contextlib import ExitStack
 import json
 import math
 import sys
@@ -9,6 +10,7 @@ from pathlib import Path
 import subprocess
 import tempfile
 import unittest
+import zipfile
 from unittest.mock import Mock, patch
 
 ROOT=Path(__file__).resolve().parents[2]
@@ -17,6 +19,108 @@ module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module)
 
 
 class QualificationTests(unittest.TestCase):
+    def test_core_diagnostics_keep_only_four_safe_outcomes_and_fixed_stages(self):
+        def fixture(*args):
+            for _ in range(2):module.exchange(1,None,b'PRIVATE-REQUEST')
+            module.core_stage('replay_rejected')
+            for _ in range(3):module.exchange(1,None,b'PRIVATE-REQUEST')
+            with self.assertRaises(TimeoutError):module.exchange(1,None,b'PRIVATE-REQUEST')
+            return args[-1].report()
+        outcomes=[(200,b'PRIVATE-BODY'),(200,b'PRIVATE-BODY'),
+            (504,b'{"code":"BACKEND_TIMEOUT"}'),
+            (403,b'{"code":"PRIVATE-CODE","secret":"PRIVATE-BODY"}'),
+            (True,b'PRIVATE-BODY'),TimeoutError('PRIVATE-ERROR')]
+        with patch.object(module,'_qualify',side_effect=fixture),patch.object(module,'_exchange',side_effect=outcomes):
+            result=module.qualify(None,None,None,None)
+        self.assertEqual(result['exchanges_observed'],6)
+        self.assertEqual([value['ordinal'] for value in result['last_exchanges']],[3,4,5,6])
+        self.assertEqual([value['status'] for value in result['last_exchanges']],[504,403,None,None])
+        self.assertEqual([value['error_code'] for value in result['last_exchanges']],['BACKEND_TIMEOUT',None,None,None])
+        self.assertEqual([value['exception_category'] for value in result['last_exchanges']],[None,None,None,'timeout'])
+        self.assertTrue(all(value['stage']=='replay_rejected' for value in result['last_exchanges']))
+        self.assertTrue(all(math.isfinite(value['elapsed_ms']) and value['elapsed_ms']>=0 for value in result['last_exchanges']))
+        self.assertNotIn('PRIVATE',json.dumps(result))
+
+    def test_core_observer_resets_after_failure_and_does_not_leak_between_runs(self):
+        outer=module.CoreExchangeDiagnostics()
+        token=module._core_exchange_observer.set(outer)
+        def failing_fixture(*args):
+            module.exchange(1,None,b'PRIVATE-REQUEST')
+        def healthy_fixture(*args):
+            module.exchange(1,None,b'PRIVATE-REQUEST')
+            return args[-1].report()
+        try:
+            with patch.object(module,'_qualify',side_effect=failing_fixture),patch.object(module,'_exchange',side_effect=KeyboardInterrupt('PRIVATE-ERROR')):
+                with self.assertRaises(KeyboardInterrupt):module.qualify(None,None,None,None)
+            self.assertIs(module._core_exchange_observer.get(),outer)
+            with patch.object(module,'_qualify',side_effect=healthy_fixture),patch.object(module,'_exchange',return_value=(200,b'PRIVATE-BODY')):
+                result=module.qualify(None,None,None,None)
+            self.assertEqual(result['exchanges_observed'],1)
+            self.assertEqual(result['last_exchanges'][0]['ordinal'],1)
+            self.assertEqual(outer.report()['exchanges_observed'],0)
+            self.assertIs(module._core_exchange_observer.get(),outer)
+        finally:module._core_exchange_observer.reset(token)
+        self.assertIsNone(module._core_exchange_observer.get())
+
+    def test_core_observer_ignores_worker_threads_and_operational_exchanges(self):
+        def fixture(*args):
+            worker=threading.Thread(target=module.exchange,args=(1,None,b'PRIVATE-REQUEST'))
+            worker.start();worker.join(timeout=1)
+            self.assertFalse(worker.is_alive())
+            module.exchange(1,None,b'PRIVATE-REQUEST')
+            module.core_stage(None)
+            module.exchange(1,None,b'PRIVATE-REQUEST')
+            return args[-1].report()
+        with patch.object(module,'_qualify',side_effect=fixture),patch.object(module,'_exchange',return_value=(200,b'PRIVATE-BODY')):
+            result=module.qualify(None,None,None,None)
+        self.assertEqual(result['exchanges_observed'],1)
+        self.assertEqual(result['last_exchanges'][0]['stage'],'signed_fidelity')
+
+    def test_initial_core_failure_is_retained_in_receipt_after_cleanup(self):
+        with tempfile.TemporaryDirectory() as tmp,ExitStack() as stack:
+            root=Path(tmp)/'source';output=Path(tmp)/'output';output.mkdir()
+            sdk=root/'sdk/spring-boot';backend=root/'examples/spring-ingress/backend'
+            for directory in (sdk,backend):
+                (directory/'target').mkdir(parents=True)
+                (directory/'pom.xml').write_text('<project/>')
+            (sdk/'target/appguard-spring-boot-starter-0.1.0-SNAPSHOT.jar').write_bytes(b'test-starter')
+            (root/'examples/spring-ingress/ingress.py').write_text('# test ingress')
+            with zipfile.ZipFile(backend/'target/spring-ingress-backend-0.1.0-SNAPSHOT.jar','w') as archive:
+                archive.writestr('Example.class',b'test-class')
+            def build(command,**kwargs):
+                for argument in command:
+                    if argument.startswith('-DoutputDirectory='):
+                        (Path(argument.split('=',1)[1])/'appguard-spring-boot-starter-test.jar').write_bytes(b'test-starter')
+                    elif argument.startswith('-DoutputFile='):
+                        Path(argument.split('=',1)[1]).write_text('test dependency list')
+            def git(command,**kwargs):
+                return 'test-commit\n' if command[1]=='rev-parse' else b''
+            children=[Mock(pid=value) for value in (101,102,103)]
+            for child in children:child.poll.return_value=0
+            signer=Mock(token='PRIVATE-TOKEN');signer.headers.return_value=[('Authorization','Bearer PRIVATE-TOKEN')]
+            for name,value in {'ROOT':root,'source_hashes':lambda:{},'certificates':lambda *args:'PRIVATE-PASSWORD',
+                    'Signer':lambda *args:signer,'wait_port':lambda *args:None,
+                    'verify_redis_owner':lambda *args:'a'*40}.items():
+                stack.enter_context(patch.object(module,name,value))
+            stack.enter_context(patch.object(module.subprocess,'check_output',side_effect=git))
+            stack.enter_context(patch.object(module.subprocess,'run',side_effect=build))
+            stack.enter_context(patch.object(module.subprocess,'Popen',side_effect=children))
+            stack.enter_context(patch.object(module.shutil,'copytree'))
+            stack.enter_context(patch.object(module.ssl,'create_default_context',return_value=Mock()))
+            client=stack.enter_context(patch('redis.Redis')).return_value
+            stack.enter_context(patch.object(module,'_exchange',return_value=(504,b'{"code":"BACKEND_TIMEOUT"}')))
+            with self.assertRaises(AssertionError):module.qualify(output,Path('maven'),Path('java'),Path('redis'))
+            receipt=json.loads((output/'receipt.json').read_text())
+            self.assertTrue(receipt['owned_process_cleanup'])
+            self.assertFalse(receipt['checks']['signed_fidelity'])
+            self.assertEqual(receipt['core_diagnostics']['exchanges_observed'],1)
+            outcome=receipt['core_diagnostics']['last_exchanges'][0]
+            self.assertEqual((outcome['stage'],outcome['status'],outcome['error_code']),('signed_fidelity',504,'BACKEND_TIMEOUT'))
+            self.assertIsNone(outcome['exception_category'])
+            self.assertGreaterEqual(client.close.call_count,1)
+            self.assertIsNone(module._core_exchange_observer.get())
+            self.assertNotIn('PRIVATE',json.dumps(receipt))
+
     def test_new_output_rejects_source_existing_and_symlink(self):
         with tempfile.TemporaryDirectory() as tmp:
             base=Path(tmp).resolve()
@@ -149,6 +253,38 @@ class OperationalTests(unittest.TestCase):
         for value in (float('nan'),float('inf'),-1,True):
             with self.assertRaises(ValueError):stats.observe(value)
 
+    def test_outcome_counts_distinguish_timeout_replay_and_unknown_error_without_private_data(self):
+        stats=module.OutcomeMetrics()
+        stats.observe('normal',(504,b'{"code":"BACKEND_TIMEOUT"}'))
+        stats.observe('normal',(504,b'{"code":"BACKEND_TIMEOUT"}'))
+        stats.observe('replay',(403,b'{"code":"REPLAY_DETECTED"}'))
+        stats.observe('replay',(403,b'{"code":"PRIVATE-CODE","secret":"PRIVATE-BODY"}'))
+        result=stats.report()
+        self.assertEqual(result['normal']['statuses'],[{'status':504,'count':2}])
+        self.assertEqual(result['normal']['error_codes']['BACKEND_TIMEOUT'],2)
+        self.assertEqual(result['replay']['statuses'],[{'status':403,'count':2}])
+        self.assertEqual(result['replay']['error_codes']['REPLAY_DETECTED'],1)
+        self.assertEqual(result['replay']['unrecognized_error_body'],1)
+        self.assertNotIn('PRIVATE',json.dumps(result))
+
+    def test_outcome_counts_bound_status_and_body_classification(self):
+        stats=module.OutcomeMetrics()
+        for status in (True,99,600,'PRIVATE-STATUS'):
+            stats.observe('normal',(status,b'PRIVATE-BODY'))
+        stats.observe('normal',(None,b'PRIVATE-BODY'))
+        for body in (b'{"code":"PRIVATE-CODE"}',b'['*300,b'{"code":"BACKEND_TIMEOUT","x":"PRIVATE"}'):
+            stats.observe('normal',(503,body))
+        stats.transport_error('replay')
+        result=stats.report()
+        self.assertEqual(result['normal']['invalid_status'],4)
+        self.assertEqual(result['normal']['missing_status'],1)
+        self.assertEqual(result['normal']['statuses'],[{'status':503,'count':3}])
+        self.assertEqual(result['normal']['unrecognized_error_body'],3)
+        self.assertEqual(result['replay']['transport_errors'],1)
+        self.assertNotIn('PRIVATE',json.dumps(result))
+        self.assertEqual(set(result),{'schema','normal','replay'})
+        self.assertTrue(all(type(value) is int for value in result['normal']['error_codes'].values()))
+
     def test_soak_detects_response_fidelity_and_replay_acceptance_failures(self):
         class Signer:
             def headers(self,target,body):return []
@@ -168,6 +304,8 @@ class OperationalTests(unittest.TestCase):
         with patch.object(module,'exchange',side_effect=OSError('private-token-and-body')):
             result=module.run_soak(1,1,1,None,Signer())
         self.assertGreater(result['transport_errors'],0)
+        self.assertEqual(result['outcomes']['normal']['transport_errors'],result['signed_requests'])
+        self.assertEqual(result['outcomes']['replay']['transport_errors'],result['replay_requests'])
         self.assertNotIn('private-token',json.dumps(result))
         with self.assertRaises(AssertionError):module.require_soak_success(result)
 
@@ -209,6 +347,8 @@ class OperationalTests(unittest.TestCase):
         self.assertGreater(result['signed_requests'],1)
         self.assertEqual(result['latency']['samples'],result['signed_requests']*2)
         self.assertEqual(result['error_rate'],0)
+        self.assertEqual(result['outcomes']['normal']['statuses'],[{'status':200,'count':result['signed_requests']}])
+        self.assertEqual(result['outcomes']['replay']['error_codes']['REPLAY_DETECTED'],result['replay_requests'])
 
     def test_redis_outage_requires_specific_deny_and_bounded_latency(self):
         request=b'private-request'

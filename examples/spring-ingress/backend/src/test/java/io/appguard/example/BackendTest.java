@@ -10,6 +10,7 @@ import java.nio.file.attribute.PosixFilePermissions;
 import java.security.*;
 import java.security.spec.ECGenParameterSpec;
 import java.util.*;
+import java.util.concurrent.*;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.springframework.mock.web.*;
@@ -79,6 +80,29 @@ class BackendTest {
         Path permissive=Files.createFile(temp.resolve("permissive.json"),PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rw-r--r--")));
         assertThatThrownBy(()->new BackendCounters(permissive)).isInstanceOf(IllegalArgumentException.class);
         Path link=Files.createSymbolicLink(temp.resolve("link.json"),path);assertThatThrownBy(()->BackendSettings.file(link.toString())).isInstanceOf(IllegalArgumentException.class);
+    }
+    @Test void concurrentCountersRetainEveryIncrementAndPublishFinalSnapshotBeforeReturning()throws Exception {
+        Path path=Files.createFile(temp.resolve("concurrent.json"),PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rw-------")));
+        BackendCounters counters=new BackendCounters(path);ExecutorService workers=Executors.newFixedThreadPool(8);
+        try{
+            List<Future<?>> pending=new ArrayList<>();
+            for(int worker=0;worker<8;worker++)pending.add(workers.submit(()->{
+                for(int iteration=0;iteration<25;iteration++){counters.increment("dispatch");counters.increment("auth");}
+            }));
+            for(Future<?> completed:pending)completed.get(10,TimeUnit.SECONDS);
+            assertThat(counters.snapshot()).containsExactlyInAnyOrderEntriesOf(Map.of("dispatch",200L,"auth",200L,"key",0L,"replay",0L,"resource",0L));
+            assertThat(Files.readString(path)).isEqualTo("{\"dispatch\":200,\"auth\":200,\"key\":0,\"replay\":0,\"resource\":0}\n");
+            assertThat(Files.getPosixFilePermissions(path)).isEqualTo(PosixFilePermissions.fromString("rw-------"));
+        }finally{workers.shutdownNow();assertThat(workers.awaitTermination(10,TimeUnit.SECONDS)).isTrue();}
+    }
+    @Test void counterSnapshotRejectsReplacementSymlinkWithoutChangingItsTarget()throws Exception {
+        Path path=Files.createFile(temp.resolve("replaced.json"),PosixFilePermissions.asFileAttribute(PosixFilePermissions.fromString("rw-------")));
+        BackendCounters counters=new BackendCounters(path);
+        Path other=Files.writeString(temp.resolve("other.json"),"preserve-existing-content");
+        Files.delete(path);Files.createSymbolicLink(path,other);
+        assertThatThrownBy(()->counters.increment("dispatch")).isInstanceOf(IllegalStateException.class);
+        assertThat(Files.readString(other)).isEqualTo("preserve-existing-content");
+        assertThat(Files.isSymbolicLink(path)).isTrue();
     }
     @Test void resourceRequiresVerifiedPrincipalCorrectMethodAndExactPath()throws Exception {
         BackendSettings settings=new BackendSettings(environment());BackendCounters counters=new BackendCounters(null);
