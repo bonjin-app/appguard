@@ -3,6 +3,7 @@ import copy
 import hashlib
 import json
 from pathlib import Path
+import sys
 import unittest
 from unittest.mock import patch
 
@@ -21,6 +22,55 @@ def block(ids, arch='arm64', *, pid1=True):
 
 
 class PlatformTests(unittest.TestCase):
+    def test_qualifier_projects_daemon_fields_before_bounded_readback(self):
+        module=qualification.load_module()
+        expected='{"OSType":{{json .OSType}},"Architecture":{{json .Architecture}}}'
+        for arch,machine in (('amd64','x86_64'),('arm64','aarch64')):
+            calls=[]
+            class Docker:
+                def call(inner,args,**kwargs):
+                    calls.append((args,kwargs))
+                    value=dict(OSType='linux',Architecture=machine)
+                    if args[-1]!=expected:value['UnrelatedDaemonState']='PRIVATE'*2048
+                    raw=json.dumps(value).encode()
+                    return module.bounded_command([sys.executable,'-c',
+                        'import sys;sys.stdout.buffer.write(bytes.fromhex(sys.argv[1]))',raw.hex()],**kwargs)
+            with self.subTest(arch=arch),patch.object(module.host_platform,'system',return_value='Linux'), \
+                    patch.object(module.host_platform,'machine',return_value=machine):
+                value=module.platform_environment(Docker(),'linux/'+arch)
+                self.assertEqual(value['daemon_architecture'],arch)
+                self.assertEqual(calls,[(['info','--format',expected],{'timeout':5,'limit':4096})])
+
+    def test_projected_daemon_metadata_retains_invalid_type_absence_and_unknown_rejection(self):
+        invalid=([],{},dict(OSType='linux'),dict(Architecture='aarch64'),
+            dict(OSType=True,Architecture='aarch64'),dict(OSType='linux',Architecture=True),
+            dict(OSType='linux',Architecture=[]),dict(OSType='windows',Architecture='aarch64'),
+            dict(OSType='linux',Architecture='unknown'))
+        module=qualification.load_module()
+        for document in invalid:
+            class Docker:
+                def call(inner,args,**kwargs):return json.dumps(document)
+            with self.subTest(document=document),patch.object(module.host_platform,'system',return_value='Linux'), \
+                    patch.object(module.host_platform,'machine',return_value='aarch64'), \
+                    self.assertRaises((ValueError,TypeError,AttributeError)):
+                module.platform_environment(Docker(),'linux/arm64')
+            if type(document) is dict:
+                _,value=self.scanner(change=lambda kind,data:data.clear() or data.update(document) if kind=='daemon' else None)
+                self.assertFalse(value['automated_checks_passed']);self.assertFalse(value['runtime_platform']['verified'])
+
+    def test_projected_oversized_daemon_fields_still_exceed_unchanged_bounds(self):
+        module=qualification.load_module()
+        class Docker:
+            def call(inner,args,**kwargs):
+                raw=json.dumps(dict(OSType='linux',Architecture='x'*4096)).encode()
+                return module.bounded_command([sys.executable,'-c',
+                    'import sys;sys.stdout.buffer.write(bytes.fromhex(sys.argv[1]))',raw.hex()],**kwargs)
+        with patch.object(module.host_platform,'system',return_value='Linux'), \
+                patch.object(module.host_platform,'machine',return_value='aarch64'), \
+                self.assertRaises(module.CommandFailure) as caught:
+            module.platform_environment(Docker(),'linux/arm64')
+        self.assertEqual(caught.exception.category,'output_limit')
+
     def test_legacy_fixture_is_isolated_from_the_physical_arm_host(self):
         case=image_scan.ContainerScanTests();case.setUp();self.addCleanup(case.doCleanups)
         with patch.object(image_scan.module.platform,'system',return_value='Linux'), \
@@ -98,9 +148,11 @@ class PlatformTests(unittest.TestCase):
     def scanner(self, *, arch='arm64', change=None):
         case=image_scan.ContainerScanTests();case.setUp();self.addCleanup(case.doCleanups)
         case.data['runtime_platform']=block(case.ids,arch);case.write()
+        case.daemon_commands=[]
         original=case.runner
         def runner(command, **kwargs):
             if command[0]=='docker' and command[3]=='info':
+                case.daemon_commands.append((command,kwargs))
                 value=dict(OSType='linux',Architecture='aarch64' if arch=='arm64' else 'x86_64')
                 if change:change('daemon',value)
                 return 0,json.dumps(value).encode()
@@ -113,6 +165,18 @@ class PlatformTests(unittest.TestCase):
         with patch.object(image_scan.module.platform,'system',return_value='Linux'), \
                 patch.object(image_scan.module.platform,'machine',return_value='aarch64' if arch=='arm64' else 'x86_64'):
             return case,case.run_scan(host=('Linux','aarch64' if arch=='arm64' else 'x86_64'))
+
+    def test_scanner_projects_only_daemon_platform_fields_before_and_after_scan(self):
+        expected=['docker','--context','default','info','--format',
+            '{"OSType":{{json .OSType}},"Architecture":{{json .Architecture}}}']
+        for arch in ('amd64','arm64'):
+            with self.subTest(arch=arch):
+                case,value=self.scanner(arch=arch)
+                self.assertTrue(value['automated_checks_passed'])
+                self.assertGreaterEqual(len(case.daemon_commands),2)
+                for index,(command,kwargs) in enumerate(case.daemon_commands):
+                    self.assertEqual(command,expected)
+                    self.assertEqual(kwargs.get('timeout',30),30 if index==0 else 5)
 
     def test_native_arm_scanner_uses_verified_receipt_and_actual_image_platforms(self):
         case,result=self.scanner()

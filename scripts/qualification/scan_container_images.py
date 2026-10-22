@@ -624,7 +624,7 @@ def scan(receipt, output, docker_context='default'):
             require(host in allowed
                 and host in TOOLS['trivy'] and TOOLS['trivy'][host]['version'] == '0.76.1')
             if target is not None:
-                code, raw = bounded_command(['docker','--context','default','info','--format','{{json .}}'],env=env,cwd=state)
+                code, raw = bounded_command(['docker','--context','default','info','--format','{"OSType":{{json .OSType}},"Architecture":{{json .Architecture}}}'],env=env,cwd=state)
                 require(code == 0); daemon = _json(raw)
                 machine,actual = native_environment(target,daemon)
                 status['runtime_platform'].update(host_machine=machine,daemon_architecture=actual)
@@ -646,7 +646,7 @@ def scan(receipt, output, docker_context='default'):
                 require(row.get('Id') == images[role] and row.get('Os') == 'linux' and row.get('Architecture') == arch)
                 return dict(image_id=images[role],os='linux',architecture=arch)
             def verify_native_environment():
-                code,raw = frozen_command(['docker','--context','default','info','--format','{{json .}}'],timeout=5)
+                code,raw = frozen_command(['docker','--context','default','info','--format','{"OSType":{{json .OSType}},"Architecture":{{json .Architecture}}}'],timeout=5)
                 require(code == 0); native_environment(target,_json(raw))
             if target is not None:
                 platform_images = {role:image_observation(role) for role in ROLES}

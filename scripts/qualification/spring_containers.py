@@ -640,7 +640,7 @@ def platform_environment(docker, target):
     require(target in ('linux/amd64','linux/arm64') and host_platform.system() == 'Linux')
     arch = target.split('/')[1]; machine = 'x86_64' if arch == 'amd64' else 'aarch64'
     require(host_platform.machine() == machine)
-    daemon = json.loads(docker.call(['info','--format','{{json .}}'],timeout=5,limit=4096))
+    daemon = json.loads(docker.call(['info','--format','{"OSType":{{json .OSType}},"Architecture":{{json .Architecture}}}'],timeout=5,limit=4096))
     actual = {'x86_64':'amd64','amd64':'amd64','aarch64':'arm64','arm64':'arm64'}.get(daemon.get('Architecture'))
     require(daemon.get('OSType') == 'linux' and actual == arch)
     return dict(schema=1,platform=target,host_machine=machine,daemon_architecture=actual,images={},verified=False)
