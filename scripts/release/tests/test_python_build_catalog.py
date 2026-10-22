@@ -367,7 +367,7 @@ class PythonBuildCatalogTests(unittest.TestCase):
             verification.mkdir()
             self.assertEqual(catalog.validate_source_catalog(source, base / 'sbom.cdx.json', verification), result)
 
-    def test_current_sdk_preserves_40_package_entries_and_five_separate_build_pins(self):
+    def test_current_sdk_preserves_40_package_entries_and_six_separate_build_pins(self):
         m, server = module(), module('server_catalog')
         with tempfile.TemporaryDirectory() as tmp:
             base = Path(tmp).resolve()
@@ -389,7 +389,8 @@ class PythonBuildCatalogTests(unittest.TestCase):
             self.assertEqual(len(lock['package']), 40)
             self.assertEqual(before['server_locks'][0]['recorded_package_count'], 39)
             self.assertEqual(before['server_locks'][0]['skipped_local_project_count'], 1)
-            self.assertEqual(len(result['python_build_constraints']), 5)
+            self.assertEqual(len(result['python_build_constraints']), 6)
+            self.assertIn('pkg:pypi/editables@0.6', {r['purl'] for r in result['python_build_constraints']})
 
 
 if __name__ == '__main__':

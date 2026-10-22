@@ -305,8 +305,9 @@ class ServerCatalogTests(unittest.TestCase):
         prepare_python_build_catalog(self.source, raw, self.base)
         result = module().validate_source_catalog(self.source, self.sbom, self.base)
         self.assertTrue(result['all_recorded_packages_cataloged'])
-        self.assertEqual(len(result['python_build_constraints']), 10)
-        self.assertEqual(len({r['purl'] for r in result['python_build_constraints']}), 5)
+        self.assertEqual(len(result['python_build_constraints']), 12)
+        self.assertEqual(len({r['purl'] for r in result['python_build_constraints']}), 6)
+        self.assertEqual(sum(r['purl'] == 'pkg:pypi/editables@0.6' for r in result['python_build_constraints']), 2)
         self.assertEqual(len(result['server_locks']), 8)
         self.assertEqual(sum(len(v['records']) for v in result['server_locks']), 83)
 

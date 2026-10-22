@@ -1,6 +1,7 @@
 """Python package contract and opt-in, real uv isolated-build regressions.
 
-Default tests do not download or install anything. Pass --verify-packaging with
+Default tests do not download or install anything. Editable SDK/reference
+installation and the isolated wheel consumer are exercised only in real-tool mode. Pass --verify-packaging with
 explicit uv/Python executables for real builds and one clean consumer install.
 An optional --build-wheelhouse supplies reviewed wheels instead of downloading them. Raw tool logs stay private.
 """
@@ -32,10 +33,11 @@ import zipfile
 
 ROOT = Path(__file__).resolve().parents[2]
 SDK = ROOT / 'sdk/python'
+REFERENCE = ROOT / 'reference/python'
 OPTIONS = None
 EXPECTED_BUILD_VERSIONS = {
     'hatchling': '1.27.0', 'packaging': '25.0', 'pathspec': '0.12.1',
-    'pluggy': '1.6.0', 'trove-classifiers': '2025.5.9.12',
+    'pluggy': '1.6.0', 'trove-classifiers': '2025.5.9.12', 'editables': '0.6',
 }
 
 
@@ -59,21 +61,26 @@ def build_pins(data):
 
 class PackageContractTests(unittest.TestCase):
     def test_normal_build_requires_hashed_build_dependencies(self):
-        self.assertIs(project_data()['tool']['uv'].get('require-build-hashes'), True)
+        for project in (SDK, REFERENCE):
+            with self.subTest(project=project.name):
+                self.assertIs(project_data(project)['tool']['uv'].get('require-build-hashes'), True)
 
     def test_exact_build_closure_is_recorded_in_lock_manifest(self):
-        pins = build_pins(project_data())
-        self.assertEqual(set(pins), {'hatchling', 'packaging', 'pathspec', 'pluggy', 'trove-classifiers'})
-        lock = tomllib.loads((SDK / 'uv.lock').read_text())
-        actual = {item['name']: (item['specifier'][2:], item['hashes'][0][7:])
-                  for item in lock.get('manifest', {}).get('build-constraints', [])}
-        self.assertEqual(actual, pins)
+        for project in (SDK, REFERENCE):
+            with self.subTest(project=str(project.relative_to(ROOT))):
+                pins = build_pins(project_data(project))
+                self.assertEqual({name: version for name, (version, _) in pins.items()}, EXPECTED_BUILD_VERSIONS)
+                self.assertEqual(pins, build_pins(project_data()))
+                lock = tomllib.loads((project / 'uv.lock').read_text())
+                actual = {item['name']: (item['specifier'][2:], item['hashes'][0][7:])
+                          for item in lock.get('manifest', {}).get('build-constraints', [])}
+                self.assertEqual(actual, pins)
 
     def test_build_tools_are_not_runtime_requirements(self):
         data = project_data()
         runtime = data['project']['dependencies'] + [requirement
             for group in data['project']['optional-dependencies'].values() for requirement in group]
-        self.assertFalse(any(re.match(r'(?i)(hatchling|packaging|pathspec|pluggy|trove-classifiers)\b', r)
+        self.assertFalse(any(re.match(r'(?i)(hatchling|packaging|pathspec|pluggy|trove-classifiers|editables)\b', r)
                              for r in runtime))
 
     def test_supported_build_command_uses_project_directory_and_isolation(self):
@@ -331,14 +338,15 @@ class IsolatedPackageTests(unittest.TestCase):
             if Path(filename).name != filename or not filename.endswith('.whl') or hashlib.sha256(raw).hexdigest() != expected:
                 raise ValueError('build_wheel_checksum_mismatch')
             private_write(cls.wheelhouse / filename, raw)
-        cls.source_pins = {str(p.relative_to(SDK)): hashlib.sha256(p.read_bytes()).hexdigest()
-            for p in cls.source_files()}
+        cls.source_pins = {str(p.relative_to(ROOT)): hashlib.sha256(p.read_bytes()).hexdigest()
+            for project in (SDK, REFERENCE) for p in cls.source_files(project)}
         cls.addClassCleanup(cls.verify_original_source)
 
     @staticmethod
-    def source_files():
-        files = [SDK / name for name in ('pyproject.toml', 'uv.lock', 'README.md', 'LICENSE')]
-        for path in (SDK / 'src').rglob('*'):
+    def source_files(project=SDK):
+        files = [project / name for name in ('pyproject.toml', 'uv.lock', 'README.md', 'LICENSE')
+                 if (project / name).is_file()]
+        for path in (project / 'src').rglob('*'):
             if '__pycache__' in path.parts:
                 continue
             if path.is_symlink():
@@ -349,7 +357,7 @@ class IsolatedPackageTests(unittest.TestCase):
 
     @classmethod
     def verify_original_source(cls):
-        if any(hashlib.sha256((SDK / p).read_bytes()).hexdigest() != digest for p, digest in cls.source_pins.items()):
+        if any(hashlib.sha256((ROOT / p).read_bytes()).hexdigest() != digest for p, digest in cls.source_pins.items()):
             raise ValueError('candidate_source_changed')
 
     @classmethod
@@ -373,11 +381,11 @@ class IsolatedPackageTests(unittest.TestCase):
                 raise ValueError('tool_output_bound')
             return code, path.read_bytes()
 
-    def copy_source(self, name):
+    def copy_source(self, name, project=SDK):
         source = self.state / name
-        source.mkdir(mode=0o700)
-        for path in self.source_files():
-            target = source / path.relative_to(SDK)
+        source.mkdir(parents=True, mode=0o700)
+        for path in self.source_files(project):
+            target = source / path.relative_to(project)
             target.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
             private_write(target, path.read_bytes())
         return source
@@ -391,6 +399,53 @@ class IsolatedPackageTests(unittest.TestCase):
             command.append('--require-build-hashes')
         code, raw = self.run_tool(name, command)
         return code, raw, list(output.glob('*.whl')) if output.exists() else []
+
+    def validate_runtime_wheelhouse(self):
+        if OPTIONS.runtime_wheelhouse:
+            house = OPTIONS.runtime_wheelhouse
+            self.assertEqual(house.absolute(), house.resolve())
+            approved = {(Path(item['url']).name, item['hash'].removeprefix('sha256:'))
+                for project in (SDK, REFERENCE)
+                for package in tomllib.loads((project / 'uv.lock').read_text())['package']
+                for item in package.get('wheels', [])}
+            files = list(house.iterdir())
+            self.assertLessEqual(len(files), 128)
+            total = 0
+            for path in files:
+                self.assertFalse(path.is_symlink())
+                self.assertTrue(path.is_file())
+                self.assertLessEqual(path.stat().st_size, 64 * 1024 * 1024)
+                total += path.stat().st_size
+                self.assertIn((path.name, hashlib.sha256(path.read_bytes()).hexdigest()), approved)
+            self.assertLessEqual(total, 256 * 1024 * 1024)
+
+    def test_locked_editable_sync_for_sdk_and_reference(self):
+        self.validate_runtime_wheelhouse()
+        sdk = self.copy_source('editable-tree/sdk/python')
+        reference = self.copy_source('editable-tree/reference/python', REFERENCE)
+        self.assertEqual((reference / '../../sdk/python').resolve(), sdk)
+        smoke = self.state / 'editable-smoke.py'
+        private_write(smoke, b'import importlib.metadata, json, pathlib, sys, tomllib\nproject=pathlib.Path(sys.argv[1]).resolve(); sdk=pathlib.Path(sys.argv[2]).resolve(); role=sys.argv[3]\nimport appguard\nassert pathlib.Path(appguard.__file__).resolve()==sdk/"src/appguard/__init__.py"\nmodules=[("appguard-server",sdk)]\nif role=="reference":\n import appguard_reference\n from appguard_reference.verify import verify_request as reference_verify\n from appguard import verify_request\n assert reference_verify is verify_request\n assert pathlib.Path(appguard_reference.__file__).resolve()==project/"src/appguard_reference/__init__.py"\n modules.append(("appguard-reference",project))\nfor name,origin in modules:\n dist=importlib.metadata.distribution(name)\n direct=json.loads(dist.read_text("direct_url.json"))\n assert direct.get("dir_info",{}).get("editable") is True\n assert pathlib.Path(__import__("urllib.parse",fromlist=["urlparse"]).urlparse(direct["url"]).path).resolve()==origin\nlocked={p["name"]:p["version"]for p in tomllib.loads((project/"uv.lock").read_text())["package"]}\nfor d in importlib.metadata.distributions():\n name=d.metadata["Name"].lower().replace("_","-")\n assert locked.get(name)==d.version\nprint(json.dumps({"editable_origins_verified":True,"editable_distributions":len(modules),"installed_versions_match_lock":True}))\n')
+        for role, project in (('sdk', sdk), ('reference', reference)):
+            with self.subTest(project=role):
+                lock = (project / 'uv.lock').read_bytes()
+                network = (['--offline', '--no-index', '--find-links', OPTIONS.runtime_wheelhouse]
+                    if OPTIONS.runtime_wheelhouse else ['--default-index', 'https://pypi.org/simple',
+                        '--index-strategy', 'first-index', '--keyring-provider', 'disabled'])
+                code, _ = self.run_tool('editable-' + role + '-sync', [self.uv, '--directory', project,
+                    'sync', '--locked', '--no-cache', '--python', self.python, '--no-python-downloads',
+                    '--find-links', self.wheelhouse, *network])
+                self.assertEqual(code, 0, 'locked editable install failed; inspect private tool log')
+                self.assertEqual((project / 'uv.lock').read_bytes(), lock)
+                python = project / '.venv/bin/python'
+                code, _ = self.run_tool('editable-' + role + '-dependency-check', [self.uv, 'pip', 'check', '--python', python])
+                self.assertEqual(code, 0)
+                code, raw = self.run_tool('editable-' + role + '-origins', [python, '-I', smoke, project, sdk, role])
+                self.assertEqual(code, 0, 'editable origin check failed; inspect private tool log')
+                result = json.loads(raw)
+                self.assertEqual(result, {'editable_origins_verified': True, 'editable_distributions': 1 if role == 'sdk' else 2,
+                    'installed_versions_match_lock': True})
+                self.__class__.observations['locked_editable_' + role + '_sync_and_origins_passed'] = True
 
     def test_missing_or_wrong_transitive_hash_fails_without_wheel(self):
         for name in ('missing', 'wrong', 'missing-entry'):
@@ -438,7 +493,7 @@ class IsolatedPackageTests(unittest.TestCase):
             self.assertEqual(metadata['Version'], project_data(source)['project']['version'])
             self.assertEqual(metadata['License-Expression'], 'Apache-2.0')
             requirements = metadata.get_all('Requires-Dist', [])
-            self.assertFalse(any(re.match(r'(?i)(hatchling|packaging|pathspec|pluggy|trove-classifiers)\b', r) for r in requirements))
+            self.assertFalse(any(re.match(r'(?i)(hatchling|packaging|pathspec|pluggy|trove-classifiers|editables)\b', r) for r in requirements))
             def normalized(requirement, extra=None):
                 dependency, _, marker = requirement.partition(';')
                 if marker:
@@ -470,22 +525,7 @@ class IsolatedPackageTests(unittest.TestCase):
         code, _ = self.run_tool('consumer-venv', [self.uv, 'venv', '--python', self.python, '--no-python-downloads', consumer])
         self.assertEqual(code, 0)
         python = consumer / ('Scripts/python.exe' if os.name == 'nt' else 'bin/python')
-        if OPTIONS.runtime_wheelhouse:
-            house = OPTIONS.runtime_wheelhouse
-            self.assertEqual(house.absolute(), house.resolve())
-            approved = {(Path(item['url']).name, item['hash'].removeprefix('sha256:'))
-                for package in tomllib.loads((source / 'uv.lock').read_text())['package']
-                for item in package.get('wheels', [])}
-            files = list(house.iterdir())
-            self.assertLessEqual(len(files), 128)
-            total = 0
-            for path in files:
-                self.assertFalse(path.is_symlink())
-                self.assertTrue(path.is_file())
-                self.assertLessEqual(path.stat().st_size, 64 * 1024 * 1024)
-                total += path.stat().st_size
-                self.assertIn((path.name, hashlib.sha256(path.read_bytes()).hexdigest()), approved)
-            self.assertLessEqual(total, 256 * 1024 * 1024)
+        self.validate_runtime_wheelhouse()
         network = ['--offline', '--no-index', '--find-links', OPTIONS.runtime_wheelhouse] if OPTIONS.runtime_wheelhouse else [
             '--default-index', 'https://pypi.org/simple', '--keyring-provider', 'disabled']
         wheel_requirement = self.state / 'wheel.txt'
@@ -512,7 +552,7 @@ for name in frameworks:
  m=importlib.import_module(name)
  assert pathlib.Path(m.__file__).resolve().is_relative_to(pathlib.Path(sys.prefix).resolve()) and "site-packages" in pathlib.Path(m.__file__).parts
 assert all(pathlib.Path(m.__file__).resolve().is_relative_to(package.parent) for n,m in sys.modules.items() if n.startswith("appguard.") and getattr(m,"__file__",None))
-assert not any(importlib.metadata.packages_distributions().get(n) for n in ("hatchling","packaging","pathspec","pluggy","trove_classifiers"))
+assert not any(importlib.metadata.packages_distributions().get(n) for n in ("hatchling","packaging","pathspec","pluggy","trove_classifiers","editables"))
 v=json.loads(pathlib.Path(sys.argv[1]).read_text())[0]
 r=v["request"]; request=RequestInput(r["method"],r["target"],tuple(tuple(p)for p in r["headers"]),base64.b64decode(r["body_b64"]))
 k=KeyRecord(**{**v["key"],"public_key_pem":v["key"]["public_key_pem"].encode()}); p=SignatureParameters(**v["parameters"]); replay=InMemoryReplayStore()
@@ -588,11 +628,13 @@ def main():
             'failures': len(result.failures), 'errors': len(result.errors), 'skipped': len(result.skipped),
             'pyproject_sha256': hashlib.sha256((SDK / 'pyproject.toml').read_bytes()).hexdigest(),
             'uv_lock_sha256': hashlib.sha256((SDK / 'uv.lock').read_bytes()).hexdigest(),
+            'reference_pyproject_sha256': hashlib.sha256((REFERENCE / 'pyproject.toml').read_bytes()).hexdigest(),
+            'reference_uv_lock_sha256': hashlib.sha256((REFERENCE / 'uv.lock').read_bytes()).hexdigest(),
             'test_script_sha256': hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
             'source_unchanged': getattr(IsolatedPackageTests, 'source_pins', None) is not None and all(
-                hashlib.sha256((SDK / name).read_bytes()).hexdigest() == digest
+                hashlib.sha256((ROOT / name).read_bytes()).hexdigest() == digest
                 for name, digest in IsolatedPackageTests.source_pins.items()),
-            'observations': observed, 'scope': 'isolated_uv_producer_and_all_extras_wheel_consumer',
+            'observations': observed, 'scope': 'locked_sdk_reference_editables_isolated_uv_producer_and_all_extras_wheel_consumer',
             'cross_platform_reproducibility_proven': False, 'dependency_security_approved': False,
             'license_approved': False, 'pip_source_build_hash_enforcement': False}
         private_write(OPTIONS.evidence / 'receipt.json', (json.dumps(summary, sort_keys=True, indent=2) + '\n').encode())

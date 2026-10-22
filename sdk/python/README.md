@@ -12,11 +12,14 @@ uv run --frozen --project sdk/python pytest sdk/python/tests -q
 uv --directory sdk/python build --require-build-hashes --no-cache
 ```
 
-The supported uv producer command uses an isolated build environment. The five
+The supported uv producer command uses an isolated build environment. The six
 build dependencies have exact versions and SHA-256 hashes under `[tool.uv]`;
 `require-build-hashes = true` also applies to an ordinary `uv build` from this SDK
-directory. They are build constraints, separate from runtime dependencies and
-optional extras. uv 0.13.4 treats build-hash enforcement as experimental; the
+directory. `editables==0.6` supplies Hatchling's editable-build hook dependency;
+locked editable installation needs this constraint even though ordinary wheels
+do not include it as a runtime dependency. Both the SDK and reference project
+version the same six build constraints. They are separate from runtime
+dependencies and optional extras. uv 0.13.4 treats build-hash enforcement as experimental; the
 version and closure are reviewed together. A dependency group alone would not
 constrain isolated builds. Use the project-directory command above so uv loads
 this project's settings. `--no-config` and `--no-build-isolation` bypass this
@@ -27,8 +30,9 @@ honors the project constraints, but its default cache behavior does not establis
 fresh download verification. CI packaging regressions also use fresh caches.
 
 The real package regression entry point builds with a fresh isolated environment,
-checks missing/wrong transitive hashes, inspects wheel contents and installs it
-with all extras and frozen, hashed runtime dependencies in one fresh consumer
+checks fresh `uv sync --locked` editable installs of both the SDK and reference
+project with the real `../../sdk/python` relationship, rejects missing/wrong
+transitive hashes, inspects wheel contents and installs it with all extras and frozen, hashed runtime dependencies in one fresh consumer
 environment:
 
 ```sh

@@ -32,11 +32,14 @@ uv --no-cache --directory sdk/python build --require-build-hashes
 uv --no-cache --directory reference/python build --require-build-hashes
 ```
 
-The explicit packaging check in SDK CI tests isolated builds, missing/incorrect
-transitive hash refusals, wheel contents and a fresh all-extras consumer
+The explicit packaging check in SDK CI tests fresh locked editable installation
+of both projects, isolated wheel builds, missing/incorrect transitive hash
+refusals, wheel contents and a fresh all-extras consumer
 installation from frozen hashed runtime requirements. Only its fixed-schema
 receipt is retained. Pip source builds do not enforce these uv settings;
 controlled producer checks do not establish universal build reproducibility.
+Editable installation additionally needs the reviewed `editables` build helper;
+passing a wheel-only build is insufficient to verify `uv sync --locked`.
 
 Source scanning preserves `sbom-source.raw.cdx.json` and adds a deterministic
 declared-build overlay to the existing `sbom.cdx.json` read by Trivy. The

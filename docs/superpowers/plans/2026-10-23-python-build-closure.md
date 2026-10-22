@@ -23,7 +23,8 @@ This increment does not complete AppGuard's production release objective.
 ## Implementation and verification
 
 1. Add meaningful regressions and observe failure on the baseline configuration.
-2. Review the exact five universal build wheels and their dependency metadata,
+2. Review the exact six universal build wheels (including the editable-install
+   helper) and their dependency metadata,
    known vulnerability observations and original license material.
 3. Add versioned hashed build constraints and hash enforcement to both Python
    projects: the SDK and the protocol reference. Refresh their locks without
@@ -34,7 +35,9 @@ This increment does not complete AppGuard's production release objective.
    `[tool.uv]` settings.
 5. Make explicit CI packaging verification exercise ordinary project settings,
    missing and incorrect transitive hashes, wheel payload/LICENSE/metadata, and
-   a fresh consumer installation from hash-locked runtime requirements.
+   a fresh consumer installation from hash-locked runtime requirements. Exercise
+   `uv sync --locked` in fresh SDK and reference environments with the actual
+   relative project topology and verify editable metadata, imports and lock bytes.
 6. Add source scan inventory visibility for both projects' declared build pins,
    with independently bound raw-Syft/overlay evidence. Scan those components
    while preserving the distinction between declared pins and resolved runtime
@@ -56,10 +59,18 @@ Fixed-input byte equality is narrower than universal reproducible builds.
 
 ## Local verification before candidate freeze
 
-The implementation passed 147 tooling/operating regressions, 177 release tests
+The initial implementation passed 147 tooling/operating regressions, 177 release tests
 with actual reviewed Syft checks, and nine real packaging tests. Independent
 review closed downloader deadline and cancellation findings, direct-validator
 FIFO handling, finite JSON parsing, and provenance-file pinning/staging gaps.
 Both original lock package lists remain unchanged. Candidate-bound Trivy and
 hosted CI observations remain required; these local results do not complete the
 production goal or clear existing findings and external approvals.
+
+The first candidate (`1dbf53f`) failed fresh Linux SDK and container setup because
+wheel-only verification had missed Hatchling's `editables` build dependency.
+It was not integrated into main. The corrective regression reproduces the SDK
+and reference failures, adds the reviewed `editables==0.6` wheel hash to both
+projects, and passes ten real packaging tests, including fresh locked editable
+installs. Existing 40 SDK and 11 reference package records remain unchanged.
+Fresh final-candidate Linux CI and source scanning remain required.
