@@ -1,4 +1,5 @@
 import importlib.util
+import errno
 import hashlib
 import json
 import os
@@ -11,7 +12,7 @@ import signal
 import subprocess
 import time
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 SCRIPT = Path(__file__).resolve().parents[2] / 'scripts/qualification/scan_container_images.py'
 spec = importlib.util.spec_from_file_location('container_image_scan', SCRIPT)
@@ -670,6 +671,86 @@ class ContainerScanTests(unittest.TestCase):
                 break
             time.sleep(.02)
         self.assertTrue(not result.stdout.strip() or result.stdout.strip().startswith('Z'))
+
+    @contextlib.contextmanager
+    def cleanup_child(self, *, live_at_probe=False):
+        read, write = os.pipe()
+        os.close(write)
+        child = Mock(pid=987654321, returncode=0, stdout=os.fdopen(read, 'rb'))
+        child.poll.return_value = 0
+        if live_at_probe:
+            child.poll.side_effect = [0, 0, None]
+        child.wait.return_value = 0
+        try:
+            with patch.object(module.subprocess, 'Popen', return_value=child):
+                yield child
+        finally:
+            child.stdout.close()
+
+    def test_cleanup_accepts_eperm_only_after_reaped_leader_and_actual_esrch(self):
+        calls = []
+        def raced(group, action):
+            calls.append((group, action))
+            if action == signal.SIGKILL:
+                raise PermissionError(errno.EPERM, 'fixed vanished-group race')
+            if action == 0:
+                raise ProcessLookupError(errno.ESRCH, 'fixed absent group')
+        with self.cleanup_child() as child, patch.object(module.os, 'killpg', new=raced):
+            self.assertEqual(module.bounded_command(['unused'], env={}, cwd=self.root), (0, b''))
+            self.assertTrue(child.stdout.closed)
+            self.assertEqual(calls, [(child.pid, signal.SIGTERM), (child.pid, signal.SIGKILL), (child.pid, 0)])
+
+    def test_cleanup_keeps_original_eperm_without_confirmed_group_absence(self):
+        for probe_error in (None, PermissionError(errno.EPERM, 'fixed denied probe'),
+                OSError(errno.EIO, 'fixed unknown probe'), PermissionError(errno.EACCES, 'fixed other denial'),
+                ProcessLookupError(None, 'fixed untyped lookup failure')):
+            original = PermissionError(errno.EPERM, 'fixed unconfirmed group')
+            calls = []
+            def denied(group, action):
+                calls.append((group, action))
+                if action == signal.SIGKILL:
+                    raise original
+                if action == 0 and probe_error is not None:
+                    raise probe_error
+            with self.subTest(probe_errno=getattr(probe_error, 'errno', None)), \
+                    self.cleanup_child() as child, patch.object(module.os, 'killpg', new=denied):
+                started = time.monotonic()
+                with self.assertRaises(PermissionError) as caught:
+                    module.bounded_command(['unused'], env={}, cwd=self.root)
+                self.assertIs(caught.exception, original)
+                self.assertIn((child.pid, 0), calls)
+                self.assertTrue(all(group == child.pid for group, _ in calls))
+                self.assertLess(time.monotonic() - started, 1)
+                self.assertTrue(child.stdout.closed)
+
+    def test_cleanup_never_probes_or_suppresses_non_eperm_permission_errors(self):
+        for code in (errno.EACCES, None):
+            original = PermissionError(code, 'fixed other permission error')
+            calls = []
+            def denied(group, action):
+                calls.append((group, action))
+                if action == signal.SIGKILL:
+                    raise original
+            with self.subTest(errno=code), self.cleanup_child() as child, patch.object(module.os, 'killpg', new=denied):
+                with self.assertRaises(PermissionError) as caught:
+                    module.bounded_command(['unused'], env={}, cwd=self.root)
+                self.assertIs(caught.exception, original)
+                self.assertNotIn((child.pid, 0), calls)
+                self.assertTrue(child.stdout.closed)
+
+    def test_cleanup_does_not_confirm_absence_for_a_live_owned_leader(self):
+        original = PermissionError(errno.EPERM, 'fixed live leader')
+        calls = []
+        def denied(group, action):
+            calls.append((group, action))
+            if action == signal.SIGKILL:
+                raise original
+        with self.cleanup_child(live_at_probe=True) as child, patch.object(module.os, 'killpg', new=denied):
+            with self.assertRaises(PermissionError) as caught:
+                module.bounded_command(['unused'], env={}, cwd=self.root)
+            self.assertIs(caught.exception, original)
+            self.assertNotIn((child.pid, 0), calls)
+            self.assertTrue(child.stdout.closed)
 
     def test_cooperative_sigterm_kills_owned_group(self):
         pidfile = self.root / 'owned-pid'

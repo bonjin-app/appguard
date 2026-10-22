@@ -190,10 +190,26 @@ def verify_pin(path, pin):
 
 def bounded_command(command, *, env, cwd, timeout=30, report=None, pass_fds=()):
     """Bound CLI output, report growth and process group lifetime, including cancel."""
+    import errno
     child = subprocess.Popen(command, stdin=subprocess.DEVNULL, stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT, env=env, cwd=cwd, start_new_session=True, pass_fds=pass_fds)
     output = bytearray()
     deadline = time.monotonic() + timeout
+    def group_absent():
+        if child.poll() is None:
+            return False
+        until = time.monotonic() + .25
+        while True:
+            try:
+                os.killpg(child.pid, 0)
+            except ProcessLookupError as error:
+                return error.errno == errno.ESRCH
+            except OSError as error:
+                if error.errno != errno.EPERM:
+                    return False
+            if time.monotonic() >= until:
+                return False
+            time.sleep(.01)
     try:
         with selectors.DefaultSelector() as selector:
             selector.register(child.stdout, selectors.EVENT_READ)
@@ -213,17 +229,26 @@ def bounded_command(command, *, env, cwd, timeout=30, report=None, pass_fds=()):
     finally:
         # Successful leaders may leave grandchildren with stdout detached.
         # Always clean this newly owned group, including on cooperative cancel.
-        for action in (signal.SIGTERM, signal.SIGKILL):
-            try:
-                os.killpg(child.pid, action)
-            except ProcessLookupError:
-                pass
-            try:
-                child.wait(timeout=2)
-            except subprocess.TimeoutExpired:
-                pass
-        child.wait(timeout=2)
-        child.stdout.close()
+        try:
+            for action in (signal.SIGTERM, signal.SIGKILL):
+                try:
+                    os.killpg(child.pid, action)
+                except ProcessLookupError:
+                    pass
+                except PermissionError as error:
+                    # Darwin's killpg1 skips SZOMB members and can report EPERM
+                    # after TERM. Require the exact leader reaped AND ESRCH;
+                    # successful/denied/unknown probes preserve the original error.
+                    # https://github.com/apple-oss-distributions/xnu/blob/main/bsd/kern/kern_sig.c
+                    if error.errno != errno.EPERM or not group_absent():
+                        raise
+                try:
+                    child.wait(timeout=2)
+                except subprocess.TimeoutExpired:
+                    pass
+            child.wait(timeout=2)
+        finally:
+            child.stdout.close()
 
 
 def context_endpoint(raw):

@@ -45,3 +45,26 @@ then fresh exact-main evidence after integration. Local test success is not an
 image vulnerability pass, external audit, native-closure proof or production
 approval. The existing 113167d sustained run must be observed without moving
 main first. Its observations remain specific to that older commit.
+
+## Actual CI and integration corrections
+
+The 113167d run 39828223212 completed; live artifact verification and assessment
+accepted its 1800-second, eight-worker operating evidence while retaining 31
+image findings, two source HIGH findings and seven unresolved release gates.
+This result does not transfer to a later candidate.
+
+The first schema-2 branch run failed closed before scanning. Actual pinned
+Trivy reproduction showed that its config-loading INFO message was merged with
+version JSON. Adding `--quiet` preserves the explicit config and strict JSON
+parser. Actual Linux branch run 39833655076 subsequently produced complete
+schema-2 detail provenance for all three images and retained all 31 backend OS
+findings; it did not pass the vulnerability gate.
+
+Two full local runs exposed a separate process-group cleanup error. An isolated
+owned fixture confirmed TERM success, KILL EPERM, then SIG0 ESRCH after the
+leader was reaped. A bounded absence check now handles only that confirmed-gone
+case; live, denied or unknown outcomes retain the original error, and stdout
+always closes. The original failures remain in private evidence. The corrected
+47 focused tests, 60 real fixture repetitions and all 196 tooling tests pass;
+the parent full run supplies disposable Redis and has zero skips. Independent
+review reported no confirmed findings. Fresh exact-commit CI remains required.
