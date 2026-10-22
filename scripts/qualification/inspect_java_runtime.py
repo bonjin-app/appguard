@@ -25,6 +25,9 @@ ROOT = '/opt/java/openjdk'
 SCOPE = 'java-runtime-inventory-v1'
 MAX_PROTOCOL = 8 * 1024 * 1024
 MAX_REPORT = 2 * 1024 * 1024
+MAX_FEATURE_BYTES = 16384
+FEATURE_CHECKS = frozenset(('crypto_p256', 'aes_gcm', 'pkcs12_roundtrip', 'jsse_default_trust',
+    'mtls_loopback', 'utf8_io', 'locale_data', 'timezone_data', 'localhost_nss', 'headless_font'))
 SHA = re.compile(r'[0-9a-f]{64}\Z')
 IMAGE = re.compile(r'sha256:[0-9a-f]{64}\Z')
 RELATIVE = re.compile(r'[A-Za-z0-9][A-Za-z0-9._+@/-]{0,255}\Z')
@@ -96,6 +99,16 @@ printf 'END\t%s\n' "$count"
 '''
 
 
+# Preserve the diagnostic image's configured locale and trust defaults. Docker
+# exec inherits container image environment, never the caller's host variables.
+# Capture the fixed Java exit code while the shell itself completes normally.
+FEATURE_SCRIPT = r'''printf 'FEATURE_BEGIN\n'
+/opt/java/openjdk/bin/java -Xmx64m -XX:ActiveProcessorCount=1 -Djava.io.tmpdir=/tmp -Duser.home=/tmp -Djava.awt.headless=true -cp /opt/appguard/java-runtime-probe AppGuardRuntimeProbe 2>/dev/null
+code=$?
+printf 'FEATURE_EXIT\t%s\n' "$code"
+'''
+
+
 def require(value):
     if not value: raise ValueError('java_runtime_inventory_unverified')
 
@@ -127,6 +140,22 @@ def protocol(raw):
     rows = raw.splitlines()
     require(len(rows) <= 50000 and all(len(row) <= 4096 for row in rows))
     return rows
+
+
+def parse_features(raw):
+    require(type(raw) is str and 0 < len(raw.encode()) <= MAX_FEATURE_BYTES and raw.endswith('\n'))
+    rows = raw.splitlines()
+    require(len(rows) == 3 and rows[0] == 'FEATURE_BEGIN' and re.fullmatch(r'FEATURE_EXIT\t[01]', rows[2]))
+    code = int(rows[2].split('\t')[1])
+    value = _json(rows[1].encode())
+    require(type(value) is dict and set(value) == {'schema', 'checks', 'passed'}
+        and type(value['schema']) is int and value['schema'] == 1
+        and type(value['checks']) is dict and set(value['checks']) == FEATURE_CHECKS
+        and all(type(flag) is bool for flag in value['checks'].values())
+        and type(value['passed']) is bool and value['passed'] is all(value['checks'].values())
+        and code == (0 if value['passed'] else 1))
+    return dict(schema=1, checks={key: value['checks'][key] for key in sorted(FEATURE_CHECKS)},
+        passed=value['passed'], exit_code=code)
 
 
 def parse_ldd(lines, code, files):
@@ -341,20 +370,22 @@ def validate_container(record, image, owner):
     return record['Id']
 
 
-def inspect_runtime(image, platform, output, docker_context='default'):
+def inspect_runtime(image, platform, output, docker_context='default', features=False):
     require(type(image) is str and IMAGE.fullmatch(image) and platform in ('linux/amd64', 'linux/arm64') and docker_context == 'default')
+    require(type(features) is bool)
     output = _path(output, new=True)
     parent = output.parent.stat()
     require(parent.st_uid == os.getuid() and not parent.st_mode & 0o022)
     architecture = platform.split('/')[1]
     owner = secrets.token_hex(16); name = 'appguard-java-audit-' + owner
-    report = dict(schema=1, evidence_class='owned_java_runtime_inventory', image_id=image, platform=platform,
+    report = dict(schema=2 if features else 1, evidence_class='owned_java_runtime_inventory', image_id=image, platform=platform,
         inventory_complete=False, native_checks_passed=False, cleanup=False, release_ready=False,
         native_binary_coverage=False, coverage_complete=False, reason='inventory_unverified',
         limitations=['ldd resolves declared loader dependencies, not every dlopen/JNI path or native vulnerability',
             'ELF class and machine do not prove an ISA baseline or host-kernel compatibility',
             'whole JRE byte identity does not prove Java features or license completeness',
             'no external approval, production or physical-hardware evidence'])
+    if features: report['features'] = None
     with Publication(output) as publication, tempfile.TemporaryDirectory(prefix='appguard-java-audit-') as temporary:
         state = Path(temporary).resolve(); state.chmod(0o700)
         home = state/'home'; home.mkdir(mode=0o700)
@@ -413,6 +444,9 @@ def inspect_runtime(image, platform, output, docker_context='default'):
                         row = by_hash[dependency['path_sha256']]
                         dependency.update(sha256=row['sha256'], providers=row['providers'])
             report['checks']['native_providers_verified'] = all(row['provider_verified'] for row in providers.values())
+            if features:
+                report['features'] = parse_features(call(['exec', identifier, '/bin/sh', '-c', FEATURE_SCRIPT], timeout=120))
+                report['checks']['runtime_features_passed'] = report['features']['passed']
             owned(validate=True)
             require(records(['image', 'inspect', image]).get('Id') == image)
             report['native_checks_passed'] = all(report['checks'].values())
@@ -453,9 +487,10 @@ def main(argv=None):
     parser.add_argument('--platform', choices=('linux/amd64', 'linux/arm64'), required=True)
     parser.add_argument('--docker-context', choices=('default',), default='default')
     parser.add_argument('--output', required=True)
+    parser.add_argument('--features', action='store_true', help='Run baked-in Java feature probe in diagnostic images')
     try:
         args = parser.parse_args(argv)
-        with cancellation_scope(): result = inspect_runtime(args.image, args.platform, args.output, args.docker_context)
+        with cancellation_scope(): result = inspect_runtime(args.image, args.platform, args.output, args.docker_context, features=args.features)
         print(json.dumps({key: result[key] for key in ('inventory_complete', 'native_checks_passed', 'cleanup', 'reason')}, sort_keys=True))
         return 0 if result['native_checks_passed'] else 1 if result['inventory_complete'] and result['cleanup'] else 2
     except (Exception, KeyboardInterrupt):

@@ -54,12 +54,116 @@ def providers(paths):
     return '\n'.join(records + ['END\t' + str(len(paths))]) + '\n'
 
 
+FEATURE_CHECKS = ('crypto_p256', 'aes_gcm', 'pkcs12_roundtrip', 'jsse_default_trust',
+    'mtls_loopback', 'utf8_io', 'locale_data', 'timezone_data', 'localhost_nss', 'headless_font')
+
+
+def feature_protocol(*, failed=(), code=None):
+    checks = {name: name not in failed for name in FEATURE_CHECKS}
+    passed = all(checks.values())
+    document = json.dumps({'schema': 1, 'checks': checks, 'passed': passed}, separators=(',', ':'))
+    return 'FEATURE_BEGIN\n' + document + '\nFEATURE_EXIT\t' + str((0 if passed else 1) if code is None else code) + '\n'
+
+
 class RuntimeInventoryTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         spec = importlib.util.spec_from_file_location('java_native_inventory', SCRIPT)
         cls.m = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(cls.m)
+
+    def test_feature_protocol_preserves_measured_font_failure_and_all_attempted_checks(self):
+        result = self.m.parse_features(feature_protocol(failed=('headless_font',)))
+        self.assertFalse(result['passed'])
+        self.assertEqual(result['exit_code'], 1)
+        self.assertEqual(set(result['checks']), set(FEATURE_CHECKS))
+        self.assertFalse(result['checks']['headless_font'])
+        self.assertTrue(result['checks']['mtls_loopback'])
+        self.assertTrue(self.m.parse_features(feature_protocol())['passed'])
+
+    def test_feature_protocol_refuses_omissions_duplicates_nonbooleans_and_status_contradiction(self):
+        original = feature_protocol()
+        for raw in (original.replace('"headless_font":true', '"headless_font":1'),
+                original.replace(',"headless_font":true', ''),
+                original.replace('"schema":1', '"schema":1,"schema":1'),
+                original.replace('"schema":1', '"schema":true'),
+                original.replace('"passed":true', '"passed":false'),
+                original.replace('"checks":{', '"checks":{"SECRET":true,'),
+                original.replace('FEATURE_EXIT\t0', 'FEATURE_EXIT\t1'),
+                original.replace('FEATURE_EXIT\t0', 'FEATURE_EXIT\t2'),
+                original.replace('FEATURE_BEGIN\n', ''), original.rstrip('\n'),
+                original + 'SECRET\n', 'x' * 16385):
+            with self.subTest(raw=raw[:40]), self.assertRaises(ValueError):
+                self.m.parse_features(raw)
+
+    def test_optional_features_run_after_linkage_failure_and_retain_complete_schema2_measurement(self):
+        with tempfile.TemporaryDirectory() as directory:
+            fake = self.fake(missing=True)
+            def call(command, **kwargs):
+                if command[3] == 'exec' and 'AppGuardRuntimeProbe' in command[-1]:
+                    self.assertNotIn('/usr/bin/env', command)
+                    return feature_protocol(failed=('headless_font',))
+                return fake(command, **kwargs)
+            with patch.object(self.m, 'bounded_command', side_effect=call):
+                result = self.m.inspect_runtime(self.image, 'linux/amd64', Path(directory).resolve()/'out', features=True)
+            self.assertEqual(result['schema'], 2)
+            self.assertTrue(result['inventory_complete'])
+            self.assertFalse(result['checks']['runtime_features_passed'])
+            self.assertFalse(result['features']['checks']['headless_font'])
+            self.assertTrue(result['cleanup'])
+            self.assertTrue(fake.removed)
+            self.assertFalse(result['release_ready'])
+            self.assertFalse(result['native_binary_coverage'])
+
+    def test_malformed_feature_output_never_passes_or_leaks_and_still_cleans_owned_container(self):
+        with tempfile.TemporaryDirectory() as directory:
+            fake = self.fake(missing=False)
+            def call(command, **kwargs):
+                if command[3] == 'exec' and 'AppGuardRuntimeProbe' in command[-1]:
+                    return 'SECRET unframed failure\n'
+                return fake(command, **kwargs)
+            with patch.object(self.m, 'bounded_command', side_effect=call):
+                result = self.m.inspect_runtime(self.image, 'linux/amd64', Path(directory).resolve()/'out', features=True)
+            self.assertFalse(result['inventory_complete'])
+            self.assertFalse(result['native_checks_passed'])
+            self.assertNotIn('SECRET', json.dumps(result))
+            self.assertTrue(result['cleanup'])
+            self.assertTrue(fake.removed)
+
+    def test_feature_command_timeout_keeps_collection_incomplete_and_cleans_owned_container(self):
+        with tempfile.TemporaryDirectory() as directory:
+            fake = self.fake(missing=False)
+            def call(command, **kwargs):
+                if command[3] == 'exec' and 'AppGuardRuntimeProbe' in command[-1]:
+                    raise self.m.CommandFailure('timeout', None, b'SECRET exception')
+                return fake(command, **kwargs)
+            with patch.object(self.m, 'bounded_command', side_effect=call):
+                result = self.m.inspect_runtime(self.image, 'linux/amd64', Path(directory).resolve()/'out', features=True)
+            self.assertFalse(result['inventory_complete'])
+            self.assertFalse(result['native_checks_passed'])
+            self.assertTrue(result['cleanup'])
+            self.assertTrue(fake.removed)
+            self.assertNotIn('SECRET', json.dumps(result))
+
+    def test_feature_cli_preserves_exit_semantics_and_does_not_inject_host_environment(self):
+        for response, expected in ((feature_protocol(), 0),
+                (feature_protocol(failed=('headless_font',)), 1), ('SECRET failure\n', 2)):
+            with tempfile.TemporaryDirectory() as directory:
+                fake = self.fake(missing=False)
+                def call(command, **kwargs):
+                    self.assertNotIn('HOST_SECRET', json.dumps(kwargs.get('env', {})))
+                    self.assertNotIn('HOST_SECRET', ' '.join(command))
+                    if command[3] == 'exec' and 'AppGuardRuntimeProbe' in command[-1]: return response
+                    return fake(command, **kwargs)
+                with self.subTest(expected=expected), patch.dict(os.environ,
+                        {'LANG': 'HOST_SECRET', 'JAVA_TOOL_OPTIONS': 'HOST_SECRET'}), \
+                        patch.object(self.m, 'bounded_command', side_effect=call), \
+                        contextlib.redirect_stdout(io.StringIO()) as stdout:
+                    code = self.m.main(['--image', self.image, '--platform', 'linux/amd64',
+                        '--output', str(Path(directory).resolve()/'report'), '--features'])
+                self.assertEqual(code, expected)
+                self.assertNotIn('SECRET', stdout.getvalue())
+                self.assertTrue(fake.removed)
 
     def test_complete_tree_and_actual_ldd_syntax_preserve_optional_missing_dependency(self):
         result = self.m.parse_inventory(inventory(missing=True), 'amd64')

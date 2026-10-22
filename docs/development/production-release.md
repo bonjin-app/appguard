@@ -46,6 +46,25 @@ The diagnostic workflow accepts exit 1 so missing dependencies remain available
 as failure evidence. A green collection job is **not** a native compatibility,
 vulnerability, complete dependency closure or release approval.
 
+With `--features`, the CLI requires the diagnostic image with the baked-in
+`AppGuardRuntimeProbe` classes. Both native CI targets compile those same classes
+using the pinned Java17 builder, without downloading Maven dependencies. Their
+location is outside the vendor JRE, preserving whole-JRE comparison. Extended
+reports use schema2 and retain all existing false release/closure flags.
+
+The ten selected checks exercise P256 signature mutation refusal, AES-GCM tag
+refusal, private PKCS12 roundtrip, default JSSE trust roots/TLS1.3, mutual TLS over
+the container's own loopback, UTF8 file IO, explicit locale data, timezone data,
+literal localhost NSS and headless font rendering. The TLS fixture creates only
+short-lived synthetic keys/certificates and never changes system trust or contacts
+external services. Native stderr is discarded to keep the strict JSON channel
+clean; each measured check failure remains explicit, while missing/malformed
+results or contradictory process status make collection incomplete. A result
+cannot pass because output was absent. Caller host environment is not injected;
+feature execution uses the diagnostic image's configured locale/trust defaults.
+These probes do not establish arbitrary DNS, provider accounts, GUI/audio hardware
+behavior or every JNI/dlopen path.
+
 A replacement runtime requires inspection of both architectures, explicit native
 provider packages with frozen provenance, application compatibility checks and
 unsuppressed image scans. Linker resolution does not exercise Java feature
