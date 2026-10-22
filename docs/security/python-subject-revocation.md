@@ -80,3 +80,40 @@ review are retained in
 do not establish real provider/device verification, production account controls,
 remote CI, deployment or public package publication. Other server SDKs and the
 common protocol remain unchanged.
+
+## Local verification record (2026-10-22)
+
+The reviewed runtime commit is
+`b7131927b7b70829714c33fcd45ec93b4d9547fa`. The SDK baseline passed 620 tests;
+the new regression suite first produced 39 expected missing-method failures,
+then passed all 39 cases after implementation. The complete SDK passed 659 tests
+with no skips, including three live tests against the task-owned disposable
+Redis instance. Parent reference verification passed 209 tests with no skips.
+
+A separately built wheel has SHA-256
+`f45ee5a856695008c5bdb9cc675b8dca6ab9545fc388ac12183aef48e791f009`.
+All 21 package entries match committed source, wheel bytes and installed bytes.
+Package README metadata, all 24 hashed wheel RECORD entries and the frozen,
+hash-checked dependency installation were verified. The isolated installed-wheel
+suite passed seven probes: six behavioral cases and one import-origin check.
+
+Independent security review reported no findings in this Python SQLite scope.
+Fresh review runs passed 659 SDK tests, 209 reference tests, seven installed-wheel
+probes and seven additional independent probes, all without skips. Independent
+cases cover separate-process completion/revocation ordering, four concurrent
+processes, exact subject scope, tombstones, fresh authorized enrollment, rollback
+cleanup and persisted state after a post-commit close failure. These evidence
+sets overlap and must not be added as distinct scenario counts. Historical
+baseline and failing regression logs were inspected, not rerun by the reviewer.
+
+Initial review harness attempts had collection errors from an incompatible
+pytest import mode and fixture errors from a missing temporary parent directory.
+The reviewer corrected the ignored harness and reran successfully; the original
+logs remain preserved separately. These corrections changed no product source.
+The final documentation-only record does not change the reviewed SDK or wheel.
+
+This evidence establishes local Python/SQLite behavior and package integrity;
+it does not establish production throughput, host authorization/session/cache
+integration, distributed coordination, live provider verification, physical-device
+results, remote CI or deployment. Subject revocation remains a point-in-time
+operation rather than an ongoing account suspension.
