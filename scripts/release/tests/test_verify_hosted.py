@@ -139,6 +139,50 @@ class HostedTests(unittest.TestCase):
         self.assertTrue(any('/contents/' in p and ('ref=' + COMMIT) in p for p in self.calls))
         self.assertGreaterEqual(self.calls.count('/repos/' + REPOSITORY + '/actions/runs/42'), 2)
 
+    def test_attempt_resource_timestamps_are_independent_of_the_stable_run(self):
+        # Actual GitHub run 39848616343 returned attempt updated_at one second
+        # after the run resource. Only endpoint timestamps differ here too.
+        for attempt, changes in ((1, {'updated_at': '2026-10-22T10:05:01Z'}),
+                                 (2, {'created_at': '2026-10-22T10:01:00Z', 'updated_at': '2026-10-22T10:05:01Z'})):
+            with self.subTest(attempt=attempt, changes=changes):
+                self.calls.clear()
+                self.run['run_attempt'] = attempt
+                self.hook = lambda path: (json.dumps(dict(self.run, **changes)).encode()
+                                         if path.endswith(f'/attempts/{attempt}') else None)
+                result = self.verify()
+                self.assertTrue(result['technical_gate_verified'])
+                self.assertEqual(result['api_response_count'], 8)
+                self.assertEqual(result['run_attempt'], attempt)
+
+    def test_each_resource_still_requires_fresh_ordered_valid_timestamps(self):
+        for resource in ('run', 'attempt'):
+            for field, value in (('created_at', '2026-10-01T10:00:00Z'),
+                                 ('updated_at', '2026-10-22T12:00:01Z'),
+                                 ('created_at', 'not-a-time'),
+                                 ('created_at', '2026-10-22T11:00:00Z')):
+                with self.subTest(resource=resource, field=field, value=value):
+                    suffix = '/runs/42' if resource == 'run' else '/attempts/2'
+                    self.hook = lambda path: (json.dumps(dict(self.run, **{field: value})).encode()
+                                             if path.endswith(suffix) else None)
+                    self.deny('run_unverified')
+
+    def test_attempt_cannot_substitute_a_different_valid_workflow_identity(self):
+        self.hook = lambda path: (json.dumps(dict(self.run, workflow_id=9)).encode()
+                                 if path.endswith('/attempts/2') else None)
+        self.deny('run_unverified')
+
+    def test_same_run_resource_timestamp_changes_remain_blocking(self):
+        for field, value in (('created_at', '2026-10-22T10:00:01Z'),
+                             ('updated_at', '2026-10-22T10:05:01Z')):
+            self.calls.clear()
+            def hook(path):
+                if path.endswith('/runs/42') and sum(p.endswith('/runs/42') for p in self.calls) >= 2:
+                    return json.dumps(dict(self.run, **{field: value})).encode()
+            with self.subTest(field=field):
+                self.hook = hook
+                self.deny('run_unverified')
+                self.assertEqual(sum(p.endswith('/runs/42') for p in self.calls), 2)
+
     def test_every_identity_field_is_required(self):
         changes = {'id': 41, 'workflow_id': None, 'event': 'pull_request', 'head_branch': 'develop',
                    'head_sha': 'b' * 40, 'path': '.github/workflows/other.yml',

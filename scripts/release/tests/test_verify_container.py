@@ -206,6 +206,65 @@ class ContainerTests(unittest.TestCase):
         self.assertEqual(result['sha256']['candidate_manifest'], hashlib.sha256((self.candidate / 'manifest.json').read_bytes()).hexdigest())
         self.assertEqual(result['sha256']['source_archive'], hashlib.sha256((self.candidate / 'source.tar.gz').read_bytes()).hexdigest())
 
+    def test_attempt_resource_timestamps_are_independent_and_stable(self):
+        for changes in ({'updated_at': '2026-10-23T11:00:01Z'},
+                        {'created_at': '2026-10-23T10:01:00Z', 'updated_at': '2026-10-23T11:00:01Z'}):
+            with self.subTest(changes=changes):
+                self.calls.clear()
+                self.hook = lambda path: (encoded(dict(self.run, **changes))
+                                         if path.endswith('/attempts/1') else None)
+                result = self.verify()
+                self.assertTrue(result['technical_gate_verified'])
+                self.assertTrue(result['artifact_verified'])
+                self.assertEqual(result['api_response_count'], 13)
+                self.assertEqual(sum(p.endswith('/attempts/1') for p in self.calls), 2)
+
+    def test_attempt_identity_keeps_workflow_repository_id_and_conclusion(self):
+        for changes in ({'workflow_id': 9}, {'conclusion': 'failure'},
+                        {'repository': {'full_name': 'bonjin-app/appguard', 'id': 18},
+                         'head_repository': {'full_name': 'bonjin-app/appguard', 'id': 18}}):
+            with self.subTest(changes=changes):
+                self.hook = lambda path: (encoded(dict(self.run, **changes))
+                                         if path.endswith('/attempts/1') else None)
+                result = self.verify()
+                self.assertFalse(result['technical_gate_verified'])
+                self.assertEqual(result['reason'], 'run_unverified')
+
+    def test_each_resource_still_requires_fresh_ordered_valid_timestamps(self):
+        for resource in ('run', 'attempt'):
+            for field, value in (('created_at', '2026-10-01T10:00:00Z'),
+                                 ('updated_at', '2026-10-23T12:00:01Z'),
+                                 ('created_at', 'not-a-time'),
+                                 ('created_at', '2026-10-23T11:30:00Z')):
+                with self.subTest(resource=resource, field=field, value=value):
+                    suffix = '/runs/42' if resource == 'run' else '/attempts/1'
+                    self.hook = lambda path: (encoded(dict(self.run, **{field: value}))
+                                             if path.endswith(suffix) else None)
+                    result = self.verify()
+                    self.assertFalse(result['technical_gate_verified'])
+                    self.assertEqual(result['reason'], 'run_unverified')
+
+    def test_same_resource_timestamp_drift_is_rejected_for_run_and_attempt(self):
+        for resource in ('run', 'attempt'):
+            for field, value in (('created_at', '2026-10-23T10:00:01Z'),
+                                 ('updated_at', '2026-10-23T11:00:02Z')):
+                self.calls.clear()
+                def hook(path):
+                    attempt = path.endswith('/attempts/1')
+                    if not attempt and not path.endswith('/runs/42'):
+                        return None
+                    document = dict(self.run, updated_at='2026-10-23T11:00:01Z') if attempt else dict(self.run)
+                    suffix = '/attempts/1' if resource == 'attempt' else '/runs/42'
+                    if path.endswith(suffix) and sum(p.endswith(suffix) for p in self.calls) >= 2:
+                        document[field] = value
+                    return encoded(document)
+                with self.subTest(resource=resource, field=field):
+                    self.hook = hook
+                    result = self.verify()
+                    self.assertFalse(result['technical_gate_verified'])
+                    self.assertEqual(result['reason'], 'run_unverified')
+                    suffix = '/attempts/1' if resource == 'attempt' else '/runs/42'
+                    self.assertEqual(sum(p.endswith(suffix) for p in self.calls), 2)
     def image_v2(self, findings=False):
         self.image.update(schema=2, finding_details_complete=True,
             scanner={'name': 'trivy', 'version': '0.76.1', 'platform': 'Linux-x86_64',

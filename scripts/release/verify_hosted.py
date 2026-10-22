@@ -191,6 +191,13 @@ def _run(document, commit, run_id, now, *, success=True):
                  'event', 'head_branch', 'path', 'status', 'conclusion', 'created_at', 'updated_at'))
 
 
+def _run_identity(document):
+    # Call only after _run validates the resource. Run and attempt resources
+    # have independent timestamps; same-resource stability uses _run in full.
+    return tuple(document[key] for key in ('id', 'workflow_id', 'run_attempt', 'head_sha',
+                 'event', 'head_branch', 'path', 'status', 'conclusion'))
+
+
 def _pages(request, endpoint, key, reason):
     result, total = [], None
     for page in range(1, MAX_PAGES + 1):
@@ -389,8 +396,9 @@ def verify_hosted(candidate, expected_commit, repository, run_id, output, *, fet
             selected = _run(run, expected_commit, run_id, now)
             attempt = run['run_attempt']
             report['run_attempt'] = attempt
-            _require(_run(request(run_path + f'/attempts/{attempt}'), expected_commit, run_id, now)
-                     == selected, 'run_unverified')
+            attempt_document = request(run_path + f'/attempts/{attempt}')
+            _run(attempt_document, expected_commit, run_id, now)
+            _require(_run_identity(attempt_document) == _run_identity(run), 'run_unverified')
             report['reason'] = 'source_git_provenance'
             report['source_file_count'] = _source_provenance(request, expected_commit, candidate,
                 private / 'candidate', manifest, pins, private)

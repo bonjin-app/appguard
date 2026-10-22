@@ -557,6 +557,11 @@ def _run(document, commit, run_id, now, complete=True):
         'head_branch', 'path', 'status', 'conclusion', 'created_at', 'updated_at')) + (document['repository']['id'],)
 
 
+def _run_identity(document):
+    # _run has already validated both repository IDs and their equality.
+    return hosted._run_identity(document) + (document['repository']['id'],)
+
+
 def _workflow(document, expected):
     reason = 'workflow_unverified'
     _require(document.get('type') == 'file' and document.get('path') == WORKFLOW
@@ -811,7 +816,9 @@ def verify_container(candidate, expected_commit, run_id, artifact_zip, output, *
                 report['reason'] = 'run_unverified'
                 run = request(run_path); selected = _run(run, expected_commit, run_id, now)
                 report['run_attempt'] = 1
-                _require(_run(request(run_path + '/attempts/1'), expected_commit, run_id, now) == selected, 'run_unverified')
+                attempt_document = request(run_path + '/attempts/1')
+                selected_attempt = _run(attempt_document, expected_commit, run_id, now)
+                _require(_run_identity(attempt_document) == _run_identity(run), 'run_unverified')
                 report['reason'] = 'source_git_provenance'
                 report['source_file_count'] = hosted._source_provenance(request, expected_commit, candidate,
                     private / 'candidate', manifest, pins, private)
@@ -847,7 +854,7 @@ def verify_container(candidate, expected_commit, run_id, artifact_zip, output, *
                 # run/attempt after them, then observe the complete latest union.
                 report['reason'] = 'run_unverified'
                 _require(_run(request(run_path), expected_commit, run_id, now) == selected
-                    and _run(request(run_path + '/attempts/1'), expected_commit, run_id, now) == selected, 'run_unverified')
+                    and _run(request(run_path + '/attempts/1'), expected_commit, run_id, now) == selected_attempt, 'run_unverified')
                 report['reason'] = 'latest_run_unverified'
                 report['applicable_run_count'] = _latest(request, expected_commit, selected, now)
                 original_inputs()
