@@ -1,3 +1,4 @@
+import hashlib
 import importlib.util
 import io
 import json
@@ -91,6 +92,36 @@ class ScanTests(unittest.TestCase):
                 self.assertEqual(m.run_scans(base / 'candidate', base / 'reports'), 1)
             self.assertFalse(json.loads((base / 'reports/status.json').read_text())['automated_checks_passed'])
 
+    def test_successful_scanner_cannot_omit_server_lock_entries(self):
+        m = self.module()
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp).resolve()
+            source = base / 'candidate/source'
+            source.mkdir(parents=True)
+            raw = ('version=1\nrevision=5\n[[package]]\nname="cryptography"\n'
+                   'version="50.0.2"\nsource={registry="https://pypi.org/simple"}\n')
+            (source / 'uv.lock').write_text(raw)
+            import hashlib
+            (base / 'candidate/manifest.json').write_text(json.dumps({'sha256': {
+                'source/uv.lock': hashlib.sha256(raw.encode()).hexdigest()}}))
+            fake = base / 'scanner'
+            fake.write_text('#!' + sys.executable + '\n'
+                'import json,pathlib,sys\nargs=sys.argv\n'
+                'if "-o" in args:\n'
+                ' path=pathlib.Path(args[args.index("-o")+1].split("=",1)[1]); report={"bomFormat":"CycloneDX","components":[]}\n'
+                'else:\n'
+                ' path=pathlib.Path(args[args.index("--output")+1]); report={"SchemaVersion":2,"Results":[]}\n'
+                'path.write_text(json.dumps(report))\n')
+            fake.chmod(0o755)
+            with patch.object(m, 'install_tool', return_value=fake), patch.object(m, 'export_maven', return_value={'name':'maven-runtime','returncode':0}):
+                self.assertEqual(m.run_scans(base / 'candidate', base / 'reports'), 1)
+            status = json.loads((base / 'reports/status.json').read_text())
+            syft = next(v for v in status['commands'] if v['name'] == 'syft')
+            self.assertEqual(syft['returncode'], 65)
+            self.assertFalse(syft['recorded_source_lock_coverage_passed'])
+            coverage = json.loads((base / 'reports/source-lock-coverage.json').read_text())
+            self.assertFalse(coverage['all_recorded_packages_cataloged'])
+
     def test_missing_maven_is_explicit_and_does_not_mutate_candidate(self):
         m = self.module()
         with tempfile.TemporaryDirectory() as tmp:
@@ -128,6 +159,15 @@ class ScanTests(unittest.TestCase):
                 manifest = json.loads((base / 'reports/maven-runtime-manifest.json').read_text())
                 self.assertEqual(len(manifest['sha256']), 1 if produce else 0)
                 self.assertEqual((source / 'sdk/spring-boot/pom.xml').read_text(), '<project/>')
+
+    def test_malformed_trivy_report_is_not_a_successful_empty_scan(self):
+        m = self.module()
+        for report in ({'SchemaVersion': True, 'Results': []}, {'SchemaVersion': 2},
+                       {'SchemaVersion': 2, 'Results': [None]},
+                       {'SchemaVersion': 2, 'Results': [{'Vulnerabilities': 'not findings'}]},
+                       {'SchemaVersion': 2, 'Results': [{'Secrets': ['not a finding']}]}):
+            with self.subTest(report=report), self.assertRaises(ValueError):
+                m.evaluate_report({'returncode': 0}, report)
 
     def test_security_findings_fail_even_when_tool_exits_zero(self):
         m = self.module()
@@ -168,16 +208,30 @@ class ScanTests(unittest.TestCase):
             (base / 'candidate/manifest.json').write_text(json.dumps({'sha256': {}}))
             fake = base / 'scanner'
             fake.write_text('#!' + sys.executable + '\n' +
-                'import json,pathlib,sys\n'
+                'import json,pathlib,sys,hashlib\n'
                 'args=sys.argv\n'
                 'if "-o" in args:\n'
-                ' path=pathlib.Path(args[args.index("-o")+1].split("=",1)[1]); report={"bomFormat":"CycloneDX","components":[{"name":"library","version":"1"}]}\n'
+                ' path=pathlib.Path(args[args.index("-o")+1].split("=",1)[1]); report={"bomFormat":"CycloneDX","specVersion":"1.6","components":[]}\n'
+                ' if "maven-runtime" in path.name:\n'
+                '  root=pathlib.Path(args[2][4:]); jar=root/"org/example/library/1/library-1.jar"\n'
+                '  report["components"]=[{"type":"library","name":"library","version":"1","purl":"pkg:maven/org.example/library@1","properties":[{"name":"syft:location:0:path","value":"/org/example/library/1/library-1.jar"}]},{"type":"file","name":str(jar),"hashes":[{"alg":"SHA-256","content":hashlib.sha256(jar.read_bytes()).hexdigest()}]}]\n'
                 'else:\n'
                 ' path=pathlib.Path(args[args.index("--output")+1]); report={"SchemaVersion":2,"Results":[]}\n'
                 ' if "license" in args: report["Results"]=[{"Licenses":[{"PkgName":"library","Name":"UNKNOWN","Category":"unknown"}]}]\n'
+                'if "--output" in args: report.update(ArtifactName=args[-1],ArtifactType="filesystem" if "fs" in args else "cyclonedx")\n'
                 'path.write_text(json.dumps(report))\n')
             fake.chmod(0o755)
-            with patch.object(m, 'install_tool', return_value=fake), patch.object(m, 'export_maven', return_value={'name':'maven-runtime','returncode':0}):
+            def export_fixture(source, state, reports, env):
+                relative = 'org/example/library/1/library-1.jar'
+                jar = reports / 'maven-runtime' / relative
+                jar.parent.mkdir(parents=True)
+                jar.write_bytes(b'owned scan fixture')
+                digest = hashlib.sha256(jar.read_bytes()).hexdigest()
+                (reports / 'maven-runtime-manifest.json').write_text(json.dumps({
+                    'returncode': 0, 'jar_sha256': {relative: digest}, 'sha256': {relative: digest}}))
+                (reports / 'maven-runtime-dependencies.txt').write_text('org.example:library:jar:1:runtime\n')
+                return {'name': 'maven-runtime', 'returncode': 0}
+            with patch.object(m, 'install_tool', return_value=fake), patch.object(m, 'export_maven', side_effect=export_fixture):
                 self.assertEqual(m.run_scans(base / 'candidate', base / 'reports'), 0)
             status = json.loads((base / 'reports/status.json').read_text())
             self.assertTrue(status['automated_checks_passed'])

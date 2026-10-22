@@ -414,3 +414,5 @@ python3 -m pip install "$APPGUARD_REPO/sdk/python[server,apple,redis]"
 실기기 검증은 대기 상태이며 이번 범위에 포함하지 않습니다. 외부 감사를 마친 프로덕션 릴리스는 아닙니다.
 
 확대한 개발 의존성 검사에서는 Expo 빌드 도구의 상위 프로젝트 HIGH 취약점 2건(`braces`, `node-forge`)으로 출시가 차단됩니다. AppGuard 패키지에 포함되는 의존성은 아니며, 검사 결과를 숨김 처리하지 않습니다. [권고문과 영향 경로](docs/security/dependency-advisories-2026-10-22.md)를 확인하세요.
+
+릴리스 게이트는 npm·Python·NuGet·Go·Composer의 기록된 의존성을 소스 SBOM과 대조하고, 실제 Maven JAR의 좌표·해시와 8개 검사 전체를 재검증합니다. 누락되거나 불일치하는 증거로는 산출물을 공개할 수 없습니다. 네이티브·배포 환경의 전체 의존성 검증은 별도로 필요합니다.

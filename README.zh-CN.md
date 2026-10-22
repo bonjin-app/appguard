@@ -353,3 +353,5 @@ python3 -m pip install "$APPGUARD_REPO/sdk/python[server,apple,redis]"
 这不是已完成外部审计的生产版本。
 
 扩展至开发依赖后的检查因 Expo 构建工具中的两项上游 HIGH 漏洞（`braces`、`node-forge`）阻止发布。这些依赖不随 AppGuard 软件包分发，检测结果未被抑制。参阅[安全公告及影响路径](docs/security/dependency-advisories-2026-10-22.md)。
+
+发布门禁将 npm、Python、NuGet、Go、Composer 的已记录依赖与源码 SBOM 比对，并重新验证实际 Maven JAR 的坐标、哈希及全部 8 项检查。证据缺失或不一致时禁止公开产物；原生及部署环境的完整依赖验证仍需单独完成。

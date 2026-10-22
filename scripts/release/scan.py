@@ -14,6 +14,8 @@ import urllib.request
 
 from candidate import validate_path, write_json
 from source_catalog import write_syft_config, validate_source_catalog
+from runtime_catalog import prepare_runtime_catalog
+from publication_evidence import count_findings, validate_report_binding
 
 # Official immutable GitHub release asset digests, read 2026-10-22 from
 # https://api.github.com/repos/{anchore/syft,aquasecurity/trivy}/releases/tags/{version}
@@ -125,10 +127,7 @@ def export_maven(source, state, reports, env):
 
 def evaluate_report(item, report):
     """Keep legal inventory visible; fail on every reported vulnerability/secret."""
-    if not isinstance(report.get('SchemaVersion'), int):
-        raise ValueError('Unexpected Trivy report schema')
-    item['finding_counts'] = {kind: sum(len(result.get(kind, [])) for result in report.get('Results', []))
-                              for kind in ('Vulnerabilities', 'Secrets', 'Licenses')}
+    item['finding_counts'] = count_findings(report)
     if item['finding_counts']['Vulnerabilities'] or item['finding_counts']['Secrets']:
         item['security_findings_present'] = True
         if item['returncode'] == 0:
@@ -233,7 +232,7 @@ def run_scans(candidate, output):
             if maven['returncode'] == 0:
                 commands.extend([
                     ('syft-maven-runtime', [str(syft), 'scan', 'dir:' + str(reports / 'maven-runtime'),
-                                            '--config', str(config), '-o', 'cyclonedx-json=' + str(reports / 'sbom-maven-runtime.cdx.json')]),
+                                            '--config', str(config), '-o', 'cyclonedx-json=' + str(reports / 'sbom-maven-runtime.raw.cdx.json')]),
                     ('trivy-maven-runtime', [str(trivy), 'sbom', '--config', str(config), '--ignorefile', str(ignore),
                                              '--scanners', 'vuln', '--severity', 'UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL',
                                              '--exit-code', '1', '--format', 'json', '--output', str(reports / 'trivy-maven-runtime.json'),
@@ -244,6 +243,12 @@ def run_scans(candidate, output):
                                                       '--timeout', '10m', str(reports / 'sbom-maven-runtime.cdx.json')]),
                 ])
             for name, command in commands:
+                input_sha256 = None
+                if name.startswith('trivy-'):
+                    if name == 'trivy-secrets':
+                        input_sha256 = status['candidate_manifest_sha256']
+                    elif Path(command[-1]).is_file():
+                        input_sha256 = hashlib.sha256(Path(command[-1]).read_bytes()).hexdigest()
                 with (reports / (name + '.log')).open('wb') as log:
                     try:
                         result = subprocess.run(command, cwd=state, env=env, stdout=log, stderr=subprocess.STDOUT, timeout=900)
@@ -253,7 +258,7 @@ def run_scans(candidate, output):
                         code = 124
                 item = {'name': name, 'returncode': code}
                 if code == 0:
-                    report_name = {'syft': 'sbom.cdx.json', 'syft-maven-runtime': 'sbom-maven-runtime.cdx.json'}.get(name, name + '.json')
+                    report_name = {'syft': 'sbom.cdx.json', 'syft-maven-runtime': 'sbom-maven-runtime.raw.cdx.json'}.get(name, name + '.json')
                     try:
                         report = json.loads((reports / report_name).read_text())
                         valid = report.get('bomFormat') == 'CycloneDX' if name.startswith('syft') else isinstance(report.get('SchemaVersion'), int)
@@ -261,7 +266,7 @@ def run_scans(candidate, output):
                             raise ValueError('Unexpected report schema')
                     except (OSError, ValueError, AttributeError) as error:
                         item.update(returncode=65, report_validation_error=str(error))
-                report_name = {'syft': 'sbom.cdx.json', 'syft-maven-runtime': 'sbom-maven-runtime.cdx.json'}.get(name, name + '.json')
+                report_name = {'syft': 'sbom.cdx.json', 'syft-maven-runtime': 'sbom-maven-runtime.raw.cdx.json'}.get(name, name + '.json')
                 item['report_available'] = (reports / report_name).is_file()
                 if not name.startswith('syft') and item['report_available']:
                     try:
@@ -273,9 +278,28 @@ def run_scans(candidate, output):
                     try:
                         validate_source_catalog(candidate / 'source', reports / 'sbom.cdx.json', reports)
                         item['recorded_npm_lock_coverage_passed'] = True
+                        item['recorded_source_lock_coverage_passed'] = True
                         item['source_lock_coverage_sha256'] = hashlib.sha256((reports / 'source-lock-coverage.json').read_bytes()).hexdigest()
                     except (OSError, ValueError, TypeError, KeyError) as error:
-                        item.update(returncode=65, recorded_npm_lock_coverage_passed=False, coverage_error=str(error))
+                        item.update(returncode=65, recorded_npm_lock_coverage_passed=False,
+                                    recorded_source_lock_coverage_passed=False, coverage_error=str(error))
+                if name == 'syft-maven-runtime' and item['returncode'] == 0:
+                    try:
+                        prepare_runtime_catalog(reports / 'maven-runtime', reports / 'maven-runtime-manifest.json',
+                                                reports / 'sbom-maven-runtime.raw.cdx.json', reports,
+                                                dependencies_path=reports / 'maven-runtime-dependencies.txt')
+                        item['recorded_runtime_coverage_passed'] = True
+                        item['runtime_lock_coverage_sha256'] = hashlib.sha256((reports / 'runtime-lock-coverage.json').read_bytes()).hexdigest()
+                    except (OSError, ValueError, TypeError, KeyError) as error:
+                        item.update(returncode=65, recorded_runtime_coverage_passed=False, coverage_error=str(error))
+                if name.startswith('trivy-') and item['report_available']:
+                    item['report_sha256'] = hashlib.sha256((reports / report_name).read_bytes()).hexdigest()
+                    item['scan_artifact_name'] = command[-1]
+                    item['input_sha256'] = input_sha256
+                    try:
+                        validate_report_binding(reports, status, item, json.loads((reports / report_name).read_text()))
+                    except (OSError, ValueError, TypeError, AttributeError):
+                        item.update(returncode=65, report_binding_error=True)
                 status['commands'].append(item)
             write_license_review(reports)
             if (candidate / 'manifest.json').read_bytes() != initial_manifest_bytes:

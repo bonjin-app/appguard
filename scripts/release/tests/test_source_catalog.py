@@ -8,6 +8,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[3]
 SPEC = importlib.util.spec_from_file_location('source_catalog', ROOT / 'scripts/release/source_catalog.py')
@@ -15,7 +16,8 @@ SPEC = importlib.util.spec_from_file_location('source_catalog', ROOT / 'scripts/
 
 def module():
     result = importlib.util.module_from_spec(SPEC)
-    SPEC.loader.exec_module(result)
+    with patch.object(sys, 'path', [str(ROOT / 'scripts/release'), *sys.path]):
+        SPEC.loader.exec_module(result)
     return result
 
 
@@ -80,6 +82,21 @@ class CatalogTests(unittest.TestCase):
             self.assertEqual(report['locks'][0]['unversioned_or_link_records'], ['node_modules/workspace'])
             self.assertEqual(report['locks'][0]['records'], [])
 
+    def test_duplicate_npm_lock_fields_or_non_json_numbers_fail_closed(self):
+        m = module()
+        for raw in ('{"lockfileVersion":3,"packages":{"":{}},"packages":{"":{}}}',
+                    '{"lockfileVersion":3,"packages":{"":{}},"unknown":NaN}'):
+            with self.subTest(raw=raw), tempfile.TemporaryDirectory() as temp:
+                base = Path(temp)
+                source = base / 'source'
+                source.mkdir()
+                (source / 'package-lock.json').write_text(raw)
+                sbom = base / 'sbom.json'
+                sbom.write_text('{"components":[]}')
+                with self.assertRaises(ValueError):
+                    m.validate_source_catalog(source, sbom, base)
+                self.assertFalse(json.loads((base / 'source-lock-coverage.json').read_text())['all_recorded_packages_cataloged'])
+
     def test_component_name_cannot_hide_a_forged_purl(self):
         m = module()
         for purl, valid in [('pkg:npm/other-package@99', False), ('pkg:npm/%40scope/example@1.0.0', True)]:
@@ -90,12 +107,30 @@ class CatalogTests(unittest.TestCase):
                 (source / 'package-lock.json').write_text(json.dumps({'lockfileVersion':3,'packages': {
                     '':{},'node_modules/@scope/example':{'version':'1.0.0'}}}))
                 sbom = base / 'sbom.json'
-                sbom.write_text(json.dumps({'components':[{'name':'example','group':'@scope','version':'1.0.0','purl':purl,
+                sbom.write_text(json.dumps({'components':[{'type':'library','name':'example','group':'@scope','version':'1.0.0','purl':purl,
                     'properties':[{'name':'syft:location:0:path','value':'/package-lock.json'}]}]}))
                 if valid:
                     self.assertTrue(m.validate_source_catalog(source,sbom,base)['all_recorded_npm_packages_cataloged'])
                 else:
                     with self.assertRaises(ValueError):m.validate_source_catalog(source,sbom,base)
+
+    def test_non_package_excluded_or_qualified_components_cannot_clear_npm_coverage(self):
+        m = module()
+        for change in ({'type': 'file'}, {'type': None}, {'scope': 'excluded'}, {'scope': 'invalid'},
+                       {'purl': 'pkg:npm/express@5.3.0?bad'}, {'purl': 'pkg:npm/express@5.3.0#other'}):
+            with self.subTest(change=change), tempfile.TemporaryDirectory() as temp:
+                base = Path(temp)
+                source = base / 'source'
+                source.mkdir()
+                (source / 'package-lock.json').write_text(json.dumps({'lockfileVersion': 3, 'packages': {
+                    '': {}, 'node_modules/express': {'version': '5.3.0'}}}))
+                value = {'type': 'library', 'name': 'express', 'version': '5.3.0', 'purl': 'pkg:npm/express@5.3.0',
+                         'properties': [{'name': 'syft:location:0:path', 'value': '/package-lock.json'}]}
+                value.update(change)
+                sbom = base / 'sbom.json'
+                sbom.write_text(json.dumps({'components': [value]}))
+                with self.assertRaises(ValueError):
+                    m.validate_source_catalog(source, sbom, base)
 
     @unittest.skipUnless(os.environ.get('APPGUARD_SYFT'), 'explicit reviewed Syft binary required')
     def test_actual_syft_catalogs_framework_redis_and_expo_peer_test_graph(self):

@@ -415,3 +415,5 @@ qualification and maintainer release approval outstanding. Physical devices rema
 pending and outside this qualification. This is not an audited production release.
 
 The expanded development-dependency scan currently blocks release on two upstream HIGH findings in Expo build tooling (`braces`, `node-forge`). They are not bundled in the AppGuard package. No finding is suppressed; see [advisories and affected paths](docs/security/dependency-advisories-2026-10-22.md).
+
+The release gate now checks recorded npm/Python/NuGet/Go/Composer packages against the source SBOM, verifies actual Maven JAR identities and hashes, and rechecks all eight scan steps before allowing artifact copies. Missing or inconsistent evidence blocks publication; this does not establish complete native or deployment dependency coverage.

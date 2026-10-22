@@ -7,8 +7,10 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 
 SCRIPT = Path(__file__).resolve().parents[1] / 'publication_gate.py'
+sys.path.insert(0, str(SCRIPT.parent))
 WORKFLOW = SCRIPT.parents[2] / '.github/workflows/release-readiness.yml'
 MARKER = 'SYNTHETIC-SECRET-DO-NOT-PUBLISH-8b117a'
 
@@ -20,34 +22,89 @@ class PublicationTests(unittest.TestCase):
         (candidate / 'source/docs').mkdir(parents=True)
         scans.mkdir()
         (candidate / 'source/docs/input.txt').write_text(MARKER)
+        (candidate / 'source/sdk/spring-boot').mkdir(parents=True)
+        pom = candidate / 'source/sdk/spring-boot/pom.xml'
+        pom.write_text('<project/>')
         (candidate / 'source.tar.gz').write_text(MARKER)
+        for name in ('dependency-coverage.json', 'licenses.json'):
+            (candidate / name).write_text('{}')
         (candidate / 'source/package-lock.json').write_text(json.dumps({'lockfileVersion': 3, 'packages': {'': {}}}))
         hashes = {str(path.relative_to(candidate)): hashlib.sha256(path.read_bytes()).hexdigest()
                   for path in candidate.rglob('*') if path.is_file()}
         (candidate / 'manifest.json').write_text(json.dumps({'commit': 'a'*40, 'sha256': hashes}))
-        status = {'candidate_commit': 'a'*40, 'candidate_manifest_sha256': hashlib.sha256((candidate / 'manifest.json').read_bytes()).hexdigest(), 'automated_checks_passed': code == 0,
-                  'commands': [{'name': 'trivy-secrets', 'returncode': code, 'report_available': True,
-                                'finding_counts': {'Secrets': secrets}}],
-                  'unsafe_metadata': MARKER}
-        (scans / 'status.json').write_text(json.dumps(status))
-        report = {'SchemaVersion': 2, 'Results': [{'Target': MARKER, 'Secrets': [{'Match': MARKER}] if secrets else []}]}
-        (scans / 'trivy-secrets.json').write_text(json.dumps(report))
-        (scans / 'sbom.cdx.json').write_text(json.dumps({'bomFormat':'CycloneDX', 'unsafe_metadata': MARKER}))
+        status = {'candidate_commit': 'a'*40,
+                  'candidate_manifest_sha256': hashlib.sha256((candidate / 'manifest.json').read_bytes()).hexdigest(),
+                  'automated_checks_passed': code == 0, 'commands': [], 'unsafe_metadata': MARKER}
+        for name in ('trivy-sbom', 'trivy-licenses', 'trivy-secrets', 'trivy-maven-runtime', 'trivy-maven-runtime-licenses'):
+            count = secrets if name == 'trivy-secrets' else 0
+            status['commands'].append({'name': name, 'returncode': code if name == 'trivy-secrets' else 0,
+                                       'report_available': True,
+                                       'finding_counts': {'Secrets': count, 'Vulnerabilities': 0, 'Licenses': 0}})
+            report = {'SchemaVersion': 2, 'Results': [{'Target': MARKER, 'Secrets': [{'Match': MARKER}] if count else []}]}
+            (scans / (name + '.json')).write_text(json.dumps(report))
+        (scans / 'sbom.cdx.json').write_text(json.dumps({'bomFormat':'CycloneDX', 'components': [], 'unsafe_metadata': MARKER}))
         (scans / 'trivy-secrets.log').write_text(MARKER)
-        spec = importlib.util.spec_from_file_location('publication_source_catalog', SCRIPT.parent / 'source_catalog.py')
-        catalog = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(catalog)
-        catalog.validate_source_catalog(candidate / 'source', scans / 'sbom.cdx.json', scans)
+        from source_catalog import validate_source_catalog
+        validate_source_catalog(candidate / 'source', scans / 'sbom.cdx.json', scans)
         status['commands'].append({'name':'syft','returncode':0,'recorded_npm_lock_coverage_passed':True,
+                                   'recorded_source_lock_coverage_passed':True,
                                    'source_lock_coverage_sha256':hashlib.sha256((scans / 'source-lock-coverage.json').read_bytes()).hexdigest()})
+        artifacts = scans / 'maven-runtime'
+        relative = 'org/example/example/1.2/example-1.2.jar'
+        jar = artifacts / relative
+        jar.parent.mkdir(parents=True)
+        jar.write_bytes(b'owned publication fixture')
+        jar_hash = hashlib.sha256(jar.read_bytes()).hexdigest()
+        manifest = {'returncode': 0, 'command': ['mvn', '-DoutputDirectory=' + str(artifacts)], 'pom_sha256': hashlib.sha256(pom.read_bytes()).hexdigest(),
+                    'jar_sha256': {relative: jar_hash}, 'sha256': {relative: jar_hash}}
+        (scans / 'maven-runtime-manifest.json').write_text(json.dumps(manifest))
+        dependencies = scans / 'maven-runtime-dependencies.txt'
+        dependencies.write_text('The following files have been resolved:\n   org.example:example:jar:1.2:compile\n')
+        raw = scans / 'sbom-maven-runtime.raw.cdx.json'
+        raw.write_text(json.dumps({'bomFormat': 'CycloneDX', 'specVersion': '1.6', 'components': [
+            {'type': 'library', 'name': 'example', 'version': '1.2', 'purl': 'pkg:maven/org.example/example@1.2',
+             'bom-ref': 'package-1', 'properties': [{'name': 'syft:location:0:path', 'value': '/' + relative}]},
+            {'type': 'file', 'name': str(jar), 'hashes': [{'alg': 'SHA-256', 'content': jar_hash}]}]}))
+        from runtime_catalog import prepare_runtime_catalog
+        prepare_runtime_catalog(artifacts, scans / 'maven-runtime-manifest.json', raw, scans, dependencies_path=dependencies)
+        status['commands'].extend([{'name': 'maven-runtime', 'returncode': 0},
+                                   {'name': 'syft-maven-runtime', 'returncode': 0,
+                                    'recorded_runtime_coverage_passed': True,
+                                    'runtime_lock_coverage_sha256': hashlib.sha256((scans / 'runtime-lock-coverage.json').read_bytes()).hexdigest()}])
+        (scans / 'license-review.json').write_text('{}')
+        (scans / 'THIRD_PARTY_NOTICES.review.md').write_text('Unapproved inventory')
+        self.stamp_reports(scans, status)
         (scans / 'status.json').write_text(json.dumps(status))
         return candidate, scans
+
+    def stamp_reports(self, scans, status):
+        for command in status['commands']:
+            name = command['name']
+            if not name.startswith('trivy-'): continue
+            target = 'source' if name == 'trivy-secrets' else 'sbom-maven-runtime.cdx.json' if 'maven-runtime' in name else 'sbom.cdx.json'
+            path = scans / (name + '.json')
+            report = json.loads(path.read_text())
+            report.update(ArtifactType='filesystem' if name == 'trivy-secrets' else 'cyclonedx', ArtifactName='/original/' + target)
+            path.write_text(json.dumps(report))
+            command.update(scan_artifact_name=report['ArtifactName'], report_sha256=hashlib.sha256(path.read_bytes()).hexdigest(),
+                           input_sha256=status['candidate_manifest_sha256'] if name == 'trivy-secrets' else hashlib.sha256((scans / target).read_bytes()).hexdigest())
 
     def run_gate(self, base, candidate, scans):
         result = subprocess.run([sys.executable, str(SCRIPT), '--candidate', str(candidate), '--scans', str(scans),
                                  '--output', str(base / 'publication'), '--expected-commit', 'a'*40], capture_output=True, text=True)
         self.assertEqual(result.returncode, 0, result.stderr)
         return base / 'publication'
+
+    def test_partial_scan_set_cannot_publish_even_with_claimed_success(self):
+        with tempfile.TemporaryDirectory() as temp:
+            base = Path(temp).resolve()
+            candidate, scans = self.setup_inputs(base)
+            status = json.loads((scans / 'status.json').read_text())
+            status['commands'] = [item for item in status['commands'] if item['name'] in ('syft', 'trivy-secrets')]
+            (scans / 'status.json').write_text(json.dumps(status))
+            output = self.run_gate(base, candidate, scans)
+            self.assertFalse(json.loads((output / 'public-status.json').read_text())['source_publication_allowed'])
+            self.assertEqual([path.name for path in output.iterdir()], ['public-status.json'])
 
     def test_secret_fixture_is_not_published_on_failure(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -118,6 +175,99 @@ class PublicationTests(unittest.TestCase):
             self.assertTrue((output / 'scans/sbom.cdx.json').exists())
             self.assertFalse((output / 'scans/trivy-secrets.json').exists())
             self.assertFalse((output / 'scans/trivy-secrets.log').exists())
+
+    def test_missing_checks_bad_catalog_or_raw_findings_are_not_publishable(self):
+        for mode, reason in [('missing_vulnerability_check', 'scan_evidence_unverified'),
+                             ('forged_zero_findings', 'scan_evidence_unverified'),
+                             ('vulnerability', 'vulnerability_findings'),
+                             ('legacy_source', 'source_coverage_unverified'),
+                             ('runtime_coverage', 'runtime_coverage_unverified'),
+                             ('runtime_jar_changed', 'runtime_coverage_unverified'),
+                             ('runtime_raw_changed', 'runtime_coverage_unverified'),
+                             ('wrong_pom', 'runtime_coverage_unverified')]:
+            with self.subTest(mode=mode), tempfile.TemporaryDirectory() as temp:
+                base = Path(temp).resolve()
+                candidate, scans = self.setup_inputs(base)
+                status = json.loads((scans / 'status.json').read_text())
+                if mode == 'missing_vulnerability_check':
+                    status['commands'] = [c for c in status['commands'] if c['name'] != 'trivy-sbom']
+                elif mode in ('forged_zero_findings', 'vulnerability'):
+                    (scans / 'trivy-sbom.json').write_text(json.dumps({'SchemaVersion': 2, 'Results': [{'Vulnerabilities': [{'secret': MARKER}]}]}))
+                    if mode == 'vulnerability':
+                        next(c for c in status['commands'] if c['name'] == 'trivy-sbom')['finding_counts']['Vulnerabilities'] = 1
+                        next(c for c in status['commands'] if c['name'] == 'trivy-sbom')['returncode'] = 1
+                        status['automated_checks_passed'] = False
+                elif mode == 'legacy_source':
+                    next(c for c in status['commands'] if c['name'] == 'syft').pop('recorded_source_lock_coverage_passed')
+                elif mode == 'runtime_coverage':
+                    next(c for c in status['commands'] if c['name'] == 'syft-maven-runtime').pop('recorded_runtime_coverage_passed')
+                elif mode == 'runtime_jar_changed':
+                    next((scans / 'maven-runtime').rglob('*.jar')).write_bytes(b'mutated')
+                elif mode == 'runtime_raw_changed':
+                    (scans / 'sbom-maven-runtime.raw.cdx.json').write_text('{}')
+                elif mode == 'wrong_pom':
+                    manifest = json.loads((scans / 'maven-runtime-manifest.json').read_text())
+                    manifest['pom_sha256'] = '0' * 64
+                    (scans / 'maven-runtime-manifest.json').write_text(json.dumps(manifest))
+                if mode in ('forged_zero_findings', 'vulnerability'):
+                    self.stamp_reports(scans, status)
+                (scans / 'status.json').write_text(json.dumps(status))
+                output = self.run_gate(base, candidate, scans)
+                safe = json.loads((output / 'public-status.json').read_text())
+                self.assertEqual(safe['reason'], reason)
+                self.assertFalse(safe['source_publication_allowed'])
+                self.assertFalse(safe['release_ready'])
+                self.assertNotIn(MARKER, (output / 'public-status.json').read_text())
+                self.assertEqual([p.name for p in output.iterdir()], ['public-status.json'])
+
+    def test_evidence_mutation_between_validation_and_pinning_denies_publication(self):
+        spec = importlib.util.spec_from_file_location('publication_gate', SCRIPT)
+        gate = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(gate)
+        with tempfile.TemporaryDirectory() as temp:
+            base = Path(temp).resolve()
+            candidate, scans = self.setup_inputs(base)
+            original = gate.validate_runtime_catalog
+            changed = False
+            def validate_then_mutate(*args):
+                nonlocal changed
+                result = original(*args)
+                if not changed:
+                    changed = True
+                    (scans / 'sbom.cdx.json').write_text('{"bomFormat":"CycloneDX","components":[],"unverified":"changed"}')
+                return result
+            with patch.object(gate, 'validate_runtime_catalog', side_effect=validate_then_mutate):
+                result = gate.stage_publication(candidate, scans, base / 'publication', 'a' * 40)
+            self.assertFalse(result['source_publication_allowed'])
+            self.assertEqual([p.name for p in (base / 'publication').iterdir()], ['public-status.json'])
+
+    def test_all_staged_candidate_inventories_must_match_verified_manifest(self):
+        spec = importlib.util.spec_from_file_location('publication_gate', SCRIPT)
+        gate = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(gate)
+        with tempfile.TemporaryDirectory() as temp:
+            base = Path(temp).resolve()
+            candidate, scans = self.setup_inputs(base)
+            original = gate.shutil.copyfile
+            def corrupt_copy(source, destination):
+                result = original(source, destination)
+                if Path(destination).name == 'licenses.json':
+                    Path(destination).write_text('UNVERIFIED-COPY')
+                return result
+            with patch.object(gate.shutil, 'copyfile', side_effect=corrupt_copy):
+                result = gate.stage_publication(candidate, scans, base / 'publication', 'a' * 40)
+            self.assertFalse(result['source_publication_allowed'])
+            self.assertEqual([p.name for p in (base / 'publication').iterdir()], ['public-status.json'])
+
+    def test_zero_secret_report_cannot_replace_vulnerability_reports(self):
+        with tempfile.TemporaryDirectory() as temp:
+            base = Path(temp).resolve()
+            candidate, scans = self.setup_inputs(base)
+            for name in ('trivy-sbom', 'trivy-licenses', 'trivy-maven-runtime', 'trivy-maven-runtime-licenses'):
+                (scans / (name + '.json')).write_bytes((scans / 'trivy-secrets.json').read_bytes())
+            output = self.run_gate(base, candidate, scans)
+            self.assertFalse(json.loads((output / 'public-status.json').read_text())['source_publication_allowed'])
+            self.assertEqual([p.name for p in output.iterdir()], ['public-status.json'])
 
     def test_workflow_uploads_only_publication_staging(self):
         text = WORKFLOW.read_text()

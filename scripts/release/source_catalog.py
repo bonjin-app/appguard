@@ -1,8 +1,8 @@
-"""Explicit development cataloging and npm lock-to-SBOM coverage evidence."""
+"""Explicit recorded source lock-to-SBOM coverage, including development inputs."""
 import hashlib
 import json
 from pathlib import Path
-from urllib.parse import unquote
+from server_catalog import CatalogInputError, catalog_observations, parse_recorded_json, source_components, validate_server_catalog
 
 
 def write_syft_config(path):
@@ -12,36 +12,34 @@ def write_syft_config(path):
 
 def validate_source_catalog(source, sbom, reports):
     source, sbom, reports = map(Path, (source, sbom, reports))
-    components = json.loads(sbom.read_text()).get('components', [])
-    observed = set()
-    for component in components:
-        purl = component.get('purl', '')
-        if not isinstance(purl, str) or not purl.startswith('pkg:npm/'):
-            continue
-        name = component.get('name', '')
-        if component.get('group'):
-            name = component['group'] + '/' + name
-        identity = purl[len('pkg:npm/'):].split('?', 1)[0].split('#', 1)[0]
-        if '@' not in identity:
-            continue
-        package_name, package_version = map(unquote, identity.rsplit('@', 1))
-        if package_name != name or package_version != component.get('version'):
-            continue
-        for prop in component.get('properties', []):
-            if prop.get('name', '').startswith('syft:location:') and prop['name'].endswith(':path'):
-                observed.add((prop.get('value', '').lstrip('/'), name, component.get('version')))
+    sbom_bytes = sbom.read_bytes()
+    sbom_sha256 = hashlib.sha256(sbom_bytes).hexdigest()
+    def reject_server(error, locks):
+        invalid = {'schema': 1, 'all_recorded_packages_cataloged': False,
+                   'all_recorded_npm_packages_cataloged': False,
+                   'validation_errors': [{'path': error.path, 'code': error.code}],
+                   'locks': locks, 'server_locks': [], 'sbom_sha256': sbom_sha256}
+        (reports / 'source-lock-coverage.json').write_text(json.dumps(invalid, indent=2, sort_keys=True) + '\n')
+        raise ValueError('Invalid recorded server lock input; see source-lock-coverage.json')
+    try:
+        components = source_components(sbom_bytes)
+        server = validate_server_catalog(source, components)
+    except CatalogInputError as error:
+        reject_server(error, [])
+    observed = {(path, name, version) for kind, path, name, version in catalog_observations(components) if kind == 'npm'}
     locks = []
     for lock in sorted(source.rglob('package-lock.json')):
         relative = str(lock.relative_to(source))
         records, links = [], []
         def reject(code):
             invalid = {'schema': 1, 'all_recorded_npm_packages_cataloged': False,
+                       'all_recorded_packages_cataloged': False, 'server_locks': server['server_locks'],
                        'validation_errors': [{'path': relative, 'code': code}], 'locks': locks,
-                       'sbom_sha256': hashlib.sha256(sbom.read_bytes()).hexdigest()}
+                       'sbom_sha256': sbom_sha256}
             (reports / 'source-lock-coverage.json').write_text(json.dumps(invalid, indent=2, sort_keys=True) + '\n')
             raise ValueError('Invalid recorded npm lock input; see source-lock-coverage.json')
         try:
-            data = json.loads(lock.read_text())
+            data = parse_recorded_json(lock.read_text())
         except ValueError:
             reject('invalid_json')
         if not isinstance(data, dict) or type(data.get('lockfileVersion')) is not int or data['lockfileVersion'] != 3:
@@ -74,11 +72,15 @@ def validate_source_catalog(source, sbom, reports):
         locks.append({'path': relative, 'sha256': hashlib.sha256(lock.read_bytes()).hexdigest(),
                       'records': records, 'unversioned_or_link_records': links})
     result = {'schema': 1, 'all_recorded_npm_packages_cataloged': all(r['cataloged'] for lock in locks for r in lock['records']),
-              'sbom_sha256': hashlib.sha256(sbom.read_bytes()).hexdigest(), 'locks': locks,
-              'scope': 'Recorded versioned npm lock entries including development, peer-test and optional entries; not proof of installation/native closure',
+              'sbom_sha256': sbom_sha256, 'locks': locks, **server,
+              'scope': 'Recorded npm, uv, NuGet, Go require versions with checksums and Composer package entries; includes recorded development/optional entries; not proof of installed/native or resolved runtime closure',
               'classification': 'Original lock development/optional/peer flags are preserved here; Syft CycloneDX does not encode npm dev as component scope',
-              'other_ecosystems': 'Default source catalogers retain their recorded package inputs; no global/native graph completeness is asserted'}
+              'other_ecosystems': 'Maven runtime JARs are checked separately; native/platform graphs are outside this recorded-lock comparison'}
+    result['all_recorded_packages_cataloged'] = (result['all_recorded_npm_packages_cataloged'] and
+                                                result['all_recorded_server_packages_cataloged'])
     (reports / 'source-lock-coverage.json').write_text(json.dumps(result, indent=2, sort_keys=True) + '\n')
     if not result['all_recorded_npm_packages_cataloged']:
         raise ValueError('Source SBOM omitted recorded npm package versions; see source-lock-coverage.json')
+    if not result['all_recorded_server_packages_cataloged']:
+        raise ValueError('Source SBOM omitted recorded server package versions; see source-lock-coverage.json')
     return result

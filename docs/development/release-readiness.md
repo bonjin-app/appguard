@@ -6,7 +6,7 @@ not an external security audit or approval for production use.
 
 ## Create a source candidate
 
-Requirements: Git and Python 3.9 or later. Run from a **clean committed checkout**,
+Requirements: Git and Python 3.11 or later (the lock validator uses standard-library `tomllib`). Run from a **clean committed checkout**,
 including no untracked files. Ignored build outputs do not affect the snapshot.
 Use an existing directory outside the checkout; the output directory must not
 exist. Avoid symlink aliases (on macOS, prefer the resolved temporary path).
@@ -84,12 +84,38 @@ records and native/platform resolution remain explicit limitations.
 The reviewed Trivy 0.76.1 `sbom` command explicitly disables `--include-dev-deps`
 ([official tagged command source](https://github.com/aquasecurity/trivy/blob/v0.76.1/pkg/commands/app.go));
 passing that flag fails. It scans the supplied Syft-cataloged npm records,
-including development records, without that flag. Existing Python, NuGet,
-Go and PHP source catalogers continue cataloging their recorded inputs;
-this setting does not establish universal or native dependency closure.
-An opt-in real-scanner regression can be run with
-`APPGUARD_SYFT=/absolute/path/to/reviewed/syft python3 -m unittest discover -s scripts/release/tests -p test_source_catalog.py -v`.
-The actual source scan always executes lock-to-SBOM coverage validation.
+including development records, without that flag.
+
+The same source coverage gate now independently compares recorded **Python uv
+v1/revision 5**, **NuGet lock v1**, **Composer** and declared **Go require** packages.
+Each external record needs the same package identity/version and original input
+location on a cataloged library component. `source-lock-coverage.json` retains
+per-input SHA-256, per-target/direct/transitive/dev/optional classification where
+recorded, and verified local-project exclusions. Python editable/directory/virtual
+projects need a matching in-tree `pyproject.toml`; NuGet Project records need a
+matching in-tree project reference. Unsupported formats, malformed identities,
+unsafe paths or missing packages fail closed. No resolver or package script runs.
+
+Go coverage requires each selected `require` version and its archive plus
+`go.mod` checksum records. Other `go.sum` entries are historical/test metadata,
+not a runtime lock graph. This conservative parser supports module/go/toolchain/
+require directives; replacements, exclusions, retractions or unsupported syntax
+fail rather than inventing a resolved graph. Composer checks both `packages` and
+`packages-dev`, with platform requirements recorded separately. The pinned Syft
+1.54.1 cataloger currently omits Composer development packages
+([tagged upstream parser](https://github.com/anchore/syft/blob/v1.54.1/syft/pkg/cataloger/php/parse_composer_lock.go));
+adding any such dependency therefore causes a visible coverage failure. The
+current Composer arrays are empty; this is not proof of PHP installed closure.
+
+`all_recorded_packages_cataloged` and the scanner's
+`recorded_source_lock_coverage_passed` flag cover these supported recorded inputs.
+The older npm-only flag remains for diagnostics and cannot authorize publication.
+Source manifests without a supported recorded graph remain explicitly incomplete
+in `dependency-coverage.json`. Cataloging does not establish installed, native or
+universal dependency closure.
+An opt-in regression against a reviewed real Syft binary can be run with
+`APPGUARD_SYFT=/absolute/path/to/reviewed/syft python3 -m unittest discover -s scripts/release/tests -v`.
+The actual source scan always executes this comparison.
 
 
 The primary Java gate uses actual Maven-exported libraries rather than guessed
@@ -100,8 +126,24 @@ POM versions:
    goals with `-DincludeScope=runtime` and repository-layout output paths.
 3. Hash the exported JARs in `maven-runtime-manifest.json`, and retain the exact
    resolved list in `maven-runtime-dependencies.txt`.
-4. Catalog those actual libraries into `sbom-maven-runtime.cdx.json` with Syft,
-   then run `trivy sbom --scanners vuln` into `trivy-maven-runtime.json`.
+4. Preserve Syft's actual output as `sbom-maven-runtime.raw.cdx.json`. Require
+   each outer JAR's exact location and SHA-256 to be independently observed.
+5. Compare repository-layout coordinates against the full Maven dependency list.
+   If Syft omits a primary Maven coordinate, add a marked component only when
+   both sources agree on the same hash-verified JAR. Preserve **every raw component**,
+   including embedded and incorrect upstream identities, in the final
+   `sbom-maven-runtime.cdx.json`; nothing is dropped to hide findings.
+6. Record the raw BOM, JAR, manifest, dependency-list and final BOM hashes and
+   supplements in `runtime-catalog-overlay.json` and `runtime-lock-coverage.json`.
+   Recompute this provenance and require an exact scannable library GAV for every
+   exported JAR (including its classifier). Then scan the final BOM with Trivy.
+
+Syft 1.54.1 uses the OSGi Bundle-SymbolicName as a namespace when some JARs lack
+embedded Maven metadata. For the current export this misidentifies jspecify and
+reactor-core. The explicit supplemental components retain the authoritative
+Maven coordinates alongside the untouched scanner evidence; classifier omissions
+are handled by the same bound procedure. Empty raw BOMs, absent file hashes,
+changed JARs, conflicting coordinates and tampered provenance remain failures.
 
 Maven and Java are required. Set `APPGUARD_MAVEN_CMD` to one Maven executable
 path if `mvn` is not on PATH. The default Maven cache lives in temporary state.
@@ -183,11 +225,22 @@ remain separate. Building a package does not authorize its registry publication.
 `.github/workflows/release-readiness.yml` runs on pushes, pull requests and manual
 requests with read-only repository permission. It creates an unpublished source
 candidate and executes scanner checks. Artifact staging independently requires
-passing automated checks and an explicit successful secret pass with zero
-findings, matching candidate and
-expected commit identities, the scanner-pinned initial manifest SHA-256, a successful source coverage flag,
-a pinned coverage report that revalidates against the SBOM and current locks, and an unchanged checksum-verified
-candidate. The scanner requires the exact initial manifest bytes to remain
+all eight distinct expected checks (Maven export, both catalogs and five Trivy
+passes), integer zero exit codes, and raw vulnerability/secret/license JSON
+whose counts agree with the recorded command evidence. Each Trivy command
+records the exact input hash before execution, target name and final report hash.
+The gate checks the report's artifact type/target against its recorded role and
+rechecks these hashes against the current BOM or candidate manifest. Swapping a
+zero-secret filesystem report into a vulnerability report cannot satisfy this
+binding. These are local pipeline integrity receipts, not signed attestation of
+an independently trusted scanner. Claimed aggregate success,
+missing/duplicate checks, boolean exit codes, malformed reports, or any actual
+vulnerability/secret finding cannot authorize copying. The gate also requires
+matching candidate/expected commit identities, the initial manifest SHA-256,
+source coverage revalidated against current locks/SBOM, and runtime coverage
+recomputed from actual JARs, raw/final BOMs, the dependency list and overlay.
+The Maven POM hash must match the candidate. It checks candidate/report integrity
+again after copying and revalidates the JAR evidence before completing staging. The scanner requires the exact initial manifest bytes to remain
 unchanged throughout all scans, so rewriting both source and manifest cannot
 adopt a new input snapshot.
 Only after that verification can archives, inventories, SBOMs, license JSON and
@@ -196,7 +249,10 @@ and logs are never included.
 
 If any automated check fails, or secret evidence is unavailable, malformed or
 disagrees with the candidate, the upload contains only `public-status.json`: fixed booleans,
-an integer result code and opaque hashes under fixed labels. No source/archive,
+an integer result code where verified and opaque hashes under fixed labels.
+Fixed `reason` codes distinguish `vulnerability_findings`, `secret_findings`,
+`scan_checks_failed`, unverified scan/candidate/source/runtime evidence and copy
+failure. They never contain scanner messages or source metadata. No source/archive,
 filenames, package inventory, raw error messages or scanner snippets are copied.
 The workflow uploads only this staged directory, including under `always()`;
 it never uploads candidate/scanner paths directly. A passing secret scan is a
@@ -220,3 +276,5 @@ counts to CI stdout. This makes a blocked source vulnerability gate visible
 without publishing raw secret reports, component paths or parser errors. The
 full reports remain local; artifact staging still requires all technical checks
 and zero-secret evidence to pass. A count summary never overrides a failed gate.
+
+See the [2026-10-22 evidence hardening review](../security/dependency-evidence-verification-2026-10-22.md) for reproduced defects, regression coverage and current limitations.

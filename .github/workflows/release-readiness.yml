@@ -33,7 +33,7 @@ jobs:
         run: python3 scripts/release/candidate.py --output "$RUNNER_TEMP/appguard-candidate"
       - name: Source SBOM, vulnerability, secret and license checks
         run: python3 scripts/release/scan.py --candidate "$RUNNER_TEMP/appguard-candidate" --output "$RUNNER_TEMP/appguard-scans"
-      - name: Stage privacy-bounded artifacts after explicit secret verification
+      - name: Stage privacy-bounded artifacts after complete evidence verification
         if: always()
         env:
           CANDIDATE_COMMIT: ${{ github.sha }}
@@ -44,7 +44,7 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: unpublished-candidate-${{ github.sha }}
-          # Contents require passing automated checks plus a verified zero-finding secret pass.
+          # Contents require all eight verified checks, source/runtime coverage and zero security findings.
           # Failure staging contains public-status.json only: fixed booleans/codes and opaque hashes.
           path: ${{ runner.temp }}/appguard-publication
           if-no-files-found: warn
