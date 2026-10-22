@@ -102,5 +102,5 @@ class EnrollmentService:
                                           "ecdsa-p256-sha256", False),
                                 "verified" if verdict else "missing", verdict.provider if verdict else None,
                                 verdict.expires if verdict else None)
-        self.store.finish(challenge, credential, now=now)
+        self.store.finish(challenge, credential, now=now, clock=self._now)
         return credential

@@ -107,11 +107,17 @@ class SqliteEnrollmentStore:
             return Challenge(*row) if row else None
 
     @_redacted
-    def finish(self, challenge, credential, *, now):
+    def finish(self, challenge, credential, *, now, clock=None):
         with self._db() as db:
+            # BEGIN IMMEDIATE may wait for another writer. The service supplies
+            # its validated clock so that this final gate includes that wait.
+            if clock is not None:
+                now = clock()
             row = db.execute("SELECT app,subject,kid,origin,fingerprint,nonce,expires,pem FROM appguard_challenges WHERE nonce=?", (challenge.nonce,)).fetchone()
             if row is None or Challenge(*row) != challenge or now >= challenge.expires:
                 raise EnrollmentError("CHALLENGE_REJECTED")
+            if credential.attestation == "verified" and now >= credential.attestation_expires:
+                raise EnrollmentError("ATTESTATION_REJECTED")
             if db.execute("SELECT 1 FROM appguard_keys WHERE app=? AND kid=?", (challenge.app_id, challenge.key_id)).fetchone():
                 raise EnrollmentError("KEY_ID_IN_USE")
             key = credential.key

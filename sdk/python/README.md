@@ -133,6 +133,12 @@ Locally tested on Python 3.11.15 with cryptography 50.0.2, FastAPI 0.150.0 / Sta
 The explicit experimental SQLite-backed enrollment service, deterministic policy
 presets and allowlisted audit API are documented in
 [enrollment/policy integration](../../docs/security/enrollment-policy.md).
+Completion rechecks the trusted clock after acquiring the final SQLite write
+transaction, so a challenge or provider verdict that expired while waiting for
+that lock cannot create a credential. Expiry or clock failure leaves the pending
+challenge unchanged and inserts no key. This is a sampled validity check, not a
+deadline for SQLite commit or response delivery. See the
+[lock-wait expiry boundary](../../docs/security/python-enrollment-lock-expiry.md).
 For account-security flows, `SqliteEnrollmentStore.revoke_subject(app_id,
 subject)` atomically revokes that subject's active keys and cancels all matching
 pending challenges, returning immutable `SubjectRevocationResult` counts. It
