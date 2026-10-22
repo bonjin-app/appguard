@@ -68,6 +68,12 @@ class Credential:
     attestation_expires: int | None
 
 
+@dataclass(frozen=True)
+class SubjectRevocationResult:
+    revoked_keys: int
+    cancelled_challenges: int
+
+
 def enrollment_message(challenge: Challenge) -> bytes:
     if not isinstance(challenge, Challenge):
         raise EnrollmentError("INVALID_ENROLLMENT")

@@ -9,7 +9,7 @@ from cryptography.hazmat.primitives import serialization
 from .canonical import _validate_origin
 from .crypto import load_p256_key, verify_p256
 from .types import KeyRecord, VerificationError
-from .enrollment_types import (AttestationVerdict, Challenge, Credential, EnrollmentError, enrollment_message,
+from .enrollment_types import (AttestationVerdict, Challenge, Credential, EnrollmentError, SubjectRevocationResult, enrollment_message,
                                _MAX_TIME, _identifier, _nonce, _time)
 from .enrollment_store import SqliteEnrollmentStore
 

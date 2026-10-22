@@ -38,7 +38,7 @@ The core will run without an AI model, paid AI API, or mandatory AppGuard cloud 
 | [Go net/http](sdk/go/README.md) | Experimental verifier/middleware; race/vet and isolated consumer; trusted pre-parser evidence required |
 | [PHP](sdk/php/README.md) | Experimental verifier/explicit ingress adapter;514 assertions and5 raw loopback requests; no Laravel/Symfony integration claim |
 | Shared Redis replay claims | Implemented; deployment durability/eviction guarantees are operator-owned |
-| [Enrollment / policy / audit](docs/security/enrollment-policy.md) | Python SQLite challenge/proof/revocation; all six server languages pass deterministic42-case presets and allowlisted audit output |
+| [Enrollment / policy / audit](docs/security/enrollment-policy.md) | Python SQLite challenge/proof/key and subject-wide revocation; all six server languages pass deterministic42-case presets and allowlisted audit output |
 | [Apple/Google provider verification](docs/security/provider-verification.md) | Experimental Python backends;223 offline provider tests and Android acquisition module. Genuine current-device/account verification pending; Apple lifecycle incomplete |
 | [Build / CLI](tools/cli/README.md) | Android R8 setup/build; Flutter obfuscation/Expo minification commands; encrypted mapping archive/verify/restore; local prerequisite/CI checks, strict UTF-8 preservation and actual isolated Android release build |
 | [Local root/hook/jailbreak hints](protocol/local-risk-v0.md) | Experimental Android/iOS typed scanners; host tests and platform builds; physical rooted/hooked-device efficacy unverified |

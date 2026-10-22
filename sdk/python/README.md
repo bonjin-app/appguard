@@ -133,6 +133,14 @@ Locally tested on Python 3.11.15 with cryptography 50.0.2, FastAPI 0.150.0 / Sta
 The explicit experimental SQLite-backed enrollment service, deterministic policy
 presets and allowlisted audit API are documented in
 [enrollment/policy integration](../../docs/security/enrollment-policy.md).
+For account-security flows, `SqliteEnrollmentStore.revoke_subject(app_id,
+subject)` atomically revokes that subject's active keys and cancels all matching
+pending challenges, returning immutable `SubjectRevocationResult` counts. It
+preserves key-ID tombstones and exact app/subject scope. The application still
+owns authorization, token/session blocking, cache invalidation and whether a new
+post-revocation challenge may be issued. See the
+[subject-wide revocation contract](../../docs/security/enrollment-policy.md#subject-wide-revocation).
+
 [Google Standard](../../docs/security/google-provider.md) and
 [Apple initial attestation](../../docs/security/apple-provider.md) can supply its
 trusted provider callback. They do not acquire deployment credentials or establish

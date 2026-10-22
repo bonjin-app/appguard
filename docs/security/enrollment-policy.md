@@ -31,6 +31,42 @@ For explicit local proof-only development use `profile="basic"` without evidence
 
 `store.lookup(app_id, authenticated_subject, key_id)` returns a `Credential` or `None`. Supply its `key` to the existing server SDK's trusted identity resolver. That `KeyRecord` contains the revocation flag checked by request verification. `store.revoke(app_id, authenticated_subject, key_id)` updates only the matching credential. Avoid unbounded enrollment/key caches that hide revocation. Origin is bound into the enrollment challenge; request verification separately pins the configured origin.
 
+## Subject-wide revocation
+
+An authorized account-security flow can revoke all existing credentials and
+cancel pending enrollments for one exact app/subject in a single transaction:
+
+```python
+from appguard.enrollment import SubjectRevocationResult
+
+result: SubjectRevocationResult = store.revoke_subject(configured_app_id, authorized_subject)
+# result.revoked_keys: newly revoked keys (already revoked rows are not counted)
+# result.cancelled_challenges: deleted pending rows, including expired retained rows
+```
+
+`SubjectRevocationResult` is immutable and contains only those two counts. A
+repeat with no intervening enrollment changes returns zero/zero. Other apps and
+subjects remain unchanged. Key rows are retained as tombstones, so revoked
+app/key IDs cannot be reused. An in-flight completion whose pending challenge is
+deleted must fail at its final transaction check; provider work already running
+is not forcibly canceled. A key committed before revocation is marked revoked.
+
+This operation affects state at the transaction boundary, not future account
+policy. First authorize the administrative operation and block authentication/
+new enrollment in the application as appropriate. A fresh challenge issued after
+the transaction can still enroll under a new key ID if the application allows
+it. Invalidate application-owned key/identity caches and do not reuse a previously
+returned active `Credential` as fresh authorization. Returned counts do not prove
+that tokens/sessions were invalidated or that concurrent application requests
+already handed off stopped.
+
+On `STORE_UNAVAILABLE`, a commit may already have succeeded before a cleanup or
+response failure. No success counts are returned on that error. Authenticate and
+read back relevant state before choosing recovery; an idempotent repeat can
+legitimately return zero/zero after a prior persisted operation. This remains a
+local SQLite lifecycle API without new routes, distributed state, schema changes
+or provider configuration. See [subject revocation verification](python-subject-revocation.md).
+
 ## Policy after authentication and verification
 
 ```python

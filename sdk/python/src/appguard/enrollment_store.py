@@ -7,7 +7,8 @@ from pathlib import Path
 import sqlite3
 import stat
 
-from .enrollment_types import Challenge, Credential, EnrollmentError, _identifier, _nonce
+from .enrollment_types import (Challenge, Credential, EnrollmentError, SubjectRevocationResult,
+                               _identifier, _nonce)
 from .types import KeyRecord
 
 
@@ -137,3 +138,14 @@ class SqliteEnrollmentStore:
             _identifier(value)
         with self._db() as db:
             return db.execute("UPDATE appguard_keys SET revoked=1 WHERE app=? AND subject=? AND kid=?", (app_id, subject, key_id)).rowcount == 1
+
+    @_redacted
+    def revoke_subject(self, app_id, subject) -> SubjectRevocationResult:
+        for value in (app_id, subject):
+            _identifier(value)
+        with self._db() as db:
+            revoked_keys = db.execute("UPDATE appguard_keys SET revoked=1 WHERE app=? AND subject=? AND revoked=0",
+                                      (app_id, subject)).rowcount
+            cancelled_challenges = db.execute("DELETE FROM appguard_challenges WHERE app=? AND subject=?",
+                                              (app_id, subject)).rowcount
+        return SubjectRevocationResult(revoked_keys, cancelled_challenges)
