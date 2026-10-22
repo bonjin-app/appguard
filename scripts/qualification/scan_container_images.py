@@ -470,7 +470,9 @@ def scan(receipt, output, docker_context='default'):
                     return bounded_command(command, env=env, cwd=state, **kwargs)
                 finally:
                     verify_files(frozen)
-            code, raw = frozen_command([str(trivy), 'version', '--format', 'json', '--config', str(config)])
+            # Config loading logs to stderr, which our bounded helper merges
+            # with stdout. Quiet preserves a single strict JSON document.
+            code, raw = frozen_command([str(trivy), 'version', '--format', 'json', '--config', str(config), '--quiet'])
             require(code == 0 and _json(raw).get('Version') == '0.76.1')
             status['scanner'] = dict(name='trivy', version='0.76.1', platform='-'.join(host),
                 archive_sha256=TOOLS['trivy'][host]['sha256'], executable_sha256=executable['sha256'])

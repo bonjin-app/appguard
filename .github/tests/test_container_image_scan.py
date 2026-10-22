@@ -46,7 +46,13 @@ class ContainerScanTests(unittest.TestCase):
         if command[1:] == ['--context', 'default', 'context', 'inspect', 'default']:
             return 0, b'[{"Endpoints":{"docker":{"Host":"unix:///var/run/docker.sock"}}}]'
         if command[1] == 'version':
-            return 0, json.dumps({'Version': self.version}).encode()
+            self.version_commands.append(command)
+            raw = json.dumps({'Version': self.version}).encode()
+            # Actual pinned Trivy logs configuration loading to stderr; the
+            # bounded runner merges stderr with stdout. Quiet must suppress it.
+            if self.version_noise and '--quiet' not in command:
+                raw = b'2026-10-23T00:00:00Z\tINFO\tLoaded\tfile_path="/private/empty.json"\n' + raw
+            return 0, raw
         for flag, directory, filename, schema in (
                 ('--download-db-only', 'db', 'trivy.db', 2),
                 ('--download-java-db-only', 'java-db', 'trivy-java.db', 1)):
@@ -98,10 +104,12 @@ class ContainerScanTests(unittest.TestCase):
             self.integrity_change(self.scans)
         return code, b'private scanner output SECRET'
 
-    def run_scan(self, transform=None, mutate=False, *, version='0.76.1', database_change=None, integrity_change=None):
+    def run_scan(self, transform=None, mutate=False, *, version='0.76.1', database_change=None, integrity_change=None,
+                 version_noise=False):
         self.scans, self.mutate = 0, mutate
         self.version, self.database_change, self.integrity_change = version, database_change, integrity_change
-        self.downloads, self.commands = [], []
+        self.version_noise = version_noise
+        self.downloads, self.commands, self.version_commands = [], [], []
         self.transform = transform or (lambda value, report: (0, None))
         original_enter = module.Publication.__enter__
         def enter(publication):
@@ -363,6 +371,24 @@ class ContainerScanTests(unittest.TestCase):
                 self.assertEqual(result['reason'], 'container_scan_unverified')
                 self.assertFalse(result['automated_checks_passed'])
                 self.assertFalse(result['finding_details_complete'])
+
+    def test_version_command_suppresses_observed_config_log_and_keeps_strict_json(self):
+        self.assertTrue(self.run_scan(version_noise=True)['automated_checks_passed'])
+        self.assertIn('--quiet', self.version_commands[0])
+        self.output = self.root / 'wrong-quiet-version'
+        result = self.run_scan(version_noise=True, version='9.9.9')
+        self.assertEqual(result['reason'], 'container_scan_unverified')
+        self.assertIsNone(result['scanner'])
+        original = self.runner
+        def malformed_version(command, **kwargs):
+            if len(command) > 1 and command[1] == 'version':
+                return 0, b'arbitrary unexpected bytes\n{"Version":"0.76.1"}\n'
+            return original(command, **kwargs)
+        self.output = self.root / 'unexpected-version-prefix'
+        with patch.object(self, 'runner', side_effect=malformed_version):
+            result = self.run_scan()
+        self.assertEqual(result['reason'], 'container_scan_unverified')
+        self.assertIsNone(result['scanner'])
 
     def test_every_finding_counts_even_with_zero_exit(self):
         def finding(value, report):
