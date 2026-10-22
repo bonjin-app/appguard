@@ -419,3 +419,10 @@ The expanded development-dependency scan currently blocks release on two upstrea
 The release gate now checks recorded npm/Python/NuGet/Go/Composer packages against the source SBOM, verifies actual Maven JAR identities and hashes, and rechecks all eight scan steps before allowing artifact copies. Missing or inconsistent evidence blocks publication; this does not establish complete native or deployment dependency coverage.
 
 ASP.NET Core supports a configurable absolute request-body capture budget (30s by default). The current blocking Spring Servlet filter still requires a verified host upload deadline; idle timeouts are insufficient. [Body time boundaries and tests](docs/security/body-capture-deadlines.md).
+
+The [Spring mTLS ingress example](docs/deployment/spring-ingress.md) includes
+installation/configuration and a real local TLS qualification command. It buffers
+a complete bounded body before connecting to the certificate-protected backend,
+and scans the actual container JAR graph. The [readiness assessor](docs/development/release-readiness.md#separate-readiness-assessment)
+keeps technical findings and pending external approvals separate; local receipts
+cannot grant production approval.

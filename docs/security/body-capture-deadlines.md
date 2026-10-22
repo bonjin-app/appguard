@@ -71,6 +71,12 @@ boundary. Configure finite idle/header/TLS/connection admission policies too;
 none of them alone substitutes for an absolute upload limit. Qualification of
 that deployment remains open until its real slow-drip behavior is measured.
 
+The [Spring mTLS ingress example](../deployment/spring-ingress.md) now supplies
+one reproducible local topology to measure this boundary. Its separate bounded
+collector completes the upload before opening a backend connection; the Spring
+listener requires an ingress client certificate. This does not alter the blocking
+Servlet SDK or establish another operator's deployed network boundary.
+
 ## Evidence scope
 
 The new unit and localhost integration tests cover software request handling.

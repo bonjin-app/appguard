@@ -157,6 +157,10 @@ jobs:
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: '3.11'
+      - uses: actions/setup-java@b843ebf9b913146b38da2eaa7aeddf76074ae1ad # v6.1.0
+        with:
+          distribution: temurin
+          java-version: '17'
       - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
         with:
           version: 0.13.3
@@ -187,10 +191,16 @@ jobs:
           uv run --frozen --project sdk/python python .github/tests/test_adversarial_qualification.py -v
           python3 -m unittest discover -s scripts/release/tests -v
           python3 .github/tests/test_verify_workflow.py -v
+          uv run --frozen --project sdk/python python .github/tests/test_spring_qualification.py -v
+          python3 .github/tests/test_spring_runtime_scan.py -v
       - name: Bounded owned replay load and adversarial mutation evidence
         run: |
           uv run --frozen --project sdk/python python scripts/qualification/replay_resilience.py --redis-server "$APPGUARD_REDIS_SERVER" --iterations 1000 --concurrency 16 > "$RUNNER_TEMP/appguard-replay-qualification.json"
           uv run --frozen --project sdk/python python scripts/qualification/adversarial_profile.py --iterations 10000 > "$RUNNER_TEMP/appguard-adversarial-qualification.json"
+      - name: Packaged Spring mTLS ingress qualification and actual container graph scan
+        run: |
+          uv run --frozen --project sdk/python python scripts/qualification/spring_ingress.py --redis-server "$APPGUARD_REDIS_SERVER" --output "$RUNNER_TEMP/appguard-spring-qualification"
+          python3 scripts/qualification/scan_spring_runtime.py --qualification "$RUNNER_TEMP/appguard-spring-qualification" --output "$RUNNER_TEMP/appguard-spring-runtime-scan"
       - name: Retain synthetic qualification evidence
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -199,6 +209,8 @@ jobs:
           path: |
             ${{ runner.temp }}/appguard-replay-qualification.json
             ${{ runner.temp }}/appguard-adversarial-qualification.json
+            ${{ runner.temp }}/appguard-spring-qualification/receipt.json
+            ${{ runner.temp }}/appguard-spring-runtime-scan/status.json
           if-no-files-found: warn
           retention-days: 7
 

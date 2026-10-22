@@ -357,3 +357,9 @@ python3 -m pip install "$APPGUARD_REPO/sdk/python[server,apple,redis]"
 リリースゲートは npm・Python・NuGet・Go・Composer の記録済み依存関係をソース SBOM と照合し、実際の Maven JAR の座標・ハッシュと全 8 検査を再検証します。証拠が欠落・不一致の場合は成果物を公開できません。ネイティブ・デプロイ環境の完全な依存関係検証は別途必要です。
 
 ASP.NET Core は本文全体の読み取りに絶対時間制限（既定 30 秒）を適用します。現在の Spring Servlet ブロッキングフィルターには、ホストで検証済みのアップロード制限が必要で、アイドルタイムアウトだけでは不十分です。[時間制限と検証範囲](docs/security/body-capture-deadlines.md)。
+
+[Spring mTLS 入口の例](docs/deployment/spring-ingress.md)に、インストール・設定と実際のローカル
+TLS 検証コマンドを追加しました。制限内の本文をすべて受信してから、証明書で保護された
+バックエンドへ接続し、実際のコンテナー JAR 依存関係を検査します。
+[準備状況の評価](docs/development/release-readiness.md#separate-readiness-assessment)は技術的な阻害要因と
+外部承認待ちを区別し、ローカル結果だけで本番利用を承認しません。

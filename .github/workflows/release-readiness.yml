@@ -39,6 +39,12 @@ jobs:
           CANDIDATE_COMMIT: ${{ github.sha }}
         run: |
           python3 scripts/release/publication_gate.py --candidate "$RUNNER_TEMP/appguard-candidate" --scans "$RUNNER_TEMP/appguard-scans" --output "$RUNNER_TEMP/appguard-publication" --expected-commit "$CANDIDATE_COMMIT"
+      - name: Assess technical and external readiness gates separately
+        if: always()
+        env:
+          CANDIDATE_COMMIT: ${{ github.sha }}
+        run: |
+          python3 scripts/release/assess.py --candidate "$RUNNER_TEMP/appguard-candidate" --scans "$RUNNER_TEMP/appguard-scans" --output "$RUNNER_TEMP/appguard-assessment" --expected-commit "$CANDIDATE_COMMIT"
       - name: Retain gated evidence or sanitized denial status only
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -47,5 +53,13 @@ jobs:
           # Contents require all eight verified checks, source/runtime coverage and zero security findings.
           # Failure staging contains public-status.json only: fixed booleans/codes and opaque hashes.
           path: ${{ runner.temp }}/appguard-publication
+          if-no-files-found: warn
+          retention-days: 7
+      - name: Retain fixed-schema readiness assessment
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: readiness-assessment-${{ github.sha }}
+          path: ${{ runner.temp }}/appguard-assessment/assessment.json
           if-no-files-found: warn
           retention-days: 7

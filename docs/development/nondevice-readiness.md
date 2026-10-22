@@ -174,3 +174,15 @@ The current blocking Spring Servlet filter still requires a host-enforced
 absolute upload boundary. Passing body-size and idle-timeout checks does not
 qualify a progressing slow upload. See [implementation, real localhost probes
 and remaining limits](../security/body-capture-deadlines.md).
+
+The [Spring mTLS ingress example](../deployment/spring-ingress.md) provides a
+separate constrained store-and-forward deployment and an owned-process socket
+qualification command. It collects a complete bounded body before connecting
+to the backend; the backend requires the ingress client certificate. Its runtime
+scanner covers the example's actual exported container JARs. This is local
+topology evidence, not operator cloud deployment or an SDK Servlet timer.
+
+The [readiness assessor](release-readiness.md#separate-readiness-assessment)
+keeps technical scan state and unsupported external approvals in separate gates.
+Known findings continue to block release; a local receipt cannot certify audit,
+provider account, license or production deployment approval.

@@ -418,3 +418,8 @@ python3 -m pip install "$APPGUARD_REPO/sdk/python[server,apple,redis]"
 릴리스 게이트는 npm·Python·NuGet·Go·Composer의 기록된 의존성을 소스 SBOM과 대조하고, 실제 Maven JAR의 좌표·해시와 8개 검사 전체를 재검증합니다. 누락되거나 불일치하는 증거로는 산출물을 공개할 수 없습니다. 네이티브·배포 환경의 전체 의존성 검증은 별도로 필요합니다.
 
 ASP.NET Core는 전체 본문 읽기에 절대 제한 시간(기본 30초)을 적용합니다. 현재 Spring Servlet 블로킹 필터는 호스트에서 검증한 업로드 제한이 필요하며, 유휴 시간 제한만으로는 충분하지 않습니다. [시간 제한과 검증 범위](docs/security/body-capture-deadlines.md).
+
+[Spring mTLS 진입점 예제](docs/deployment/spring-ingress.md)에 설치·설정과 실제 로컬 TLS
+검증 명령을 추가했습니다. 제한된 본문을 모두 받은 뒤 인증서로 보호한 백엔드에 연결하고,
+실제 컨테이너 JAR 의존성을 검사합니다. [준비도 점검 명령](docs/development/release-readiness.md#separate-readiness-assessment)은
+기술적 차단 항목과 외부 승인 대기를 구분하며, 로컬 결과만으로 프로덕션 승인을 부여하지 않습니다.

@@ -278,3 +278,32 @@ full reports remain local; artifact staging still requires all technical checks
 and zero-secret evidence to pass. A count summary never overrides a failed gate.
 
 See the [2026-10-22 evidence hardening review](../security/dependency-evidence-verification-2026-10-22.md) for reproduced defects, regression coverage and current limitations.
+
+## Separate readiness assessment
+
+Generate a fixed-schema gate ledger from the same candidate and scan evidence:
+
+```sh
+python3 scripts/release/assess.py \
+  --candidate "$candidate_parent/candidate" --scans "$candidate_parent/scans" \
+  --expected-commit "$(git rev-parse HEAD)" --output "$candidate_parent/assessment"
+```
+
+The normal command reports blocked/pending gates without failing report creation.
+Add `--check` to exit2 while any required gate remains blocked or pending.
+`--profile mobile-attested` adds provider-account requirements; the default
+`server-signature` profile makes no physical-device claim. Optional
+`--qualification /absolute/path/to/receipt.json` references the narrow local
+[Spring mTLS qualification](../deployment/spring-ingress.md).
+
+The assessor reuses the complete publication validator and pins input bytes.
+An untrusted qualification JSON, even with every check or `approved` set true,
+cannot grant production approval. Local receipts are referenced as unverified;
+external audit, license approval, hosted/deployed validation and maintainer
+approval remain pending until a supported trusted verification process exists.
+Every v1 assessment retains `release_ready:false`. `doctor --check` continues
+to mean local tool prerequisites only.
+
+The hosted workflow retains only this fixed-schema assessment separately from
+the existing gated publication artifact. It never includes scanner exceptions,
+raw requests, arbitrary input fields or approval text in that report.

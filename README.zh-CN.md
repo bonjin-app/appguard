@@ -357,3 +357,8 @@ python3 -m pip install "$APPGUARD_REPO/sdk/python[server,apple,redis]"
 发布门禁将 npm、Python、NuGet、Go、Composer 的已记录依赖与源码 SBOM 比对，并重新验证实际 Maven JAR 的坐标、哈希及全部 8 项检查。证据缺失或不一致时禁止公开产物；原生及部署环境的完整依赖验证仍需单独完成。
 
 ASP.NET Core 对整个请求体读取实施绝对时间限制（默认 30 秒）。当前 Spring Servlet 阻塞过滤器仍需主机侧经过验证的上传期限，仅空闲超时并不足够。[时间边界及验证范围](docs/security/body-capture-deadlines.md)。
+
+[Spring mTLS 入口示例](docs/deployment/spring-ingress.md)包含安装、配置及实际本地 TLS 验证命令。
+完整接收限量请求体后才连接由证书保护的后端，并检查实际容器 JAR 依赖图。
+[就绪度评估命令](docs/development/release-readiness.md#separate-readiness-assessment)区分技术阻碍与外部审批待办，
+本地结果不能授予生产环境批准。
