@@ -125,6 +125,41 @@ class ContainerQualificationTests(unittest.TestCase):
             'compression cannot be enabled when max file count is 1')
         self.assertEqual(self.module.safe_causes(error),['logging_configuration_invalid','container_runtime_failure'])
 
+    def test_actual_version_readback_requires_no_installers_and_unchanged_required_inventory(self):
+        required = {'cryptography':'50.0.2','h11':'0.16.0','uvicorn':'0.54.0','redis':'8.1.0'}
+        for failure in (None,'pip_present','wrong_python','inventory_changed','metadata_hidden','wrong_java','wrong_redis','extra_field'):
+            class RuntimeDocker(FakeDocker):
+                def call(self, args, **kwargs):
+                    if args[0] != 'exec':
+                        return super().call(args,**kwargs)
+                    if args[2] == '/usr/local/bin/python':
+                        result = {'version':'3.11.16' if failure == 'wrong_python' else '3.11.17',
+                            'installers_absent':{'pip':failure != 'pip_present','setuptools':True,'wheel':True,'ensurepip':True}}
+                        if failure == 'extra_field':
+                            result['PRIVATE'] = 'secret'
+                        return json.dumps(result)
+                    if args[2] == '/opt/appguard/.venv/bin/python':
+                        values = dict(required)
+                        if failure == 'metadata_hidden':
+                            del values['h11']
+                        return json.dumps({'matches_build_inventory':failure != 'inventory_changed','required':values})
+                    if args[2] == 'java':
+                        return 'openjdk version "'+('17.0.18' if failure == 'wrong_java' else '17.0.20.1')+'" 2026-08-18\n'
+                    if args[2] == 'redis-server':
+                        return 'Redis server v='+('7.2.10' if failure == 'wrong_redis' else '7.2.16')+' sha=PRIVATE\n'
+                    raise AssertionError('unexpected runtime command')
+            docker = RuntimeDocker({IDS[name]:container(name) for name in IDS})
+            with self.subTest(failure=failure):
+                if failure is not None:
+                    with self.assertRaises(ValueError) as caught:
+                        self.module.runtime_version_readback(docker,{name:container(name) for name in IDS},PROJECT,OWNER)
+                    self.assertNotIn('PRIVATE',str(caught.exception))
+                else:
+                    observed = self.module.runtime_version_readback(docker,{name:container(name) for name in IDS},PROJECT,OWNER)
+                    self.assertEqual(observed,{'python':'3.11.17','installers_absent':{'pip':True,'setuptools':True,'wheel':True,'ensurepip':True},
+                        'python_inventory_matches_build':True,'python_required_packages':required,'java':'17.0.20.1','redis':'7.2.16'})
+                    self.assertNotIn('PRIVATE',json.dumps(observed))
+
     def test_context_rejects_tcp_ssh_and_malformed_endpoints(self):
         self.module.validate_local_context({'Endpoints': {'docker': {'Host': 'unix:///var/run/docker.sock'}}})
         for host in ('tcp://127.0.0.1:2375', 'ssh://localhost', 'unix://relative.sock', 'unix:///tmp/../docker.sock', ''):

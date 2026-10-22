@@ -4,17 +4,17 @@
   "verification": "Registry index response digest header and SHA-256 of exact bytes matched. Linux amd64/arm64 child manifest and OCI config blob SHA-256 values matched their descriptors; declared versions were read from those hash-bound configs. Metadata is not runtime execution, native dependency closure or vulnerability approval.",
   "images": [
     {
-      "image": "docker.io/library/python:3.11.17-slim-bookworm@sha256:f06d01d4ba3f8ad5af45a3ec87df19c1d317d8e8961edc0fabda61811af6f7cf",
-      "registry_url": "https://registry-1.docker.io/v2/library/python/manifests/3.11.17-slim-bookworm",
+      "image": "docker.io/library/python:3.11.17-slim-trixie@sha256:cce12316475d7d56d605f76e1d811d0dc4e7227f2d4afd29951521264f504ff8",
+      "registry_url": "https://registry-1.docker.io/v2/library/python/manifests/3.11.17-slim-trixie",
       "official_image": "https://hub.docker.com/_/python",
-      "manifest_sha256": "f06d01d4ba3f8ad5af45a3ec87df19c1d317d8e8961edc0fabda61811af6f7cf",
+      "manifest_sha256": "cce12316475d7d56d605f76e1d811d0dc4e7227f2d4afd29951521264f504ff8",
       "platform_manifests": {
-        "amd64": "sha256:8fb0b110b022c70cbe09d3ff1fb313654f31f9c814abb0d48180af56d906a199",
-        "arm64": "sha256:8f51ccb8569b75cf967ffe3e1638b9953042bf36142d7032cbb6f0696c9cd2c6"
+        "amd64": "sha256:b95327ce1439e687237841b0210677aeadd62d55a060a5f6bcb9c15bf6251dd3",
+        "arm64": "sha256:a03d3aeb81ae3061d2e23874bf1a8ed418e919dcfe89f2ad4167bd58de639573"
       },
       "platform_configs": {
-        "amd64": "sha256:c8bff6acecbf3f8b9f87bc3193032b39ead42bcc39fb76a4875ebd89975874ee",
-        "arm64": "sha256:210294d6efde2595a5c75a057f33168eca775f5bdcba0ce761cd17593e1724d7"
+        "amd64": "sha256:b4403f3b7acf5e0700a5dd4e7ab01456d62b557a208a04f8a42d3470d93b5730",
+        "arm64": "sha256:ce943473dc7b8943c49a44fd574e31dea7863b079e818198b63b8917f7abee0d"
       },
       "platform_declared_versions": {
         "amd64": {
@@ -48,17 +48,17 @@
       }
     },
     {
-      "image": "docker.io/library/eclipse-temurin:17-jre-jammy@sha256:b3054a20e1a851574cdb1692dd0db5310c647e62214a2a7abecbec1b9e3ae8f1",
-      "registry_url": "https://registry-1.docker.io/v2/library/eclipse-temurin/manifests/17-jre-jammy",
+      "image": "docker.io/library/eclipse-temurin:17-jre-noble@sha256:07fa0356cf354c5252947575f42ed42aa6fd921f36438b7bc77ad81c31c537dd",
+      "registry_url": "https://registry-1.docker.io/v2/library/eclipse-temurin/manifests/17-jre-noble",
       "official_image": "https://hub.docker.com/_/eclipse-temurin",
-      "manifest_sha256": "b3054a20e1a851574cdb1692dd0db5310c647e62214a2a7abecbec1b9e3ae8f1",
+      "manifest_sha256": "07fa0356cf354c5252947575f42ed42aa6fd921f36438b7bc77ad81c31c537dd",
       "platform_manifests": {
-        "amd64": "sha256:30a8176ab22afd141ad9cd1948ad23bdb9fb7ddae666bad4a1d188d9f479d585",
-        "arm64": "sha256:2b7abd9a571c7ffc981914a91139946bd856ee57d2912d5cb339731e6009db6e"
+        "amd64": "sha256:e7ee15413d334217ca732978500b310e1a0bb8a5e54d9b6dd12509f636cda99e",
+        "arm64": "sha256:475beaab016aa5f762b2230af4d7f0d8f94daad0ea858a60179296d46696931d"
       },
       "platform_configs": {
-        "amd64": "sha256:92dcf304e14bd6d156e68c5f8870ac66e0357fe57b42cfe8074e58bcfa24328b",
-        "arm64": "sha256:3144202e2ee0dd8e012e65c00df8fba71a0e71d0d8ee4d536c6ebe906656bdd2"
+        "amd64": "sha256:5eb339fa0dc333ecdb302fbacc8292df0d5bb12b13b22c74a493b0ff2b476852",
+        "arm64": "sha256:1ed5b0424242ca03d63cebc7d4578ded7cdba15cbd68cf2fe385eadd0750d5fa"
       },
       "platform_declared_versions": {
         "amd64": {

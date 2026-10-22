@@ -517,6 +517,49 @@ def effective_restrictions(docker, records, project, owner):
         require(re.fullmatch(r'net:\[[0-9]+\]', namespace) is not None)
         namespaces.add(namespace)
     require(len(namespaces) == 1)
+    return runtime_version_readback(docker,records,project,owner)
+
+
+GLOBAL_PYTHON_READBACK = (
+    'import importlib.util,json,sys; '
+    'print(json.dumps({"version":".".join(map(str,sys.version_info[:3])), '
+    '"installers_absent":{name:importlib.util.find_spec(name) is None '
+    'for name in ("pip","setuptools","wheel","ensurepip")}}))')
+VENV_INVENTORY_READBACK = (
+    'import importlib.metadata as m,json,sys; from pathlib import Path; '
+    'pairs=[(d.metadata["Name"].lower().replace("_","-"),d.version) for d in m.distributions()]; '
+    'actual=dict(pairs); '
+    'print(json.dumps({"matches_build_inventory":len(actual)==len(pairs) and '
+    'actual==json.loads(Path(sys.argv[1]).read_text()), '
+    '"required":{name:m.version(name) for name in ("cryptography","h11","uvicorn","redis")}}))')
+
+
+def runtime_version_readback(docker, records, project, owner):
+    """Read actual binaries and retained package metadata; never emit CLI text."""
+    required = {'cryptography':'50.0.2','h11':'0.16.0','uvicorn':'0.54.0','redis':'8.1.0'}
+    gateway = inspect_container(docker,records['gateway']['Id'],project,owner,'gateway')['Id']
+    global_python = json.loads(docker.call(['exec',gateway,'/usr/local/bin/python','-I','-c',GLOBAL_PYTHON_READBACK],
+        timeout=5,limit=4096))
+    require(type(global_python) is dict and set(global_python)=={'version','installers_absent'}
+        and global_python['version']=='3.11.17'
+        and type(global_python['installers_absent']) is dict
+        and set(global_python['installers_absent'])=={'pip','setuptools','wheel','ensurepip'}
+        and all(value is True for value in global_python['installers_absent'].values()))
+    inspect_container(docker,gateway,project,owner,'gateway')
+    inventory = json.loads(docker.call(['exec',gateway,'/opt/appguard/.venv/bin/python','-I','-c',VENV_INVENTORY_READBACK,
+        '/opt/appguard/runtime-inventory.json'],timeout=5,limit=4096))
+    require(type(inventory) is dict and set(inventory)=={'matches_build_inventory','required'}
+        and inventory['matches_build_inventory'] is True and inventory['required']==required)
+    backend = inspect_container(docker,records['backend']['Id'],project,owner,'backend')['Id']
+    java = docker.call(['exec',backend,'java','-version'],timeout=5,limit=4096)
+    match = re.search(r'(?m)^(?:openjdk|java) version "([0-9.]+)"',java)
+    require(match is not None and match.group(1)=='17.0.20.1')
+    redis = inspect_container(docker,records['redis']['Id'],project,owner,'redis')['Id']
+    redis_version = docker.call(['exec',redis,'redis-server','--version'],timeout=5,limit=4096)
+    match = re.match(r'Redis server v=([0-9]+\.[0-9]+\.[0-9]+)(?:\s|$)',redis_version)
+    require(match is not None and match.group(1)=='7.2.16')
+    return {'python':'3.11.17','installers_absent':{name:True for name in ('pip','setuptools','wheel','ensurepip')},
+        'python_inventory_matches_build':True,'python_required_packages':required,'java':'17.0.20.1','redis':'7.2.16'}
 
 
 def run_startup(docker, compose, receipt, project, owner):
@@ -534,7 +577,7 @@ def run_startup(docker, compose, receipt, project, owner):
     receipt['phase'] = 'startup_readiness'
     wait_ready(docker, records['gateway']['Id'], records['backend']['Id'], project, owner)
     receipt['phase'] = 'startup_effective_restrictions'
-    effective_restrictions(docker, records, project, owner)
+    receipt['runtime_versions'] = effective_restrictions(docker, records, project, owner)
     receipt['checks']['effective_process_restrictions'] = True
     return records, inspected
 

@@ -23,6 +23,10 @@ The current pins use Python 3.11.17 and Redis 7.2.16. The Maven 3.9.16
 builder and Temurin 17 JRE both declare `jdk-17.0.20.1+1` on amd64 and arm64
 in their hash-bound OCI configuration metadata. Runtime execution and image
 vulnerability checks remain separate verification steps.
+The gateway deliberately uses Debian 13 Trixie and the backend uses Ubuntu
+24.04 Noble as their runtime OS baselines. Exact-image scans must reassess these
+contents; a newer baseline does not imply zero vulnerabilities or native binary
+dependency closure.
 Upstream sources are the official [Python](https://hub.docker.com/_/python),
 [Maven](https://hub.docker.com/_/maven),
 [Temurin](https://hub.docker.com/_/eclipse-temurin) and
@@ -33,6 +37,11 @@ The gateway installs hash-pinned uv 0.13.4 from official PyPI wheels and runs
 It copies the SDK source separately into the final image, avoiding an unlocked
 isolated build backend. Runtime dependencies come from `sdk/python/uv.lock`;
 development dependencies, uv and its build cache are absent from the final stage.
+The final gateway also uninstalls unused global pip, setuptools and wheel, and
+removes ensurepip including its bundled installer wheels. Build-stage pip is
+retained to install pinned uv. The copied production virtual environment keeps
+all package code and distribution metadata; a build-time inventory comparison
+and runtime readback require its package versions to remain intact.
 The gateway keeps the SDK's required h11/uvicorn versions. Maven builds both
 JARs from source and copies the actual resolved runtime JARs into a Java 17 JRE
 image. Image builds skip Java tests; the regular SDK/qualification suites must
@@ -139,6 +148,11 @@ uv run --frozen --project sdk/python python scripts/qualification/spring_contain
 The runner creates one random Compose project, ephemeral CAs and leaf keys.
 It builds three local images, inspects actual runtime resource/UID/capability/
 mount/rootfs/port restrictions and verifies shared network namespace identity.
+Within the existing effective-restrictions check, it reads back Python 3.11.17,
+Java 17.0.20.1 and Redis 7.2.16 from the running binaries, confirms the global
+Python installers are absent and compares the production Python environment
+against its build inventory. Only validated fixed versions and booleans are
+retained in the receipt's `runtime_versions` field.
 It exercises signed raw-target/body fidelity, replay rejection, owned Redis
 outage denial/recovery and retention of the original nonce after restart. A
 separate same-namespace probe has only the server CA and an untrusted client
