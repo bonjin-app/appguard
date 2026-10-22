@@ -222,6 +222,17 @@ milliseconds in **1..2147483647**; omission/`undefined` selects the default.
 Null, fractional, nonnumeric and overflow values reject at adapter installation.
 Previously a null body timeout selected its default; replace it with omission.
 
+The body budget uses one monotonic deadline through chunk capture, final byte
+copy, the asynchronous capture handoff and final framing validation. At or beyond
+that deadline the adapter rejects with 400 `INVALID_REQUEST` before authentication,
+key lookup, the trusted Unix clock, replay or application dispatch. Synchronous
+JavaScript cannot be preempted; the elapsed check rejects once control returns.
+An unexpired oversized body still returns 413. The guard clears its own body
+timer/listeners and pauses a rejected stream; it does not drain or forcibly close
+all host resources. This budget does not cover initial envelope parsing,
+authentication, replay or downstream parsers/handlers. See the
+[body deadline verification](../../docs/security/node-body-deadlines.md).
+
 Node's HTTP server parses HTTP framing and exposes parsed raw-header values; its
 own parser/limits may reject a request before middleware runs. Such server-level
 responses are outside SDK JSON mapping. The adapter cannot recover socket bytes,

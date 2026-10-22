@@ -16,6 +16,15 @@ All three accept integers from 1 through 2147483647; omit an option to use its
 default. Authentication starts after body capture; replay starts after signature
 verification. These phases do not establish a single total request deadline.
 
+The body budget spans chunk capture, the final synchronous copy, capture handoff
+and final framing validation before authentication, using one monotonic deadline.
+Reaching the deadline rejects with fixed 400 `INVALID_REQUEST`; an unexpired body
+overflow retains 413. Blocking JavaScript can delay the timer, so the adapter also
+checks elapsed time after control returns. This cannot preempt a copy, cap all
+outstanding requests or replace host header/socket/admission limits. Initial
+envelope parsing and later authentication/replay/application work have separate
+boundaries. See [body deadline evidence](../../docs/security/node-body-deadlines.md).
+
 The authentication budget spans both callbacks and is checked with a monotonic
 clock after asynchronous returns and before continuing SDK work. Expiry returns
 503 with the active phase's fixed code. After expiry, the SDK does not pass late

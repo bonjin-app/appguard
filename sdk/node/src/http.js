@@ -38,20 +38,28 @@ function snapshot(req, options) {
   validateRequest(request);
   return { request, metadata };
 }
-function capture(req, timeoutMs, connection) {
+function capture(req, timeoutMs, deadline, connection) {
   return new Promise((resolve, rejectPromise) => {
     let size = 0, settled = false, unwatch = () => {};
     const chunks = [];
     const clean = () => { clearTimeout(timer); unwatch(); req.removeListener('data', data); req.removeListener('end', end); req.removeListener('error', fail); req.removeListener('aborted', fail); req.removeListener('close', close); };
     const finish = (error, value) => { if (settled) return; settled = true; clean(); if (error) { req.pause(); rejectPromise(error); } else resolve(value); };
     const fail = () => finish(new VerificationError('INVALID_REQUEST'));
+    const expired = () => { if (performance.now() >= deadline) { fail(); return true; } return false; };
     const data = chunk => {
+      if (expired()) return;
       if (!Buffer.isBuffer(chunk)) { fail(); return; }
       size += chunk.length;
       if (size > LIMIT) { finish(new VerificationError('INVALID_REQUEST', 413)); return; }
       chunks.push(chunk);
     };
-    const end = () => { if (!req.complete || req.aborted) fail(); else finish(null, Buffer.concat(chunks, size)); };
+    const end = () => {
+      if (expired()) return;
+      if (!req.complete || req.aborted) { fail(); return; }
+      const body = Buffer.concat(chunks, size);
+      if (expired()) return;
+      finish(null, body);
+    };
     const close = () => { if (!req.readableEnded) fail(); };
     const timer = setTimeout(fail, timeoutMs); timer.unref();
     req.on('error', fail); req.on('aborted', fail); req.on('close', close); req.on('end', end); req.on('data', data);
@@ -109,9 +117,11 @@ async function enforce(req, res, options) {
   try {
     connection.check();
     const { request, metadata } = snapshot(req, options);
-    request.body = await capture(req, options.bodyTimeoutMs, connection);
+    const bodyDeadline = performance.now() + options.bodyTimeoutMs;
+    request.body = await capture(req, options.bodyTimeoutMs, bodyDeadline, connection);
     connection.check();
     validateFraming(request.headers, request.body.length);
+    if (performance.now() >= bodyDeadline) reject();
     const { subject, key } = await authenticate(request, metadata, options, connection);
     connection.check();
     let now;
