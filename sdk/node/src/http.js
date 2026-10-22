@@ -56,7 +56,11 @@ function capture(req, timeoutMs, deadline, connection) {
     const end = () => {
       if (expired()) return;
       if (!req.complete || req.aborted) { fail(); return; }
-      const body = Buffer.concat(chunks, size);
+      let body;
+      // Event callbacks execute after the Promise executor has returned.
+      // Normalize recoverable copy failures through the same capture cleanup.
+      try { body = Buffer.concat(chunks, size); }
+      catch { fail(); return; }
       if (expired()) return;
       finish(null, body);
     };

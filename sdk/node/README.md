@@ -233,6 +233,14 @@ all host resources. This budget does not cover initial envelope parsing,
 authentication, replay or downstream parsers/handlers. See the
 [body deadline verification](../../docs/security/node-body-deadlines.md).
 
+A recoverable exception from the final captured-body `Buffer.concat` also rejects
+with fixed 400 `INVALID_REQUEST` before authentication, clears the same owned
+timer/listeners and pauses the stream. The original exception is not exposed or
+treated as a trusted verification decision. This contains JavaScript exceptions
+at this copy boundary; it cannot recover from fatal runtime out-of-memory errors
+or guarantee process survival under resource exhaustion. See the
+[body copy verification](../../docs/security/node-body-copy.md).
+
 Node's HTTP server parses HTTP framing and exposes parsed raw-header values; its
 own parser/limits may reject a request before middleware runs. Such server-level
 responses are outside SDK JSON mapping. The adapter cannot recover socket bytes,
