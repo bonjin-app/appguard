@@ -30,8 +30,13 @@ wrapper. For Expo it checks the installed local CLI entrypoint, which Node runs
 without requiring an executable bit. For Flutter it looks for an executable
 `flutter` on the build's PATH without running it. Required checks and their fixed
 reason codes appear in `checks`; `localChecksPassed` is true only when every
-required check passes. No project files or build tools are changed by diagnosis. Android/Expo project
-paths follow the existing no-symlink policy. Flutter PATH lookup permits normal
+required check passes. No project files or build tools are changed by diagnosis. Android project paths follow the existing no-symlink policy. For Expo, the
+`node_modules` root must be an ordinary directory; the `expo` package entry may
+link to a directory strictly inside its canonical dependency tree, supporting
+local pnpm installations. The package's `bin` and CLI file may not be symlinks.
+Doctor does not execute the resolved file; actual build passes that checked path
+to Node. External/hoisted packages, linked dependency roots and external virtual
+stores remain unsupported. See the [Expo link boundary](../../docs/security/cli-expo-links.md). Flutter PATH lookup permits normal
 symlinked installations; empty or relative PATH entries are resolved against the
 target project, as with a build. An unset PATH is explicitly `not_checked` with
 `PATH_NOT_SET`. POSIX executability uses access checks, not a tool invocation.

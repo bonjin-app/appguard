@@ -4,6 +4,7 @@ import { spawn } from 'node:child_process';
 import { loadProject, inspect } from './project.js';
 import { privateDirectory, safePath } from './files.js';
 import { fail } from './errors.js';
+import {expoEntrypoint} from './expo-tool.js';
 
 export async function buildPlan(input) {
   const {root,config}=await loadProject(input);
@@ -19,8 +20,11 @@ export async function executeBuild(input) {
   if(plan.platform==='flutter') await privateDirectory(plan.cwd,'.appguard/symbols');
   else {
     const executable=plan.platform==='android'?(process.platform==='win32'?'gradlew.bat':'gradlew'):'node_modules/expo/bin/cli';
-    const file=await safePath(plan.cwd,executable);
-    try {if(!(await fs.lstat(file)).isFile()) fail('BUILD_TOOL_MISSING');} catch(e) {if(e.code==='ENOENT') fail('BUILD_TOOL_MISSING'); throw e;}
+    try {
+      const file=plan.platform==='expo'?await expoEntrypoint(plan.cwd):await safePath(plan.cwd,executable);
+      if(!(await fs.lstat(file)).isFile()) fail('BUILD_TOOL_MISSING');
+      if(plan.platform==='expo') plan.args[0]=file;
+    } catch(e) {if(e.code==='ENOENT' || e.code==='ENOTDIR') fail('BUILD_TOOL_MISSING');throw e;}
   }
   if(process.platform==='win32' && plan.platform==='android') fail('PLATFORM_UNSUPPORTED');
   const exitCode=await new Promise((resolve,reject)=>{

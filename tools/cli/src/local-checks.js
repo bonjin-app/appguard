@@ -2,6 +2,7 @@ import * as fs from 'node:fs/promises';
 import {constants} from 'node:fs';
 import path from 'node:path';
 import {safePath} from './files.js';
+import {expoEntrypoint} from './expo-tool.js';
 
 const result=(id,status,code)=>({id,status,code});
 function failureCode(error) {
@@ -46,7 +47,12 @@ async function flutterCheck(root) {
 }
 export async function localChecks(root,config,protectionConfigured) {
   if(config.platform==='flutter') return [await flutterCheck(root)];
-  if(config.platform==='expo') return [await localFile(root,'expo_cli','node_modules/expo/bin/cli',constants.R_OK)];
+  if(config.platform==='expo') {
+    let code;
+    try {code=await regularFile(await expoEntrypoint(root),constants.R_OK);}
+    catch(error) {code=failureCode(error);}
+    return [result('expo_cli',code==='READY'?'pass':'fail',code)];
+  }
   return [
     result('android_protection',protectionConfigured?'pass':'fail',protectionConfigured?'READY':'PROTECTION_NOT_CONFIGURED'),
     process.platform==='win32'
