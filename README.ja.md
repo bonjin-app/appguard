@@ -351,3 +351,5 @@ python3 -m pip install "$APPGUARD_REPO/sdk/python[server,apple,redis]"
 未公開のソース候補を準備します。自動検査の成功後も、ライセンスレビュー、独立監査、
 実際のプロバイダー／アカウント連携、デプロイ検証、保守者のリリース承認が必要です。
 実機検証は保留中で今回の対象外です。外部監査済みの本番リリースではありません。
+
+開発依存関係まで拡張した検査では、Expo ビルドツールの上流 HIGH 脆弱性 2 件（`braces`、`node-forge`）によりリリースをブロックしています。AppGuard パッケージには同梱されず、検出結果の抑制は行いません。[アドバイザリーと影響経路](docs/security/dependency-advisories-2026-10-22.md)を参照してください。

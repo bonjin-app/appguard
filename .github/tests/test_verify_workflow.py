@@ -63,7 +63,7 @@ class WorkflowShellTests(unittest.TestCase):
             extension = base / 'installed/redis.so'
             extension.parent.mkdir()
             extension.write_text('fake module for orchestration test')
-            self.executable(bin_path / 'php', 'printf %s ' + repr(str(extension)) + '\n')
+            self.executable(bin_path / 'php', 'if [[ "${4:-}" == -- ]]; then exit 0; fi\nprintf %s ' + repr(str(extension)) + '\n')
             self.executable(bin_path / 'python3', 'printf "%s\\n" "$@" > "$STEP_MARKER"\n')
         result, marker, exported = self.run_step('Actual pinned ext-redis independent-process integration', setup)
         self.assertTrue(exported)
@@ -72,6 +72,26 @@ class WorkflowShellTests(unittest.TestCase):
         self.assertEqual(args[:4], ['sdk/php/tests/redis_integration.py', 'php', '-n', '-d'])
         self.assertTrue(args[4].startswith('extension=/'))
         self.assertTrue(args[4].endswith('/redis.so'))
+
+    def test_packaged_redis_dependencies_load_before_redis_without_php_ini(self):
+        def setup(base, bin_path):
+            installed = base / 'installed'
+            installed.mkdir()
+            for name in ['igbinary', 'msgpack', 'redis']:
+                (installed / (name + '.so')).write_text('orchestration fixture')
+            self.executable(bin_path / 'php',
+                'if [[ "$*" == *phpversion* ]]; then\n'
+                '  [[ "$*" == *"igbinary.so"* && "$*" == *"msgpack.so"* && "$*" == *"redis.so"* ]];\n'
+                'elif [[ "${4:-}" == -- ]]; then printf "%s/%s.so" ' + repr(str(installed)) + ' "$5";\n'
+                'else printf %s ' + repr(str(installed / 'redis.so')) + '; fi\n')
+            self.executable(bin_path / 'python3', 'printf "%s\\n" "$@" > "$STEP_MARKER"\n')
+        result, marker, exported = self.run_step('Actual pinned ext-redis independent-process integration', setup)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertTrue(exported)
+        args = marker.splitlines()
+        self.assertEqual(args[:3], ['sdk/php/tests/redis_integration.py', 'php', '-n'])
+        self.assertEqual([Path(value.removeprefix('extension=')).name for value in args if value.startswith('extension=')],
+                         ['igbinary.so', 'msgpack.so', 'redis.so'])
 
 
 if __name__ == '__main__':

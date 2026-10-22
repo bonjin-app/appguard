@@ -351,3 +351,5 @@ python3 -m pip install "$APPGUARD_REPO/sdk/python[server,apple,redis]"
 准备未发布的源码候选。通过自动检查后，仍需许可证审查、独立安全审计、实际提供方/账号联调、
 部署环境验证及维护者发布批准。真机验证保持待办，不属于本次范围。
 这不是已完成外部审计的生产版本。
+
+扩展至开发依赖后的检查因 Expo 构建工具中的两项上游 HIGH 漏洞（`braces`、`node-forge`）阻止发布。这些依赖不随 AppGuard 软件包分发，检测结果未被抑制。参阅[安全公告及影响路径](docs/security/dependency-advisories-2026-10-22.md)。

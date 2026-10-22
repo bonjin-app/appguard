@@ -13,9 +13,10 @@ import tempfile
 
 from candidate import write_json
 from scan import verify_candidate
+from source_catalog import validate_source_catalog
 
 CANDIDATE_FILES = ('source.tar.gz', 'manifest.json', 'dependency-coverage.json', 'licenses.json')
-SCAN_FILES = ('status.json', 'license-review.json', 'THIRD_PARTY_NOTICES.review.md',
+SCAN_FILES = ('status.json', 'source-lock-coverage.json', 'license-review.json', 'THIRD_PARTY_NOTICES.review.md',
               'trivy-sbom.json', 'trivy-maven-runtime.json', 'trivy-licenses.json',
               'trivy-maven-runtime-licenses.json', 'sbom.cdx.json', 'sbom-maven-runtime.cdx.json',
               'maven-runtime-manifest.json', 'maven-runtime-dependencies.txt')
@@ -81,6 +82,21 @@ def stage_publication(candidate, scans, output, expected_commit):
                 or any(not isinstance(item, dict) or not isinstance(item.get('Secrets', []), list)
                        or item.get('Secrets', []) for item in report['Results'])):
             raise ValueError('Secret scan not verified')
+        catalogs = [item for item in status['commands'] if item.get('name') == 'syft']
+        coverage_path = scans / 'source-lock-coverage.json'
+        sbom_path = scans / 'sbom.cdx.json'
+        if (len(catalogs) != 1 or catalogs[0].get('returncode') != 0
+                or catalogs[0].get('recorded_npm_lock_coverage_passed') is not True
+                or not regular_file(coverage_path) or not regular_file(sbom_path)
+                or catalogs[0].get('source_lock_coverage_sha256') != digest(coverage_path)):
+            raise ValueError('Recorded source coverage not verified')
+        recorded_coverage = json.loads(coverage_path.read_text())
+        if recorded_coverage.get('schema') != 1 or recorded_coverage.get('all_recorded_npm_packages_cataloged') is not True:
+            raise ValueError('Recorded source coverage not complete')
+        with tempfile.TemporaryDirectory(prefix='.coverage-check-', dir=output.parent) as verification:
+            actual_coverage = validate_source_catalog(candidate / 'source', sbom_path, Path(verification))
+        if recorded_coverage != actual_coverage:
+            raise ValueError('Recorded source coverage integrity mismatch')
         allowed = True
     except (OSError, ValueError, KeyError, TypeError, AttributeError):
         pass  # Intentionally omit untrusted error strings and source metadata.

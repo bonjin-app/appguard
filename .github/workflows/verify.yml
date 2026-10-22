@@ -126,8 +126,20 @@ jobs:
         run: |
           redis_module="$(php -n -r 'echo ini_get("extension_dir"), "/redis.", PHP_SHLIB_SUFFIX;')"
           [[ "$redis_module" = /* && -f "$redis_module" && -r "$redis_module" ]] || { echo 'Expected readable redis module in absolute PHP extension_dir' >&2; exit 1; }
-          php -n -d "extension=$redis_module" -r 'exit(phpversion("redis") === "6.3.0" ? 0 : 1);'
-          python3 sdk/php/tests/redis_integration.py php -n -d "extension=$redis_module"
+          php_redis_args=(-n)
+          # Packaged phpredis can link these optional serializers even when our
+          # raw-command adapter uses neither. Load installed dependencies first.
+          for serializer in igbinary msgpack; do
+            serializer_module="$(php -n -r 'echo ini_get("extension_dir"), "/", $argv[1], ".", PHP_SHLIB_SUFFIX;' -- "$serializer")"
+            if [[ "$serializer_module" = /* && -f "$serializer_module" && -r "$serializer_module" ]]; then
+              php_redis_args+=(-d "extension=$serializer_module")
+              case "$serializer" in igbinary) serializer_env=IGBINARY ;; msgpack) serializer_env=MSGPACK ;; esac
+              printf 'APPGUARD_PHP_%s_EXTENSION=%s\n' "$serializer_env" "$serializer_module" >> "$GITHUB_ENV"
+            fi
+          done
+          php_redis_args+=(-d "extension=$redis_module")
+          php "${php_redis_args[@]}" -r 'exit(phpversion("redis") === "6.3.0" ? 0 : 1);'
+          python3 sdk/php/tests/redis_integration.py php "${php_redis_args[@]}"
           printf 'APPGUARD_PHP_REDIS_EXTENSION=%s\n' "$redis_module" >> "$GITHUB_ENV"
       - name: Frozen Python dependencies and cross-language extended replay
         run: |

@@ -13,6 +13,7 @@ import tempfile
 import urllib.request
 
 from candidate import validate_path, write_json
+from source_catalog import write_syft_config, validate_source_catalog
 
 # Official immutable GitHub release asset digests, read 2026-10-22 from
 # https://api.github.com/repos/{anchore/syft,aquasecurity/trivy}/releases/tags/{version}
@@ -195,6 +196,8 @@ def run_scans(candidate, output):
         home.mkdir()
         config = state / 'empty.yaml'
         config.write_text('{}\n')
+        syft_config = state / 'syft.json'
+        write_syft_config(syft_config)
         ignore = state / 'empty.ignore'
         ignore.write_text('')
         # Do not inherit scanner settings, account credentials, or user's caches.
@@ -212,7 +215,7 @@ def run_scans(candidate, output):
                 maven = {'name': 'maven-runtime', 'returncode': 1, 'error': str(error)}
             status['commands'].append(maven)
             commands = [
-                ('syft', [str(syft), 'scan', 'dir:' + str(candidate / 'source'), '--config', str(config),
+                ('syft', [str(syft), 'scan', 'dir:' + str(candidate / 'source'), '--config', str(syft_config),
                           '-o', 'cyclonedx-json=' + str(reports / 'sbom.cdx.json')]),
                 ('trivy-sbom', [str(trivy), 'sbom', '--config', str(config), '--ignorefile', str(ignore),
                                 '--scanners', 'vuln', '--severity', 'UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL',
@@ -266,6 +269,13 @@ def run_scans(candidate, output):
                         evaluate_report(item, report)
                     except (ValueError, TypeError, AttributeError):
                         item.update(report_parse_error=True, returncode=65)
+                if name == 'syft' and item['returncode'] == 0:
+                    try:
+                        validate_source_catalog(candidate / 'source', reports / 'sbom.cdx.json', reports)
+                        item['recorded_npm_lock_coverage_passed'] = True
+                        item['source_lock_coverage_sha256'] = hashlib.sha256((reports / 'source-lock-coverage.json').read_bytes()).hexdigest()
+                    except (OSError, ValueError, TypeError, KeyError) as error:
+                        item.update(returncode=65, recorded_npm_lock_coverage_passed=False, coverage_error=str(error))
                 status['commands'].append(item)
             write_license_review(reports)
             if (candidate / 'manifest.json').read_bytes() != initial_manifest_bytes:

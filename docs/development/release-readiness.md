@@ -61,8 +61,39 @@ results and SBOM timestamps are not expected to be byte reproducible.
 
 Syft emits `sbom.cdx.json` (CycloneDX) from all candidate source/lockfiles,
 including recorded Python/npm/Go/NuGet/PHP inputs. Trivy scans that SBOM with
-`--scanners vuln`, without re-resolving Maven POMs. The primary Java gate
-uses actual Maven-exported libraries rather than guessed POM versions:
+`--scanners vuln`, without re-resolving Maven POMs.
+
+Source Syft configuration explicitly sets `javascript.include-dev-dependencies:
+true` ([official option](https://oss.anchore.com/docs/capabilities/javascript/)).
+This includes the framework/Redis and Expo peer-test graphs recorded as npm
+development dependencies, rather than cataloging only the root projects.
+Only `lockfileVersion: 3` is supported. Missing/malformed package maps, root
+records, package objects, non-link versions or flag types fail with a coverage
+validation error. Explicit links require a resolved target and are recorded
+separately, without inventing a package version.
+After cataloging, every versioned `package-lock.json` record must appear at its
+original lockfile location in the SBOM with matching npm purl name/version
+(including percent-encoded scoped packages); any omission fails the automated gate.
+`source-lock-coverage.json` pins the SBOM and each source lock by SHA-256 and
+retains the original development, optional and peer flags for each record.
+Syft CycloneDX output does not encode those npm development flags as component
+scope, so the linked coverage report preserves their classification without
+relabelling development records as runtime dependencies. Unversioned/link
+records and native/platform resolution remain explicit limitations.
+
+The reviewed Trivy 0.76.1 `sbom` command explicitly disables `--include-dev-deps`
+([official tagged command source](https://github.com/aquasecurity/trivy/blob/v0.76.1/pkg/commands/app.go));
+passing that flag fails. It scans the supplied Syft-cataloged npm records,
+including development records, without that flag. Existing Python, NuGet,
+Go and PHP source catalogers continue cataloging their recorded inputs;
+this setting does not establish universal or native dependency closure.
+An opt-in real-scanner regression can be run with
+`APPGUARD_SYFT=/absolute/path/to/reviewed/syft python3 -m unittest discover -s scripts/release/tests -p test_source_catalog.py -v`.
+The actual source scan always executes lock-to-SBOM coverage validation.
+
+
+The primary Java gate uses actual Maven-exported libraries rather than guessed
+POM versions:
 
 1. Copy the candidate Spring Boot module into bounded temporary state.
 2. Run the pinned `maven-dependency-plugin:3.8.1:copy-dependencies` and `:list`
@@ -154,7 +185,8 @@ requests with read-only repository permission. It creates an unpublished source
 candidate and executes scanner checks. Artifact staging independently requires
 passing automated checks and an explicit successful secret pass with zero
 findings, matching candidate and
-expected commit identities, the scanner-pinned initial manifest SHA-256, and an unchanged checksum-verified
+expected commit identities, the scanner-pinned initial manifest SHA-256, a successful source coverage flag,
+a pinned coverage report that revalidates against the SBOM and current locks, and an unchanged checksum-verified
 candidate. The scanner requires the exact initial manifest bytes to remain
 unchanged throughout all scans, so rewriting both source and manifest cannot
 adopt a new input snapshot.

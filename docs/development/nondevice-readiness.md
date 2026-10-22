@@ -60,6 +60,11 @@ PHP hosts must explicitly enable `Redis::OPT_REPLY_LITERAL` before constructing
 only the exact `OK` status; default boolean status coercion cannot distinguish
 `OK` from a server-side queued transaction. It never changes client options.
 
+On packaged PHP builds, Redis may require installed `igbinary`/`msgpack` modules
+even though raw replay commands do not use serializers. The hosted job loads
+those fixed optional module files before Redis, keeps `-n`, verifies Redis6.3.0,
+and passes individual validated module paths to the cross-language runner.
+
 The .NET runner disables development-certificate generation and telemetry, uses
 an isolated CLI home, and does not alter the user's certificates. PHP SDK tests
 run with `-n`; only the selected optional Redis extension is loaded for its live
@@ -128,6 +133,17 @@ rate limiting and operational alerting. An assertion, local risk hint or receipt
 risk metric does not authorize a business operation. Authentication providers,
 fraud thresholds, customer-data retention and incident response remain deployment
 policy, not inferred SDK defaults.
+
+## Known upstream development-tool advisories
+
+Expanded npm development-dependency coverage detects two upstream HIGH findings
+in Expo build tooling, `braces` and `node-forge`, for which no fixed upstream
+release was available at this check. The UUID finding was removed through the
+compatible config-plugins58.0.10/xcode4 update. See [advisories, dependency paths
+and limits](../security/dependency-advisories-2026-10-22.md). The vulnerable build
+tools are not bundled in AppGuard's npm package. They remain visible in the
+complete recorded npm source graph; the release security gate intentionally
+fails until remediated. Passing SDK tests does not override this gate.
 
 ## Release gates still separate
 

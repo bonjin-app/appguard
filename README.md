@@ -413,3 +413,5 @@ prepares unpublished source candidates. Passing automated checks still leaves
 license review, independent audit, actual provider/account integration, deployment
 qualification and maintainer release approval outstanding. Physical devices remain
 pending and outside this qualification. This is not an audited production release.
+
+The expanded development-dependency scan currently blocks release on two upstream HIGH findings in Expo build tooling (`braces`, `node-forge`). They are not bundled in the AppGuard package. No finding is suppressed; see [advisories and affected paths](docs/security/dependency-advisories-2026-10-22.md).

@@ -75,8 +75,10 @@ def check(url, *, extended=False, extended_only=False):
             # Optional extension override is exactly one readable absolute file,
             # never php.ini, a shell expression, or an argument string.
             args = [os.environ.get("APPGUARD_PHP_CMD", "php"), "-n"]
-            extension = os.environ.get("APPGUARD_PHP_REDIS_EXTENSION")
-            if extension:
+            for option in ("IGBINARY", "MSGPACK", "REDIS"):
+                extension = os.environ.get("APPGUARD_PHP_" + option + "_EXTENSION")
+                if not extension:
+                    continue
                 extension_path = Path(extension)
                 require(extension_path.is_absolute() and extension_path.is_file(), "Invalid Redis extension path")
                 args.extend(["-d", "extension=" + str(extension_path)])
