@@ -169,7 +169,7 @@ class ContainerQualificationTests(unittest.TestCase):
         self.assertFalse(result['services']['backend']['present'])
         self.assertFalse(result['complete'])
         self.assertEqual(set(result['services']['backend']), {'present','running','exit_code','oom_killed',
-            'state_error_present','health','health_failures','restart_count','constraints','limits','log_causes'})
+            'state_error_present','state_error_causes','health','health_failures','restart_count','constraints','limits','log_causes'})
         class UnavailableDocker:
             def call(self, args, **kwargs):
                 raise OSError('PRIVATE daemon failure')
@@ -177,6 +177,36 @@ class ContainerQualificationTests(unittest.TestCase):
         self.assertFalse(result['complete'])
         self.assertGreater(result['metadata_errors'], 0)
         self.assertNotIn('PRIVATE', json.dumps(result))
+
+    def test_never_started_state_error_retains_only_fixed_runtime_cause_codes(self):
+        volume = {'Name': PROJECT + '_redis-data', 'Driver': 'local', 'Options': {},
+            'Labels': {'io.appguard.owner': OWNER, 'com.docker.compose.project': PROJECT, 'io.appguard.scope': 'spring-ingress-v1'}}
+        class NeverStartedDocker(FakeDocker):
+            def call(self, args, **kwargs):
+                if args[0] == 'logs':
+                    raise RuntimeError('logs unavailable for never-started container')
+                return super().call(args, **kwargs)
+        cases = [
+            ('OCI runtime create failed: exec: /PRIVATE_PATH/python: no such file or directory',
+                ['file_missing','container_runtime_failure']),
+            ('exec /PRIVATE_PATH/python: exec format error', ['invalid_executable']),
+            ('cannot configure cgroup /PRIVATE_PATH: operation not permitted',
+                ['operation_not_permitted','cgroup_failure']),
+            ('sysctl /PRIVATE_PATH: permission denied', ['permission_denied','sysctl_failure']),
+            ('failed to mount /PRIVATE_PATH: invalid argument', ['mount_failure']),
+        ]
+        for message, causes in cases:
+            record = container('gateway')
+            record['State'] = {'Running':False,'ExitCode':128,'Error':message+' PRIVATE_TOKEN=secret'}
+            with self.subTest(causes=causes):
+                result = self.module.startup_diagnostics(NeverStartedDocker({IDS['gateway']:record},volume=volume),
+                    PROJECT, OWNER, RuntimeError('PRIVATE message'))
+                observed = result['services']['gateway']
+                self.assertEqual(observed['state_error_causes'],causes)
+                self.assertEqual(observed['exit_code'],128)
+                self.assertEqual(observed['log_causes'],[])
+                self.assertNotIn('PRIVATE',json.dumps(result))
+                self.assertNotIn('secret',json.dumps(result))
 
     def test_startup_diagnostic_budget_exhaustion_makes_no_daemon_call(self):
         class UnusedDocker:
