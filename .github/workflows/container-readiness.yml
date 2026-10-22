@@ -5,6 +5,12 @@ on:
   pull_request:
   workflow_dispatch:
     inputs:
+      architecture:
+        description: 'Native owned-container architecture'
+        type: choice
+        options: [amd64, arm64]
+        default: amd64
+        required: true
       soak_seconds:
         description: 'Owned constrained-container soak duration (1..3600 seconds)'
         type: number
@@ -20,12 +26,12 @@ permissions:
   contents: read
 
 concurrency:
-  group: container-readiness-${{ github.event.pull_request.number || github.ref }}
+  group: container-readiness-${{ github.event.pull_request.number || github.ref }}-${{ github.event_name == 'workflow_dispatch' && inputs.architecture || 'amd64' }}
   cancel-in-progress: true
 
 jobs:
   owned-container-deployment:
-    runs-on: ubuntu-24.04
+    runs-on: ${{ github.event_name == 'workflow_dispatch' && inputs.architecture == 'arm64' && 'ubuntu-24.04-arm' || 'ubuntu-24.04' }}
     # Up to 60m traffic + 20m builds + 33m image scans, with setup/cleanup margin.
     timeout-minutes: 150
     defaults:
@@ -58,12 +64,15 @@ jobs:
           python3 .github/tests/test_container_image_scan.py -v
           python3 .github/tests/test_container_evidence_binding.py -v
           python3 .github/tests/test_container_workflow.py -v
+          python3 .github/tests/test_container_platform.py -v
       - name: Build and exercise the owned container deployment
         env:
           # Inputs are data passed through quoted arguments, never shell source.
           APPGUARD_SOAK_SECONDS: ${{ github.event_name == 'workflow_dispatch' && format('{0}', inputs.soak_seconds) || '30' }}
           APPGUARD_SOAK_CONCURRENCY: ${{ github.event_name == 'workflow_dispatch' && format('{0}', inputs.soak_concurrency) || '8' }}
+          APPGUARD_ARCHITECTURE: ${{ github.event_name == 'workflow_dispatch' && inputs.architecture || 'amd64' }}
         run: |
+          case "$APPGUARD_ARCHITECTURE" in amd64|arm64) ;; *) exit 1 ;; esac
           if ! [[ "$APPGUARD_SOAK_SECONDS" =~ ^[1-9][0-9]{0,3}$ ]] || (( APPGUARD_SOAK_SECONDS > 3600 )); then
             exit 1
           fi
@@ -72,6 +81,7 @@ jobs:
           fi
           uv run --frozen --project sdk/python python scripts/qualification/spring_containers.py \
             --docker-context default --java-home "$JAVA_HOME" \
+            --platform "linux/$APPGUARD_ARCHITECTURE" \
             --soak-seconds "$APPGUARD_SOAK_SECONDS" --soak-concurrency "$APPGUARD_SOAK_CONCURRENCY" \
             --output "$RUNNER_TEMP/appguard-spring-containers"
       - name: Scan the exact runtime images without suppressions

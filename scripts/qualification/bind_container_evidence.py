@@ -276,6 +276,24 @@ def source_path(value):
     require(type(value) is str and value in SOURCE_PATHS)
 
 
+def runtime_platform(pid1):
+    row = dict(image_id=IMAGE,os=literal('linux'),architecture=enum('amd64','arm64'))
+    if pid1: row['pid1_elf_machine'] = integer(62,183)
+    shape = fields(dict(schema=literal(1),platform=enum('linux/amd64','linux/arm64'),
+        host_machine=nullable(enum('x86_64','aarch64')),daemon_architecture=nullable(enum('amd64','arm64')),
+        images=mapping(enum(*ROLES),fields(row),maximum=3),verified=BOOL))
+    def check(value):
+        shape(value)
+        arch = value['platform'].split('/')[1]; machine = 'x86_64' if arch == 'amd64' else 'aarch64'
+        require(value['host_machine'] in (None,machine) and value['daemon_architecture'] in (None,arch))
+        for item in value['images'].values():
+            require(item['architecture'] == arch)
+            if pid1: require(item['pid1_elf_machine'] == (62 if arch == 'amd64' else 183))
+        if value['verified']:
+            require(value['host_machine'] == machine and value['daemon_architecture'] == arch and set(value['images']) == set(ROLES))
+    return check
+
+
 RECEIPT = fields(dict(schema=literal(1),evidence_class=literal('owned_container_deployment'),
     profile=literal('spring-loopback-mtls-containers-v1'),observed_at=UTC,candidate_commit=COMMIT,
     source_matches_commit=BOOL,source_sha256=mapping(source_path,SHA,1),checks=fields({key:BOOL for key in CHECKS}),
@@ -293,7 +311,7 @@ RECEIPT = fields(dict(schema=literal(1),evidence_class=literal('owned_container_
             run_identity_changed=BOOL,aof_enabled=BOOL,appendfsync=literal('always'),original_replay_status=literal(403),
             scope=literal('routine owned Redis container stop/start; no power-loss or disk-failure claim'))),
         backend_counters=COUNTERS,resource_limits=roles(fields({key:COUNT for key in ('Memory','MemorySwap','NanoCpus','PidsLimit')})),
-        operational=OPERATIONAL,startup_diagnostics=STARTUP))
+        operational=OPERATIONAL,startup_diagnostics=STARTUP,runtime_platform=runtime_platform(True)))
 COVERAGE = fields(dict(os_inventory=BOOL,os_package_count=COUNT,application_package_count=COUNT,application_inventory=nullable(BOOL),
     native_binary_coverage=literal(False),coverage_complete=literal(False)))
 STATUS1 = fields(dict(schema=literal(1),evidence_class=literal('owned_container_image_scan'),release_ready=literal(False),
@@ -306,6 +324,7 @@ STATUS1 = fields(dict(schema=literal(1),evidence_class=literal('owned_container_
 TRIVY_ARCHIVES = {
     'Linux-x86_64': 'c7cbe3137fb8a48a17574bede3dd6beb16742d1e9772929940fc90082c39d9c0',
     'Darwin-arm64': '11a9b6cd2752011b54f01ea4bd0dbfa9f0c41dc6538d5a3f9d23955f471bf4e5',
+    'Linux-aarch64': 'e174dff2a6dba5e3ae41f8d0537a6324405bd08132497340304c6b20e0f16a1f',
 }
 FINDING_VERSION = pattern(r'[A-Za-z0-9][A-Za-z0-9._+~:!*-]*',200)
 FINDING = fields(dict(vulnerability_id=pattern(r'[A-Z][A-Z0-9]{1,19}(?:-[A-Za-z0-9]+){1,9}',200),
@@ -343,7 +362,8 @@ STATUS2 = fields(dict(schema=literal(2),evidence_class=literal('owned_container_
     scanners=literal(['vuln']),vulnerabilities=nullable(COUNT),secrets=literal(None),coverage_complete=literal(False),
     native_binary_coverage=literal(False),complete_resolved_graph=literal(False),coverage_passed=BOOL,
     coverage_limitations=literal(list(COVERAGE_LIMITATIONS)),scanner=nullable(SCANNER),
-    databases=nullable(fields(dict(vulnerability=database(2),java=database(1)))),finding_details_complete=BOOL))
+    databases=nullable(fields(dict(vulnerability=database(2),java=database(1)))),finding_details_complete=BOOL),
+    dict(runtime_platform=runtime_platform(False)))
 
 
 def STATUS(value):
@@ -356,6 +376,12 @@ def STATUS(value):
     if value['scanner'] is not None:
         scanner=value['scanner']
         require(scanner['archive_sha256']==TRIVY_ARCHIVES[scanner['platform']])
+        if scanner['platform'] == 'Linux-aarch64':
+            require('runtime_platform' in value and value['runtime_platform']['platform'] == 'linux/arm64')
+        if 'runtime_platform' in value:
+            machine = 'x86_64' if value['runtime_platform']['platform'] == 'linux/amd64' else 'aarch64'
+            require(scanner['platform'] == 'Linux-' + machine)
+    if 'runtime_platform' in value and value['automated_checks_passed']: require(value['runtime_platform']['verified'])
     total=sum(row['vulnerabilities'] for row in images.values())
     require(value['vulnerabilities'] is None or (full and value['vulnerabilities']==total))
     require(full or value['vulnerabilities'] is None)
@@ -523,6 +549,14 @@ def stage(receipt,image_status,output,**metadata):
     r=parse(rp['raw']); s=parse(sp['raw']); RECEIPT(r); STATUS(s)
     require(r['candidate_commit']==metadata['candidate_commit'] and s['qualification_sha256']==rp['sha256'])
     require(all(record['image_id']==r['containers']['image_ids'][role] for role,record in s['images'].items()))
+    require(('runtime_platform' in r) == ('runtime_platform' in s))
+    if 'runtime_platform' in r:
+        rpblock,spblock = r['runtime_platform'],s['runtime_platform']
+        require(rpblock['platform'] == spblock['platform'])
+        for value in (rpblock,spblock):
+            require(all(row['image_id'] == r['containers']['image_ids'][role] for role,row in value['images'].items()))
+        if r['technical_verification']: require(rpblock['verified'])
+        if spblock['verified']: require(rpblock['verified'])
     binding=dict(schema=1,evidence_class='owned_container_ci_binding',**metadata,
         receipt_sha256=rp['sha256'],image_status_sha256=sp['sha256'])
     raw=json.dumps(binding,sort_keys=True,separators=(',',':')).encode()+b'\n'

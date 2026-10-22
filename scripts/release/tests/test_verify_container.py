@@ -206,6 +206,65 @@ class ContainerTests(unittest.TestCase):
         self.assertEqual(result['sha256']['candidate_manifest'], hashlib.sha256((self.candidate / 'manifest.json').read_bytes()).hexdigest())
         self.assertEqual(result['sha256']['source_archive'], hashlib.sha256((self.candidate / 'source.tar.gz').read_bytes()).hexdigest())
 
+    def native_platform_fixture(self, arch='arm64'):
+        self.image_v2()
+        value=dict(schema=1,platform='linux/'+arch,host_machine='aarch64' if arch=='arm64' else 'x86_64',
+            daemon_architecture=arch,verified=True,images={role:dict(image_id=image,os='linux',architecture=arch,
+                pid1_elf_machine=183 if arch=='arm64' else 62) for role,image in self.receipt['containers']['image_ids'].items()})
+        self.receipt['runtime_platform']=value
+        self.image['runtime_platform']=copy.deepcopy(value)
+        for row in self.image['runtime_platform']['images'].values():row.pop('pid1_elf_machine')
+        self.image['scanner'].update(platform='Linux-aarch64' if arch=='arm64' else 'Linux-x86_64',
+            archive_sha256='e174dff2a6dba5e3ae41f8d0537a6324405bd08132497340304c6b20e0f16a1f' if arch=='arm64' else self.m.SCANNER_PINS['Linux-x86_64'])
+        self.run['event']=self.binding['event']='workflow_dispatch'
+        self.jobs[0]['labels']=['ubuntu-24.04-arm' if arch=='arm64' else 'ubuntu-24.04']
+
+    def test_native_platform_claim_binds_complete_receipt_scan_and_fixed_runner(self):
+        for arch in ('amd64','arm64'):
+            self.native_platform_fixture(arch);self.seal()
+            result=self.verify()
+            self.assertTrue(result['technical_gate_verified'])
+            self.assertEqual(result['platform'],'linux/'+arch);self.assertTrue(result['platform_verified'])
+
+    def test_native_platform_partial_forged_or_wrong_runner_cannot_pass(self):
+        changes=(lambda:self.receipt['runtime_platform'].update(verified=False),
+            lambda:self.receipt['runtime_platform'].update(host_machine=None),
+            lambda:self.receipt['runtime_platform'].update(daemon_architecture=None),
+            lambda:self.receipt['runtime_platform'].update(secret=MARKER),
+            lambda:self.receipt['runtime_platform']['images'].pop('redis'),
+            lambda:self.receipt['runtime_platform']['images']['backend'].update(pid1_elf_machine=62),
+            lambda:self.image['runtime_platform'].update(platform='linux/amd64'),
+            lambda:self.image.pop('runtime_platform'),lambda:self.jobs[0].update(labels=['self-hosted','ubuntu-24.04-arm']))
+        for change in changes:
+            self.native_platform_fixture();change();self.seal()
+            with self.subTest(change=change):self.assertFalse(self.verify()['technical_gate_verified'])
+
+    def test_expected_arm_platform_refuses_legacy_evidence(self):
+        result=self.m.verify_container(self.candidate,COMMIT,42,self.archive,self.base/'expected-arm',
+            fetch=self.fetch,now=NOW,expected_platform='linux/arm64')
+        self.assertFalse(result['technical_gate_verified'])
+
+    def test_expected_platform_accepts_only_matching_complete_native_evidence(self):
+        self.native_platform_fixture();self.seal()
+        for expected,passed in (('linux/arm64',True),('linux/amd64',False)):
+            result=self.m.verify_container(self.candidate,COMMIT,42,self.archive,self.base/('expected-'+expected.split('/')[1]),
+                fetch=self.fetch,now=NOW,expected_platform=expected)
+            self.assertIs(result['technical_gate_verified'],passed)
+
+    def test_platform_mode_retains_latest_union_without_architecture_filtering(self):
+        self.native_platform_fixture();self.seal()
+        self.listed=[self.run,dict(self.run,id=43,event='push',created_at='2026-10-23T10:01:00Z',
+            status='queued',conclusion=None)]
+        result=self.verify()
+        self.assertFalse(result['technical_gate_verified']);self.assertEqual(result['reason'],'latest_run_unverified')
+
+    def test_legacy_schemas_have_no_verified_architecture_claim(self):
+        for modern in (False,True):
+            if modern:self.image_v2()
+            self.seal();result=self.verify()
+            self.assertTrue(result['technical_gate_verified'])
+            self.assertIsNone(result['platform']);self.assertFalse(result['platform_verified'])
+
     def test_attempt_resource_timestamps_are_independent_and_stable(self):
         for changes in ({'updated_at': '2026-10-23T11:00:01Z'},
                         {'created_at': '2026-10-23T10:01:00Z', 'updated_at': '2026-10-23T11:00:01Z'}):

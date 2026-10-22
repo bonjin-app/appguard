@@ -79,6 +79,7 @@ FILES = frozenset(('binding.json', 'receipt.json', 'image-status.json'))
 SCANNER_PINS = {
     'Linux-x86_64': 'c7cbe3137fb8a48a17574bede3dd6beb16742d1e9772929940fc90082c39d9c0',
     'Darwin-arm64': '11a9b6cd2752011b54f01ea4bd0dbfa9f0c41dc6538d5a3f9d23955f471bf4e5',
+    'Linux-aarch64': 'e174dff2a6dba5e3ae41f8d0537a6324405bd08132497340304c6b20e0f16a1f',
 }
 FINDING_ID = re.compile(r'[A-Z][A-Z0-9]{1,19}(?:-[A-Za-z0-9]+){1,9}\Z')
 PACKAGE = re.compile(r'(?:[A-Za-z0-9][A-Za-z0-9._+:-]*|@[A-Za-z0-9._-]+/[A-Za-z0-9._-]+)\Z')
@@ -129,7 +130,7 @@ def _image_time(value):
     return base, int(fraction.ljust(9, '0'))
 
 
-def _image_details(image, run):
+def _image_details(image, run, runtime_platform=None):
     """Validate only bounded schema-2 data; never copy raw finding strings.
 
     Schema 1 supports historical operating evidence without claiming detailed
@@ -141,6 +142,9 @@ def _image_details(image, run):
         and type(scanner['platform']) is str and scanner['platform'] in SCANNER_PINS
         and scanner['archive_sha256'] == SCANNER_PINS[scanner['platform']], reason)
     _digest(scanner['executable_sha256'], reason)
+    if runtime_platform is not None:
+        _require(scanner['platform'] == ('Linux-x86_64' if runtime_platform == 'linux/amd64' else 'Linux-aarch64'),reason)
+    else: _require(scanner['platform'] != 'Linux-aarch64',reason)
     databases = _exact(image['databases'], ('vulnerability', 'java'), reason)
     run_created, run_updated = (_image_time(run[key]) for key in ('created_at', 'updated_at'))
     for name, schema in (('vulnerability', 2), ('java', 1)):
@@ -428,12 +432,28 @@ def _resources(value, created, updated, now, seconds):
     return r['samples']
 
 
+def _runtime_platform(value, images, pid1, reason):
+    value = _exact(value,('schema','platform','host_machine','daemon_architecture','images','verified'),reason)
+    _require(type(value['schema']) is int and value['schema'] == 1 and value['verified'] is True
+        and value['platform'] in ('linux/amd64','linux/arm64'),reason)
+    arch = value['platform'].split('/')[1]
+    _require(value['host_machine'] == ('x86_64' if arch == 'amd64' else 'aarch64') and value['daemon_architecture'] == arch,reason)
+    _exact(value['images'],ROLES,reason)
+    for role,row in value['images'].items():
+        _exact(row,('image_id','os','architecture') + (('pid1_elf_machine',) if pid1 else ()),reason)
+        _require(row['image_id'] == images[role] and row['os'] == 'linux' and row['architecture'] == arch,reason)
+        if pid1:
+            _require(type(row['pid1_elf_machine']) is int and row['pid1_elf_machine'] == (62 if arch == 'amd64' else 183),reason)
+    return value['platform']
+
+
 def _receipt(receipt, image, hashes, commit, expected_sources, snapshot, run, now):
     reason = 'operating_unverified'
     r = _exact(receipt, ('schema', 'evidence_class', 'profile', 'observed_at', 'candidate_commit',
         'source_matches_commit', 'source_sha256', 'checks', 'release_ready', 'external_approval',
         'technical_verification', 'cleanup', 'phase', 'limitations', 'containers', 'docker_server_version',
-        'resolved_compose_sha256', 'runtime_versions', 'redis_restart', 'backend_counters', 'resource_limits', 'operational'))
+        'resolved_compose_sha256', 'runtime_versions', 'redis_restart', 'backend_counters', 'resource_limits', 'operational')
+        + (('runtime_platform',) if type(receipt) is dict and 'runtime_platform' in receipt else ()))
     _require(type(r['schema']) is int and r['schema'] == 1 and r['evidence_class'] == 'owned_container_deployment'
         and r['profile'] == 'spring-loopback-mtls-containers-v1' and r['candidate_commit'] == commit
         and r['source_matches_commit'] is r['technical_verification'] is r['cleanup'] is True
@@ -453,6 +473,7 @@ def _receipt(receipt, image, hashes, commit, expected_sources, snapshot, run, no
         _exact(c[key], ROLES)
         _require(all(type(value) is str and pattern.fullmatch(value) for value in c[key].values())
                  and len(set(c[key].values())) == 3, reason)
+    runtime_platform = _runtime_platform(r['runtime_platform'],c['image_ids'],True,reason) if 'runtime_platform' in r else None
     _exact(c['logging'], ROLES); _exact(r['resource_limits'], ROLES)
     for role in ROLES:
         policy = _exact(c['logging'][role], ('driver', 'max_size_bytes', 'max_files', 'compress'))
@@ -506,7 +527,11 @@ def _receipt(receipt, image, hashes, commit, expected_sources, snapshot, run, no
         'native_binary_coverage', 'complete_resolved_graph', 'coverage_passed', 'coverage_limitations')
     _require(type(image) is dict and type(image.get('schema')) is int and image['schema'] in (1, 2), 'image_status_unverified')
     detail = image['schema'] == 2
-    image = _exact(image, image_fields + (('scanner', 'databases', 'finding_details_complete') if detail else ()), 'image_status_unverified')
+    image = _exact(image, image_fields + (('scanner', 'databases', 'finding_details_complete') if detail else ())
+        + (('runtime_platform',) if detail and 'runtime_platform' in image else ()), 'image_status_unverified')
+    _require(('runtime_platform' in r) == ('runtime_platform' in image),'image_status_unverified')
+    if runtime_platform is not None:
+        _require(_runtime_platform(image['runtime_platform'],c['image_ids'],False,'image_status_unverified') == runtime_platform,'image_status_unverified')
     _require(image['evidence_class'] == 'owned_container_image_scan'
         and image['release_ready'] is image['coverage_complete'] is image['native_binary_coverage'] is image['complete_resolved_graph'] is False
         and image['coverage_passed'] is True and image['qualification_sha256'] == hashes['receipt.json']
@@ -529,10 +554,11 @@ def _receipt(receipt, image, hashes, commit, expected_sources, snapshot, run, no
             else coverage['application_inventory'] is None and app_count == 0, 'image_status_unverified')
     _require(_count(image['vulnerabilities']) == total and image['automated_checks_passed'] is (total == 0)
         and image['reason'] == ('findings_present' if total else 'local_images_checked'), 'image_status_unverified')
-    if detail: _image_details(image, run)
+    if detail: _image_details(image, run,runtime_platform)
     return dict(requested_seconds=seconds, concurrency=workers, elapsed_seconds=elapsed,
                 signed_requests=requests, resource_samples=samples, image_vulnerabilities=total,
-                image_status_schema=image['schema'], image_finding_details_verified=detail)
+                image_status_schema=image['schema'], image_finding_details_verified=detail,
+                platform=runtime_platform,platform_verified=runtime_platform is not None)
 
 
 def _run(document, commit, run_id, now, complete=True):
@@ -625,11 +651,14 @@ def _latest(request, commit, selected, now):
     return len(applicable)
 
 
-def _jobs(request, run, vulnerabilities, now):
+def _jobs(request, run, vulnerabilities, now, runtime_platform=None):
     reason = 'jobs_unverified'
     rows = hosted._pages(request, hosted.API_PREFIX + f'actions/runs/{run["id"]}/attempts/1/jobs', 'jobs', reason)
     _require(len(rows) == 1, reason)
     row = rows[0]
+    if runtime_platform is not None:
+        _require(row.get('labels') == ['ubuntu-24.04' if runtime_platform == 'linux/amd64' else 'ubuntu-24.04-arm'],reason)
+        if runtime_platform == 'linux/arm64': _require(run['event'] == 'workflow_dispatch',reason)
     _require(hosted._positive(row.get('id')) and row.get('name') == JOB and row.get('status') == 'completed'
         and type(row.get('run_id')) is int and row['run_id'] == run['id'] and row.get('head_sha') == run['head_sha']
         and row.get('head_branch') == 'main' and row.get('conclusion') == run['conclusion'], reason)
@@ -749,13 +778,14 @@ def _publish(output, parent_fd, parent_identity, report, guard):
         if outer_fd is not None: os.close(outer_fd)
 
 
-def verify_container(candidate, expected_commit, run_id, artifact_zip, output, *, fetch=None, now=None):
+def verify_container(candidate, expected_commit, run_id, artifact_zip, output, *, fetch=None, now=None, expected_platform=None):
     """Write only container.json; false results never clear independent gates."""
     parent_fd = None
     try:
         candidate, artifact_zip, output = _path(candidate, directory=True), _path(artifact_zip), _path(output, new=True)
         _require(type(expected_commit) is str and hosted._SHA1.fullmatch(expected_commit) and hosted._positive(run_id)
-            and not output.is_relative_to(candidate) and not artifact_zip.is_relative_to(candidate), 'invalid_arguments')
+            and not output.is_relative_to(candidate) and not artifact_zip.is_relative_to(candidate)
+            and expected_platform in (None,'linux/amd64','linux/arm64'), 'invalid_arguments')
         now = datetime.now(timezone.utc) if now is None else now
         _require(type(now) is datetime and now.tzinfo is not None and now.utcoffset() == timedelta(0), 'invalid_arguments')
         parent_fd = os.open(output.parent, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
@@ -767,6 +797,7 @@ def verify_container(candidate, expected_commit, run_id, artifact_zip, output, *
     report = {'schema': 1, 'evidence_class': 'github_container_artifact_verification', 'technical_gate_verified': False,
         'sustained_operating_verified': False, 'artifact_verified': False, 'release_ready': False,
         'image_status_schema': None, 'image_finding_details_verified': False,
+        'platform':None,'platform_verified':False,
         'candidate_commit': expected_commit, 'run_id': run_id, 'run_attempt': None, 'repository': REPOSITORY,
         'workflow_path': WORKFLOW, 'observed_at': now.isoformat(timespec='seconds').replace('+00:00', 'Z'),
         'reason': 'candidate_unverified', 'api_response_count': 0, 'source_file_count': 0, 'applicable_run_count': 0,
@@ -844,8 +875,9 @@ def verify_container(candidate, expected_commit, run_id, artifact_zip, output, *
                 report['reason'] = 'operating_unverified'
                 operating = _receipt(payload['receipt.json'], payload['image-status.json'], hashes, expected_commit,
                     expected_sources, private / 'candidate', run, now)
+                _require(expected_platform is None or (operating['platform_verified'] and operating['platform'] == expected_platform),'platform_unverified')
                 report['reason'] = 'jobs_unverified'
-                _jobs(request, run, operating['image_vulnerabilities'], now)
+                _jobs(request, run, operating['image_vulnerabilities'], now,operating['platform'])
                 report['reason'] = 'artifact_metadata_unverified'
                 _, final_fingerprint = _artifact_list(request, run, zip_pin, now)
                 _require(final_fingerprint == fingerprint and _artifact(request(artifact_path), run, zip_pin, now) == fingerprint,
@@ -886,8 +918,9 @@ def main():
     parser.add_argument('--run-id', type=int, required=True)
     parser.add_argument('--artifact', type=Path, required=True)
     parser.add_argument('--output', type=Path, required=True)
+    parser.add_argument('--expected-platform',choices=('linux/amd64','linux/arm64'),default=None)
     args = parser.parse_args()
-    try: report = verify_container(args.candidate, args.expected_commit, args.run_id, args.artifact, args.output)
+    try: report = verify_container(args.candidate, args.expected_commit, args.run_id, args.artifact, args.output,expected_platform=args.expected_platform)
     except Exception: parser.exit(2, 'container_verification_unavailable\n')
     print(json.dumps({key: report[key] for key in ('technical_gate_verified', 'artifact_verified', 'release_ready', 'reason')}, sort_keys=True))
     if not report['technical_gate_verified']: parser.exit(1)

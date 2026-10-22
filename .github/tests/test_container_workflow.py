@@ -26,7 +26,7 @@ def qualification_script():
 
 
 class ContainerWorkflowTests(unittest.TestCase):
-    def run_preflight(self, seconds, concurrency):
+    def run_preflight(self, seconds, concurrency, architecture='amd64'):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary).resolve()
             executable = root / 'uv'
@@ -35,7 +35,7 @@ class ContainerWorkflowTests(unittest.TestCase):
             marker = root / 'arguments'
             env = dict(os.environ, PATH=str(root) + os.pathsep + os.environ['PATH'],
                        JAVA_HOME=str(root), RUNNER_TEMP=str(root), ARGV_MARKER=str(marker),
-                       APPGUARD_SOAK_SECONDS=seconds, APPGUARD_SOAK_CONCURRENCY=concurrency)
+                       APPGUARD_SOAK_SECONDS=seconds, APPGUARD_SOAK_CONCURRENCY=concurrency, APPGUARD_ARCHITECTURE=architecture)
             result = subprocess.run(['bash', '-euo', 'pipefail', '-c', qualification_script()],
                                     env=env, capture_output=True, text=True, timeout=10)
             return result, marker.read_text().splitlines() if marker.exists() else None
@@ -48,6 +48,15 @@ class ContainerWorkflowTests(unittest.TestCase):
                 result, arguments = self.run_preflight(seconds, concurrency)
                 self.assertNotEqual(result.returncode, 0)
                 self.assertIsNone(arguments)
+
+    def test_fixed_architectures_are_quoted_and_invalid_choices_never_reach_runner(self):
+        for arch in ('amd64','arm64'):
+            result,args=self.run_preflight('30','8',arch)
+            self.assertEqual(result.returncode,0,result.stderr)
+            self.assertEqual(args[args.index('--platform')+1],'linux/'+arch)
+        for arch in ('aarch64','self-hosted','arm64; exit 0',''):
+            result,args=self.run_preflight('30','8',arch)
+            self.assertNotEqual(result.returncode,0);self.assertIsNone(args)
 
     def test_accepted_bounds_are_forwarded_as_exact_quoted_arguments(self):
         for seconds, concurrency in [('1', '1'), ('30', '8'), ('1800', '8'), ('3600', '32')]:

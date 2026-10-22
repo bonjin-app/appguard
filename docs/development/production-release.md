@@ -172,6 +172,16 @@ the artifact name alone is insufficient. Keep the ref unchanged until the run
 finishes to avoid concurrency cancellation. Only the fixed receipt and image
 status are retained, without credentials, raw requests or private logs.
 
+The manual `architecture` choice is limited to `amd64` (default) or `arm64`,
+mapped to fixed native Ubuntu 24.04 runner labels. Push/PR stay AMD64. Independent
+architecture concurrency groups avoid cross-architecture cancellation. Explicit
+workflow runs pass `--platform` to the same full-topology qualifier; no QEMU
+setup, image replacement or reduced functional/operating checks are used.
+Optional strict `runtime_platform` blocks bind host, daemon, actual three image
+IDs/platforms and pre/post PID 1 ELF machines. That machine check does not prove
+complete native binary identity or dependency closure. A Java-only architecture
+diagnostic cannot substitute for full gateway/backend/Redis qualification.
+
 Strict normal/replay outcomes, sampled container resource measurements and
 unchanged runtime identities/restrictions are required. Missing resource
 evidence, worker failure, unexpected OOM/restart or cleanup failure cannot satisfy this
@@ -231,6 +241,19 @@ python3 scripts/release/assess.py --candidate /absolute/path/to/candidate \
   --container-artifact /absolute/path/to/original-artifact.zip \
   --output /absolute/new/assessment --check
 ```
+
+For an explicit ARM64 claim, add `--expected-platform linux/arm64` to the direct
+container verifier. It requires complete matching receipt/scan platform blocks,
+the reviewed native scanner pin, and the actual job's fixed ARM runner label.
+The default still accepts older proof schemas, with `platform: null` and
+`platform_verified: false`; old proof is never silently relabeled as ARM.
+Public results retain false release/native-coverage approvals. The assessor's
+existing generic container gate remains unchanged.
+
+The formal latest-run union still includes both push and manual runs of this
+workflow for the same commit. A newer ARM run supersedes an older AMD64 run for
+freshness, including when the newer run fails or remains pending. Separate
+concurrency groups do not create independent freshness or approval gates.
 
 Both assessor container arguments are required together. Missing, malformed,
 changed, expired or ambiguous evidence remains unverified. The verifier binds

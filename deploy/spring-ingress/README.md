@@ -219,3 +219,29 @@ coverage. A Linux amd64 CI
 run does not prove arm64 runtime behavior; arm64 support also needs a run on
 that architecture. The local macOS host used to author this profile had no
 Docker CLI/daemon, so unit/static checks are not container execution evidence.
+
+### Explicit native architecture qualification
+
+On the corresponding native Linux host, append `--platform linux/amd64` or
+`--platform linux/arm64` to the owned qualifier. Explicit mode binds the actual
+Linux host, local Linux daemon and the three immutable image IDs/architectures.
+It reads the first 20 ELF bytes through `/proc/1/exe` in each owned service
+before and after the complete functional/operating interval. ELF class,
+endianness and machine must match the chosen architecture. This identifies
+PID 1's platform; it does not establish complete binary identity, every native
+library, CPU feature baseline or native vulnerability closure. Existing runtime
+version, source, restriction and image checks still apply.
+
+The optional exact `runtime_platform` receipt block records this bounded
+observation. Legacy calls without `--platform` retain their original shape.
+The three-role scanner independently rechecks native host/daemon and those same
+local image IDs/platforms before and after scanning. Linux ARM64 scanning
+requires a complete verified explicit ARM64 receipt; adding the reviewed tool
+pin alone does not permit legacy ARM scanning. All findings remain unsuppressed.
+
+`Container deployment readiness` keeps AMD64 for push/PR and as the default
+manual choice. Dispatch `architecture=arm64` to use only `ubuntu-24.04-arm` and
+run the complete three-service topology. Architecture concurrency groups are
+separate. The existing receipt/image-status/binding artifact layout is unchanged.
+Full ARM execution and a sustained run remain pending until actual CI succeeds;
+the separate Java diagnostic matrix is not this qualification.

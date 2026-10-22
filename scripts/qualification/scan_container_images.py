@@ -180,7 +180,30 @@ def validate_receipt(path):
     images = containers.get('image_ids')
     require(type(images) is dict and set(images) == set(ROLES)
         and all(type(value) is str and IMAGE.fullmatch(value) for value in images.values()))
+    if 'runtime_platform' in data: qualified_platform(data['runtime_platform'],images)
     return pin, images
+
+
+def qualified_platform(value, images):
+    require(type(value) is dict and set(value) == {'schema','platform','host_machine','daemon_architecture','images','verified'}
+        and type(value['schema']) is int and value['schema'] == 1 and value['verified'] is True
+        and value['platform'] in ('linux/amd64','linux/arm64'))
+    arch = value['platform'].split('/')[1]; machine = 'x86_64' if arch == 'amd64' else 'aarch64'
+    require(value['host_machine'] == machine and value['daemon_architecture'] == arch
+        and type(value['images']) is dict and set(value['images']) == set(ROLES))
+    for role,row in value['images'].items():
+        require(type(row) is dict and set(row) == {'image_id','os','architecture','pid1_elf_machine'}
+            and row['image_id'] == images[role] and row['os'] == 'linux' and row['architecture'] == arch
+            and type(row['pid1_elf_machine']) is int and row['pid1_elf_machine'] == (62 if arch == 'amd64' else 183))
+    return value['platform']
+
+
+def native_environment(target, daemon):
+    arch = target.split('/')[1]; machine = 'x86_64' if arch == 'amd64' else 'aarch64'
+    require(platform.system() == 'Linux' and platform.machine() == machine)
+    actual = {'x86_64':'amd64','amd64':'amd64','aarch64':'arm64','arm64':'arm64'}.get(daemon.get('Architecture'))
+    require(daemon.get('OSType') == 'linux' and actual == arch)
+    return machine,actual
 
 
 def verify_pin(path, pin):
@@ -563,6 +586,7 @@ def scan(receipt, output, docker_context='default'):
     require(docker_context == 'default')
     receipt = _path(receipt)
     pin, images = validate_receipt(receipt)
+    target = qualified_platform(pin['json']['runtime_platform'],images) if 'runtime_platform' in pin['json'] else None
     output = _path(output, new=True)
     require(receipt.parent != output and receipt.parent not in output.parents)
     status = {'schema': 2, 'evidence_class': 'owned_container_image_scan',
@@ -573,6 +597,9 @@ def scan(receipt, output, docker_context='default'):
         'coverage_complete': False, 'native_binary_coverage': False, 'complete_resolved_graph': False,
         'coverage_passed': False, 'coverage_limitations': ['redis_native_binary_unverified',
             'native_runtimes_unverified', 'complete_dependency_closure_unverified']}
+    if target is not None:
+        status['runtime_platform'] = dict(schema=1,platform=target,host_machine=None,
+            daemon_architecture=None,images={},verified=False)
     with Publication(output) as publication, tempfile.TemporaryDirectory(prefix='appguard-image-scan-') as directory:
         reports, frozen, integrity_verified = [], {}, False
         try:
@@ -592,8 +619,15 @@ def scan(receipt, output, docker_context='default'):
             require(code == 0)
             context_endpoint(raw)
             host = (platform.system(), platform.machine())
-            require(host in {('Linux', 'x86_64'), ('Darwin', 'arm64')}
+            allowed = {('Linux', 'x86_64'), ('Darwin', 'arm64')} if target is None else {
+                ('Linux','x86_64' if target == 'linux/amd64' else 'aarch64')}
+            require(host in allowed
                 and host in TOOLS['trivy'] and TOOLS['trivy'][host]['version'] == '0.76.1')
+            if target is not None:
+                code, raw = bounded_command(['docker','--context','default','info','--format','{{json .}}'],env=env,cwd=state)
+                require(code == 0); daemon = _json(raw)
+                machine,actual = native_environment(target,daemon)
+                status['runtime_platform'].update(host_machine=machine,daemon_architecture=actual)
             trivy = install_tool('trivy', state)
             executable = file_identity(trivy, MAX_EXECUTABLE)
             frozen[trivy] = (MAX_EXECUTABLE, executable)
@@ -603,6 +637,20 @@ def scan(receipt, output, docker_context='default'):
                     return bounded_command(command, env=env, cwd=state, **kwargs)
                 finally:
                     verify_files(frozen)
+            def image_observation(role):
+                code, raw = frozen_command(['docker','--context','default','image','inspect',images[role]],timeout=5)
+                require(code == 0)
+                rows = _json(b'{"rows":' + raw + b'}')['rows']
+                require(type(rows) is list and len(rows) == 1 and type(rows[0]) is dict)
+                row = rows[0]; arch = target.split('/')[1]
+                require(row.get('Id') == images[role] and row.get('Os') == 'linux' and row.get('Architecture') == arch)
+                return dict(image_id=images[role],os='linux',architecture=arch)
+            def verify_native_environment():
+                code,raw = frozen_command(['docker','--context','default','info','--format','{{json .}}'],timeout=5)
+                require(code == 0); native_environment(target,_json(raw))
+            if target is not None:
+                platform_images = {role:image_observation(role) for role in ROLES}
+                status['runtime_platform']['images'] = platform_images
             # Config loading logs to stderr, which our bounded helper merges
             # with stdout. Quiet preserves a single strict JSON document.
             code, raw = frozen_command([str(trivy), 'version', '--format', 'json', '--config', str(config), '--quiet'])
@@ -646,10 +694,15 @@ def scan(receipt, output, docker_context='default'):
                     'vulnerabilities': count, 'coverage': validate_inventory(document, role),
                     'findings': findings, 'finding_details_complete': complete}
                 if len(status['images']) == len(ROLES): status['vulnerabilities'] = total
+                if target is not None: require(image_observation(role) == platform_images[role])
             verify_pin(receipt, pin)
             verify_files(frozen)
             for report, report_pin in reports:
                 publication.verify(report, report_pin)
+            if target is not None:
+                verify_native_environment()
+                require(all(image_observation(role) == platform_images[role] for role in ROLES))
+                status['runtime_platform']['verified'] = True
             integrity_verified = True
             status['coverage_passed'] = all(row['coverage']['os_inventory']
                 and (row['coverage']['application_inventory'] is True if role != 'redis' else True)
@@ -665,6 +718,7 @@ def scan(receipt, output, docker_context='default'):
             if status['reason'] == 'container_scan_unverified': status['finding_details_complete'] = False
         except (Exception, KeyboardInterrupt):
             status.update(automated_checks_passed=False, finding_details_complete=False, reason='container_scan_unverified')
+            if target is not None: status['runtime_platform']['verified'] = False
         publication.write('status.json', status_bytes(status))
         # The private cache remains alive through publication. Even findings-
         # positive detail/count claims retain their exact reports, tool and DBs.
@@ -674,6 +728,9 @@ def scan(receipt, output, docker_context='default'):
                 verify_files(frozen)
                 for report, report_pin in reports:
                     publication.verify(report, report_pin)
+                if target is not None:
+                    verify_native_environment()
+                    require(all(image_observation(role) == platform_images[role] for role in ROLES))
         final_guard()
         publication.publish()
         final_guard()

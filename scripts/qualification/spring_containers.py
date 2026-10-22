@@ -16,6 +16,7 @@ import json
 import math
 import os
 from pathlib import Path
+import platform as host_platform
 import re
 import secrets
 import selectors
@@ -601,6 +602,39 @@ def runtime_version_readback(docker, records, project, owner):
         'python_inventory_matches_build':True,'python_required_packages':required,'java':'17.0.20.1','redis':'7.2.16'}
 
 
+def platform_environment(docker, target):
+    require(target in ('linux/amd64','linux/arm64') and host_platform.system() == 'Linux')
+    arch = target.split('/')[1]; machine = 'x86_64' if arch == 'amd64' else 'aarch64'
+    require(host_platform.machine() == machine)
+    daemon = json.loads(docker.call(['info','--format','{{json .}}'],timeout=5,limit=4096))
+    actual = {'x86_64':'amd64','amd64':'amd64','aarch64':'arm64','arm64':'arm64'}.get(daemon.get('Architecture'))
+    require(daemon.get('OSType') == 'linux' and actual == arch)
+    return dict(schema=1,platform=target,host_machine=machine,daemon_architecture=actual,images={},verified=False)
+
+
+def observe_runtime_platform(docker, records, project, owner, target):
+    value = platform_environment(docker,target)
+    require(set(records) == {'gateway','backend','redis'})
+    arch = target.split('/')[1]; expected_machine = 62 if arch == 'amd64' else 183
+    for role, original in records.items():
+        current = inspect_container(docker,original['Id'],project,owner,role)
+        require(current['Image'] == original['Image'])
+        rows = json.loads(docker.call(['image','inspect',current['Image']],timeout=5,limit=8192))
+        require(type(rows) is list and len(rows) == 1 and type(rows[0]) is dict)
+        image = rows[0]
+        require(image.get('Id') == current['Image'] and image.get('Os') == 'linux' and image.get('Architecture') == arch)
+        raw = docker.call(['exec',current['Id'],'od','-An','-N20','-tx1','/proc/1/exe'],timeout=5,limit=256)
+        header = ''.join(raw.split())
+        require(re.fullmatch('[0-9a-fA-F]{40}',header) is not None)
+        header = bytes.fromhex(header)
+        require(header[:6] == b'\x7fELF\x02\x01' and int.from_bytes(header[16:18],'little') in (2,3)
+            and int.from_bytes(header[18:20],'little') == expected_machine)
+        inspect_container(docker,current['Id'],project,owner,role)
+        value['images'][role] = dict(image_id=current['Image'],os='linux',architecture=arch,pid1_elf_machine=expected_machine)
+    value['verified'] = True
+    return value
+
+
 def run_startup(docker, compose, receipt, project, owner):
     """Keep the existing startup sequence, with a phase at every boundary."""
     receipt['phase'] = 'startup_compose_up'
@@ -856,7 +890,7 @@ def restart_redis(docker, identifier, project, owner, port, tls, signer, origina
         'scope': 'routine owned Redis container stop/start; no power-loss or disk-failure claim'}
 
 
-def qualification_override(private, uid, gid, project, owner):
+def qualification_override(private, uid, gid, project, owner, target_platform=None):
     def mount(name, target, readonly=True):
         return {'type': 'bind', 'source': str(private / name), 'target': target,
                 'read_only': readonly, 'bind': {'create_host_path': False}}
@@ -874,8 +908,15 @@ def qualification_override(private, uid, gid, project, owner):
             mount('wrong-client.pem', '/run/secrets/wrong-client.pem'),
             mount('wrong-client.key', '/run/secrets/wrong-client.key'), mount('request.bin', '/run/probe/request.bin')],
         'logging': {'driver': 'local', 'options': {'max-size': '1m', 'max-file': '1', 'compress':'false'}}}
-    return {'services': {'backend': {'environment': {'APPGUARD_BACKEND_COUNTER_FILE': '/run/appguard/counters.json'},
+    result = {'services': {'backend': {'environment': {'APPGUARD_BACKEND_COUNTER_FILE': '/run/appguard/counters.json'},
         'volumes': [mount('counters.json', '/run/appguard/counters.json', False)]}, 'probe': probe}}
+    if target_platform is not None:
+        require(target_platform in ('linux/amd64','linux/arm64'))
+        for role in ('gateway','backend','redis'):
+            result['services'].setdefault(role,{})['platform'] = target_platform
+            result['services'][role]['build'] = {'platforms':[target_platform]}
+        probe['platform'] = target_platform
+    return result
 
 
 def validate_soak_options(seconds, concurrency):
@@ -1329,13 +1370,14 @@ def run_operational(report, seconds, concurrency, docker, records, project, owne
         raise
 
 
-def qualify(output, executable, context, java_home, soak_seconds=0, soak_concurrency=8):
+def qualify(output, executable, context, java_home, soak_seconds=0, soak_concurrency=8, target_platform=None):
     validate_soak_options(soak_seconds, soak_concurrency)
+    require(target_platform is None or target_platform in ('linux/amd64','linux/arm64'))
     with ReceiptDirectory(output) as receipt_directory:
-        return _qualify(receipt_directory, executable, context, java_home, soak_seconds, soak_concurrency)
+        return _qualify(receipt_directory, executable, context, java_home, soak_seconds, soak_concurrency,target_platform)
 
 
-def _qualify(output, executable, context, java_home, soak_seconds=0, soak_concurrency=8):
+def _qualify(output, executable, context, java_home, soak_seconds=0, soak_concurrency=8, target_platform=None):
     local = helpers()
     started = datetime.now(timezone.utc).isoformat().replace('+00:00', 'Z')
     pins = source_hashes()
@@ -1350,6 +1392,9 @@ def _qualify(output, executable, context, java_home, soak_seconds=0, soak_concur
         'limitations': ['owned local Linux Docker daemon only', 'no external security or license approval',
             'no provider account or physical device evidence', 'image vulnerabilities require a separate current scan']}
     docker = None
+    if target_platform is not None:
+        receipt['runtime_platform'] = dict(schema=1,platform=target_platform,host_machine=None,
+            daemon_architecture=None,images={},verified=False)
     if soak_seconds:
         receipt['operational'] = new_operational(soak_seconds, soak_concurrency)
     completed = False
@@ -1379,9 +1424,11 @@ def _qualify(output, executable, context, java_home, soak_seconds=0, soak_concur
                 values['APPGUARD_' + name + '_FILE'] = str(private / file)
             receipt['phase'] = 'daemon_and_builder'
             docker = Docker(executable, context, values)
+            if target_platform is not None:
+                receipt['runtime_platform'] = platform_environment(docker,target_platform)
             require(not discovered(docker, project, owner))
             override = private / 'qualification.json'
-            write_private(override, json.dumps(qualification_override(private, uid, gid, project, owner)))
+            write_private(override, json.dumps(qualification_override(private, uid, gid, project, owner,target_platform)))
             compose = compose_args(project, override)
             resolved = docker.call([*compose, '--profile', 'qualification', 'config', '--format', 'json'])
             # Never retain configuration/environment values, even synthetic ones.
@@ -1390,6 +1437,9 @@ def _qualify(output, executable, context, java_home, soak_seconds=0, soak_concur
             docker.call([*compose, 'build', '--builder', context, '--pull', 'gateway', 'redis', 'backend'], timeout=1200, limit=8388608)
             require(source_hashes() == pins)
             records, inspected = run_startup(docker, compose, receipt, project, owner)
+            if target_platform is not None:
+                platform_before = observe_runtime_platform(docker,records,project,owner,target_platform)
+                receipt['runtime_platform'] = dict(platform_before,verified=False)
             port = inspected['gateway_port']
             tls = ssl.create_default_context(cafile=str(private / 'server-ca.pem'))
             receipt['phase'] = 'signed_requests'
@@ -1458,6 +1508,9 @@ def _qualify(output, executable, context, java_home, soak_seconds=0, soak_concur
                 receipt['phase'] = 'sustained_containers'
                 run_operational(receipt['operational'], soak_seconds, soak_concurrency, docker, records,
                     project, owner, port, tls, signer, local, private)
+            if target_platform is not None:
+                require(observe_runtime_platform(docker,records,project,owner,target_platform) == platform_before)
+                receipt['runtime_platform'] = platform_before
             completed = True
             receipt['phase'] = 'completed'
         except BaseException as error:
@@ -1510,6 +1563,7 @@ def main():
     parser.add_argument('--java-home', default=os.environ.get('JAVA_HOME'))
     parser.add_argument('--soak-seconds', type=int, default=0, help='0 disables sustained qualification; otherwise 1..3600 seconds')
     parser.add_argument('--soak-concurrency', type=int, default=8, help='1..32 concurrent synthetic request workers')
+    parser.add_argument('--platform',choices=('linux/amd64','linux/arm64'),default=None)
     args = parser.parse_args()
     try:
         validate_soak_options(args.soak_seconds, args.soak_concurrency)
@@ -1519,7 +1573,7 @@ def main():
         executable = Path(shutil.which(args.docker) or args.docker).resolve(strict=True)
         output = helpers().new_output(args.output)
         with cancellation_scope():
-            qualify(output, executable, args.docker_context, java, args.soak_seconds, args.soak_concurrency)
+            qualify(output, executable, args.docker_context, java, args.soak_seconds, args.soak_concurrency,args.platform)
     except (Exception, KeyboardInterrupt):
         print('SPRING_CONTAINER_QUALIFICATION_FAILED', file=sys.stderr)
         return 1
