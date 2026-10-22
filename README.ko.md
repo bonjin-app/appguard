@@ -37,7 +37,7 @@ export APPGUARD_PACKAGES="$(mktemp -d)"
 
 | 구성 요소 | 요구 사항 | 설치 안내 |
 | --- | --- | --- |
-| Spring Boot | Java 17, Maven; Boot 3.5 Servlet/MVC | [스타터](#install-spring) |
+| Spring Boot | Java 17, Maven; Boot 4.1.1 Servlet/MVC | [스타터](#install-spring) |
 | Python | Python 3.11+; FastAPI, Django ASGI 또는 ASGI를 통한 Flask | [Python SDK](#install-python) |
 | Node.js | Node 22+; ESM; Express, Fastify 또는 NestJS/Express | [Node SDK](#install-node) |
 | ASP.NET Core | .NET SDK 10.0.402 / ASP.NET Core 10 | [.NET SDK](#install-dotnet) |
@@ -311,20 +311,20 @@ CLI는 Android R8, Expo export, Flutter Android APK 난독화,
 | 구성 요소 | 상태 |
 | --- | --- |
 | 초안 프로토콜 및 Python 참조 구현 | 구현 및 로컬 테스트 완료, 프로덕션 사용 준비는 미완료 |
-| [Spring Boot 3.5 / Java 17](sdk/spring-boot/README.md) | 실험적 스타터, MVC 필터, Redis 어댑터 |
+| [Spring Boot 4.1.1 / Java 17](sdk/spring-boot/README.md) | 실험적 스타터, MVC 필터, Redis 어댑터 |
 | [Python 3.11+](sdk/python/README.md) | 실험적 ASGI 검증기; FastAPI, Django ASGI, WsgiToAsgi를 통한 Flask |
 | [Node.js 22+](sdk/node/README.md) | 실험적 네이티브 검증기; Express, Fastify, NestJS, Redis 어댑터 |
 | [Android Java/Kotlin](sdk/android/README.md) | 네이티브 서명기, Keystore, 등록 증명; AAR/JVM 테스트/API35 에뮬레이터 검사 |
 | [Apple Swift/iOS](sdk/apple/README.md) | 네이티브 서명기, Security 키 어댑터, 등록 증명, App Attest 획득 래퍼; 호스트 테스트/서명되지 않은 Simulator 빌드 |
 | [Unity UPM](sdk/unity/README.md) | 타입이 지정된 JNI/C ABI 패키지와 비동기 로컬 위험 신호 API; [EditMode 테스트 138개](sdk/unity/STRICT_JSON_VERIFICATION.md), [Android Release 및 iOS Simulator IL2CPP 런타임 검사](sdk/unity/PLAYER_RUNTIME_VERIFICATION.md), 서명되지 않은 iOS 기기용 Release 빌드; 실제 기기 런타임 검증 대기 |
-| [Expo / React Native](sdk/expo/README.md) | Expo58 비동기 네이티브 모듈; 테스트 61개, 파일 44개 재배치, 패키징된 Android 및 서명되지 않은 arm64 Simulator CocoaPods 컴파일; 엔진/기기 런타임 검증 대기 |
+| [Expo / React Native](sdk/expo/README.md) | Expo58 비동기 네이티브 모듈; 테스트 61개, 파일 40개 재배치, 패키징된 Android 및 서명되지 않은 arm64 Simulator CocoaPods 컴파일; 엔진/기기 런타임 검증 대기 |
 | [Flutter](sdk/flutter/README.md) | 비동기 플랫폼 채널 로컬 위험 신호 API; 테스트 64개, 백그라운드 큐/네이티브 어댑터 검사, Simulator 라이브러리 컴파일; 엔진/기기 런타임 검증 대기 |
-| [ASP.NET Core](sdk/dotnet/README.md) | 실험적 엄격 검증기/미들웨어; 원본 헤더 기능 필수; 테스트 175개 및 격리된 NuGet 소비 앱 |
+| [ASP.NET Core](sdk/dotnet/README.md) | 실험적 엄격 검증기/미들웨어; 원본 헤더 기능 필수; 테스트 238개 및 격리된 NuGet 소비 앱 |
 | [Go net/http](sdk/go/README.md) | 실험적 검증기/미들웨어; race/vet 및 격리된 소비 앱; 신뢰할 수 있는 파싱 전 증거 필요 |
-| [PHP](sdk/php/README.md) | 실험적 검증기/명시적 수신 어댑터; assertion 514개 및 원시 루프백 요청 5개; Laravel/Symfony 연동은 지원한다고 주장하지 않음 |
+| [PHP](sdk/php/README.md) | 실험적 검증기/명시적 수신 어댑터; assertion 649개 및 원시 루프백 요청 5개; Laravel/Symfony 연동은 지원한다고 주장하지 않음 |
 | 공유 Redis 재전송 방지 클레임 | 구현 완료; 배포 내구성/축출 보장은 운영자 책임 |
 | [등록 / 정책 / 감사](docs/security/enrollment-policy.md) | Python SQLite 챌린지/증명/키 및 주체 전체 키 폐기; 서버 언어 6개 모두 결정적 42개 사례 프리셋과 허용 목록 기반 감사 출력 통과 |
-| [Apple/Google 제공자 검증](docs/security/provider-verification.md) | 실험적 Python 백엔드; 오프라인 제공자 테스트 223개 및 Android 획득 모듈. 실제 현재 기기/계정 검증 대기; Apple 수명 주기 미완성 |
+| [Apple/Google 제공자 검증](docs/security/provider-verification.md) | 실험적 Python 검증, 명시적 OAuth 갱신, Apple assertion 및 검증된 영수증의 원자적 등록; [수명 주기 상세](docs/security/apple-enrollment.md). 실제 기기·계정 검증 대기 |
 | [Build / CLI](tools/cli/README.md) | Android R8 설정/빌드; Flutter 난독화/Expo 축소 명령; 암호화 매핑 보관/검증/복원; 로컬 사전 요구 사항/CI 검사, 엄격한 UTF-8 보존, 실제 격리된 Android release 빌드 |
 | [로컬 루팅/후킹/탈옥 징후](protocol/local-risk-v0.md) | 실험적 Android/iOS 타입 기반 스캐너; 호스트 테스트 및 플랫폼 빌드; 실제 루팅/후킹 기기에서의 효과는 미검증 |
 | 선택적 콘솔 / AI | 계획 단계이며 미구현; 둘 다 없어도 핵심 기능 동작 |
@@ -384,3 +384,31 @@ Python 핵심 진입점은 `appguard.verify.verify_request`이며, `appguard_ref
 [CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md), [위협 모델](docs/security/threat-model.md), [초안 프로토콜](protocol/request-v0.md)을 읽어 주세요. 이슈, fixture, 로그에 실제 비밀 정보나 프로덕션 키 자료를 공개하지 마세요.
 
 프로젝트에서 작성한 코드와 문서는 [Apache-2.0](LICENSE) 라이선스를 따릅니다. 의존성 및 서드파티 라이선스는 각각의 라이선스를 유지합니다.
+
+## 실기기를 제외한 운영 검증
+
+서버 SDK 6종 모두 명시적으로 구성하는 공유 Redis 재전송 방지 어댑터를 제공합니다.
+Spring Boot 기본값은 **4.1.1 / Java 17**입니다. 명시적 `legacy-boot3.5` 소스
+프로필은 호환성 검사 용도이며, 유지보수되는 프로덕션 기본 환경은 아닙니다.
+
+Python에는 [Apple 등록·영수증의 원자적 저장](docs/security/apple-enrollment.md),
+[assertion·카운터](docs/security/apple-lifecycle.md),
+[CMS 영수증 검증·갱신](docs/security/apple-receipts.md), 명시적
+[Google 서비스 계정 토큰 공급자](docs/security/google-provider.md)가 추가되었습니다.
+선택형 직접 TLS 서버와 영수증 파서는 애플리케이션 환경에서 설치합니다.
+
+```sh
+python3 -m pip install "$APPGUARD_REPO/sdk/python[server,apple,redis]"
+```
+
+[TLS 연동 가이드와 실행 예제](docs/deployment/python-ingress.md)를 참조하세요.
+서버 검증 명령 2종을 같은 **새 일회용 로컬 Redis**로 실행한 뒤,
+`uv run --frozen --project sdk/python python scripts/check_cross_sdk_replay.py --extended`로
+6종 SDK의 동일한 재전송 방지 공간을 검사합니다. 장애·강제 종료·용량·부하 검증기는
+자신의 Redis를 생성하며 외부 Redis URL을 받지 않습니다.
+[명령·검증 증거·운영 한계](docs/development/nondevice-readiness.md)를 확인하세요.
+
+[후보 소스·SBOM·체크섬·취약점·비밀정보·라이선스 자동화](docs/development/release-readiness.md)는
+미공개 소스 후보를 준비합니다. 자동 검사를 통과해도 라이선스 검토, 독립 보안 감사,
+실제 제공자·계정 연동, 배포 환경 검증, 유지관리자의 릴리스 승인은 별도로 필요합니다.
+실기기 검증은 대기 상태이며 이번 범위에 포함하지 않습니다. 외부 감사를 마친 프로덕션 릴리스는 아닙니다.

@@ -1,11 +1,12 @@
 # AppGuard Go SDK (experimental, unpublished)
 
-Standard-library-only implementation of `appguard-request-v0`, its strict HTTP
+Implementation of `appguard-request-v0`, its strict HTTP
 wire envelope, and deterministic policy/audit v0. Apache-2.0; see [LICENSE](LICENSE).
 The module path is `github.com/bonjin-app/appguard/sdk/go`. No module version has
 been published. For a local checkout, use a Go `replace` directive to `sdk/go`.
 The module declares Go 1.26; verification currently covers Go 1.27.3 on macOS ARM64.
-There are no third-party modules, so no `go.sum` is generated.
+The opt-in Redis adapter uses pinned `github.com/redis/go-redis/v9` v9.23.0;
+module checksums are recorded in `go.sum`.
 
 ## Trust boundary
 
@@ -135,11 +136,59 @@ unclaims/retries it. Use a new signed nonce for a subsequent operation.
 `NewLocalReplayStore(capacity)` requires a positive explicit capacity, uses a mutex,
 and evicts only expired entries. It is **volatile, single-process development/test
 state**. Restarts erase protection and different processes do not share it. It is
-never automatically installed. No Redis adapter or distributed-store claim is
-included because no real shared backend was tested for this Go SDK. Implementations
-of a shared store must follow the compact JSON scope hash/atomic relative-expiry
-contract in [http-v0](../../protocol/http-v0.md), including `SET ... NX EX` in one
-operation, with TTL in 1..150 seconds, and operator-managed eviction/durability.
+never automatically installed.
+
+`NewRedisReplayStore(configuredClient)` accepts a long-lived caller-owned go-redis
+client implementing `Do(context.Context, ...interface{}) *redis.Cmd`. Construction
+performs no I/O and reads no environment variables or credentials. The SDK never
+closes, reconfigures, or replaces the client. Each valid claim sends exactly one
+`SET key 1 NX EX ttl`, with integer `ttl=expires-now` in `1..150`. `RedisReplayKey`
+uses the same compact JSON scope SHA-256 namespace as Python, Node and Java.
+Only exact `OK` accepts and Redis's exact nil sentinel rejects a duplicate;
+invalid responses, errors, panics and observed cancellation return fixed
+`REPLAY_STORE_UNAVAILABLE` without wrapping private backend causes.
+
+The host must explicitly configure finite dial/read/write/pool timeouts,
+`ContextTimeoutEnabled: true`, and `MaxRetries: -1` (disable automatic command
+retries), then supply request deadlines. For example, after configuring the
+host-owned address, credentials and TLS on `options`:
+
+```go
+options.ContextTimeoutEnabled = true
+options.MaxRetries = -1
+options.DialTimeout = time.Second
+options.ReadTimeout = time.Second
+options.WriteTimeout = time.Second
+options.PoolTimeout = time.Second
+client := redis.NewClient(options) // host owns Close at application shutdown
+store, err := appguard.NewRedisReplayStore(client)
+// Handle err, then inject store into VerifyOptions/HTTPOptions.Replay.
+```
+
+The adapter passes the original context and checks cancellation before and after
+execution; it cannot interrupt an arbitrary uncooperative injected implementation.
+A lost response or deadline may leave a committed nonce: do not retry with a local
+fallback or delete an ambiguous claim. Provision capacity, no-live-key eviction,
+TLS/access controls and the persistence/replication/restart guarantees required by
+your deployment. Local disposable-Redis evidence does not establish those hosted
+operational guarantees. See [Redis production guidance](https://redis.io/docs/latest/develop/clients/go/produsage/),
+[SET semantics](https://redis.io/docs/latest/commands/set/), and the pinned
+[client release](https://github.com/redis/go-redis/releases/tag/v9.23.0).
+
+Live tests require explicit `APPGUARD_TEST_REDIS_URL=redis://127.0.0.1:OWNED_PORT/1`
+for a newly owned disposable instance. They reject nonnumeric/nonloopback addresses,
+use random scopes and delete only their own keys; they never flush or change
+server configuration. Without that variable the two live tests skip. Run:
+
+```sh
+APPGUARD_TEST_REDIS_URL=redis://127.0.0.1:OWNED_PORT/1 go test -count=1 ./...
+APPGUARD_TEST_REDIS_URL=redis://127.0.0.1:OWNED_PORT/1 go test -race -count=1 ./...
+# Test-only cross-SDK probe, arguments URL/app/key/nonce/now/expires:
+go run ./tools/claim-redis "$APPGUARD_TEST_REDIS_URL" app key AAECAwQFBgcICQoLDA0ODw 100 250
+```
+
+The probe emits only `CLAIMED` or `REPLAY`, or a fixed error with nonzero exit.
+Use a fresh random nonce per cross-language test and let the owner clean its key.
 
 ## Policy and audit
 

@@ -1,6 +1,7 @@
-"""Bounded initial App Attest verification; no assertions, network or hardware claim."""
+"""Bounded initial App Attest verification with optional verified key metadata."""
 
 import base64
+from dataclasses import dataclass, field
 import hashlib
 import hmac
 from importlib.resources import files
@@ -35,6 +36,47 @@ class AppleAttestationError(Exception):
     def __init__(self, code):
         self.code = code
         super().__init__(code)
+
+
+@dataclass(frozen=True)
+class VerifiedAppleAttestation:
+    """Server-created initial result. The receipt is opaque and NOT verified.
+
+    This value is an in-process handoff, never a client-supplied credential.
+    Retaining a public key does not verify receipt CMS or its risk metric.
+    """
+
+    verdict: AttestationVerdict = field(repr=False)
+    key_id: str
+    public_key_der: bytes = field(repr=False)
+    apple_app_id: str
+    environment: str
+    verified_at: int
+    opaque_receipt: bytes = field(repr=False)
+    validation_category: int | None
+    bundle_version: str | None
+
+
+def _signed_properties(reader, flags, categories, versions):
+    """Same signed extension profile for attestations and assertions."""
+    category, version = None, None
+    if flags & 0x80:
+        extensions = reader.read()
+        if (type(extensions) is not dict or set(extensions) != {
+                "apple_validation_category_01", "apple_bundle_version_01"}
+                or categories is None):
+            raise ValueError
+        category, version = extensions["apple_validation_category_01"], extensions["apple_bundle_version_01"]
+        if (type(category) is not bytes or len(category) != 4
+                or int.from_bytes(category, "little") not in categories
+                or type(version) is not str or version not in versions):
+            raise ValueError
+        category = int.from_bytes(category, "little")
+    elif categories is not None:
+        raise ValueError
+    if reader.position != len(reader.raw):
+        raise ValueError
+    return category, version
 
 
 class _CBOR:
@@ -246,12 +288,21 @@ class AppleAppAttestVerifier:
         if not configured:
             raise AppleAttestationError("APPLE_ATTESTATION_CONFIGURATION") from None
         self._app_id, self._rp_id = app_id, hashlib.sha256(apple_app_id.encode("ascii")).digest()
+        self._apple_app_id, self._environment = apple_app_id, environment
         self._aaguid = b"appattestdevelop" if environment == "development" else b"appattest" + b"\0" * 7
         self._clock = clock if clock is not None else lambda: int(time.time())
         self._ttl, self._categories, self._versions = verdict_ttl, categories, versions
         self._allow_legacy_acl = allow_legacy_without_acl
 
     def __call__(self, challenge, evidence):
+        return self.verify_initial(challenge, evidence).verdict
+
+    def verify_initial(self, challenge, evidence):
+        """Verify exactly as the callback, also retaining the attested public key.
+
+        No state is consumed by this pure verification step. For durable initial
+        association and assertions, use AppleAppAttestLifecycle explicitly.
+        """
         try:
             return self._verify(challenge, evidence)
         except Exception:
@@ -299,21 +350,7 @@ class AppleAppAttestVerifier:
                 or type(cose[-3]) is not bytes or len(cose[-3]) != 32
                 or not hmac.compare_digest(b"\x04" + cose[-2] + cose[-3], point)):
             raise ValueError
-        if auth[32] == 0xC0:
-            extensions = cose_reader.read()
-            if (type(extensions) is not dict or set(extensions) != {
-                    "apple_validation_category_01", "apple_bundle_version_01"}
-                    or self._categories is None):
-                raise ValueError
-            category, version = extensions["apple_validation_category_01"], extensions["apple_bundle_version_01"]
-            if (type(category) is not bytes or len(category) != 4
-                    or int.from_bytes(category, "little") not in self._categories
-                    or type(version) is not str or version not in self._versions):
-                raise ValueError
-        elif self._categories is not None:
-            raise ValueError
-        if cose_reader.position != len(cose_reader.raw):
-            raise ValueError
+        category, version = _signed_properties(cose_reader, auth[32], self._categories, self._versions)
         digest = hashlib.sha256(message).digest()
         nonce = hashlib.sha256(auth + digest).digest()
         extension = leaf.extensions.get_extension_for_oid(_NONCE_OID)
@@ -321,5 +358,8 @@ class AppleAppAttestVerifier:
                 or not hmac.compare_digest(extension.value.value, b"\x30\x24\xa1\x22\x04\x20" + nonce)):
             raise ValueError
         expires = min(challenge.expires, now + self._ttl)
-        return AttestationVerdict("apple", "verified", challenge.app_id, challenge.subject,
-                                  challenge.public_key_sha256, digest.hex(), expires)
+        verdict = AttestationVerdict("apple", "verified", challenge.app_id, challenge.subject,
+                                     challenge.public_key_sha256, digest.hex(), expires)
+        return VerifiedAppleAttestation(verdict, envelope["keyId"], public.public_bytes(
+            serialization.Encoding.DER, serialization.PublicFormat.SubjectPublicKeyInfo),
+            self._apple_app_id, self._environment, now, obj["attStmt"]["receipt"], category, version)

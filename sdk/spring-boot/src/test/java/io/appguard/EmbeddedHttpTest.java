@@ -14,7 +14,7 @@ import org.junit.jupiter.api.*;
 import org.springframework.boot.*;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.builder.SpringApplicationBuilder;
-import org.springframework.boot.web.servlet.context.ServletWebServerApplicationContext;
+import org.springframework.context.ConfigurableApplicationContext;
 import org.springframework.boot.web.servlet.ServletRegistrationBean;
 import org.springframework.context.annotation.*;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
@@ -29,13 +29,13 @@ import static org.assertj.core.api.Assertions.*;
 /** Real Tomcat + Spring Security; plaintext is an explicit loopback-only test opt-in. */
 @TestInstance(TestInstance.Lifecycle.PER_CLASS)
 class EmbeddedHttpTest {
-    ServletWebServerApplicationContext context;
+    ConfigurableApplicationContext context;
     int port;
     HttpClient client=HttpClient.newBuilder().version(HttpClient.Version.HTTP_1_1).connectTimeout(Duration.ofSeconds(3)).build();
     @BeforeAll void start(){
-        context=(ServletWebServerApplicationContext)new SpringApplicationBuilder(App.class).properties(
+        context=new SpringApplicationBuilder(App.class).properties(
             "server.address=127.0.0.1","server.port=0","server.forward-headers-strategy=none","appguard.enabled=true","appguard.app-id=test-app","appguard.origin="+SignedRequests.ORIGIN,
-            "appguard.allow-insecure-transport=true","spring.main.banner-mode=off","logging.level.root=ERROR").run();port=context.getWebServer().getPort();
+            "appguard.allow-insecure-transport=true","spring.main.banner-mode=off","logging.level.root=ERROR").run();port=context.getEnvironment().getRequiredProperty("local.server.port",Integer.class);
     }
     @AfterAll void stop(){if(context!=null)context.close();}
     @SpringBootConfiguration @EnableAutoConfiguration @Import({Endpoints.class,Security.class}) static class App {

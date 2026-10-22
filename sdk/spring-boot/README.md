@@ -4,10 +4,62 @@ Experimental Apache-2.0 implementation of [request-v0](../../protocol/request-v0
 
 ## Tested support
 
-- Temurin Java 17.0.20; Spring Boot 3.5.16; Spring Framework 6.2.19; Spring Security 6.5.11; embedded Tomcat 10.1.55.
-- Spring Data Redis 3.5.13 with Lettuce 6.6.0.RELEASE; live tests against disposable Redis 7.2.10.
+- Temurin Java 17.0.20; Spring Boot 4.1.1; Spring Framework 7.0.9; Spring Security 7.1.1; Tomcat 11.0.24; Servlet 6.1.
+- Spring Data Redis 4.1.1 with Lettuce 7.5.2.RELEASE; Jackson 2.21.8 / 3.1.8 BOMs and Netty 4.2.19.Final BOM overrides; live tests against disposable Redis 7.2.10.
 - Servlet/MVC applications, blocking input-stream/reader body access, JSON and opaque content bytes, duplicate query parameters, chunked request content, Spring MVC asynchronous redispatch.
-- Other Boot versions, containers, Java providers, HTTP/2, and production TLS topologies have not been runtime-tested. This is an experimental protocol integration, not a production certification.
+- Beyond the explicit legacy source/test profile below, other Boot versions, containers, Java providers, HTTP/2, and production TLS topologies have not been runtime-tested. This is an experimental protocol integration, not a production certification.
+
+## Dependency maintenance and legacy source compatibility
+
+The unpublished package now defaults to Boot 4.1.1, the current stable 4.1
+release in Maven Central at this receipt. Java 17 and the public AppGuard API
+remain unchanged. The POM imports Jackson 2.21.8, Jackson 3.1.8 and Netty
+4.2.19.Final BOMs **before** Boot's BOM so Maven aligns each family on its patched
+release line. The SDK's explicit Jackson 2 dependency remains; Boot 4 applications
+may also use Jackson 3. BOM import alone does not add Jackson 3 runtime JARs.
+Jackson annotations intentionally remain at 2.21, as specified by those BOMs.
+
+Vendor sources: [Jackson 2.21.7 security fixes](https://github.com/FasterXML/jackson/wiki/Jackson-Release-2.21.7),
+[2.21.8 follow-up patches](https://github.com/FasterXML/jackson/wiki/Jackson-Release-2.21.8),
+[Jackson 3.1.8](https://github.com/FasterXML/jackson/wiki/Jackson-Release-3.1.8),
+[Netty security releases](https://netty.io/news/),
+[SNI advisory](https://github.com/netty/netty/security/advisories/GHSA-c4c3-7fpv-j4q5)
+and [compression advisory](https://github.com/netty/netty/security/advisories/GHSA-558v-64gr-wgg4).
+The resolved versions exceed the reported fixes for baseline Jackson/Netty
+HIGH/CRITICAL and MEDIUM findings. This is a dependency remediation statement;
+current scanner results and actual deployment validation are separate evidence.
+A consuming application's dependency management takes precedence: import patched
+family BOMs before the application's Boot BOM and inspect its own runtime tree,
+including optional Redis/container dependencies.
+
+`-Plegacy-boot3.5` is an explicit **local source/test rebuild only** against Boot
+3.5.16, Framework 6.2.19, Servlet 6.0, Spring Data Redis 3.5.13, Lettuce 6.6.0.RELEASE
+and Netty 4.1.139.Final. Spring identifies 3.5.16 as the
+[last OSS 3.5 release](https://spring.io/blog/2026/06/25/spring-boot-3-5-16-available-now/).
+Dependency patches do not restore its OSS support. Do not publish, install or
+deploy a legacy-profile build under the official Boot 4 artifact coordinates.
+Use `mvn -Plegacy-boot3.5 clean test` for this compatibility check; any separately
+maintained legacy package would need distinct versioning and explicit consumer
+configuration. Re-run default `mvn clean package` afterward to produce the official
+Boot 4 package. No one-binary dual-Boot-support guarantee is made.
+
+Spring's [migration guide](https://github.com/spring-projects/spring-boot/wiki/Spring-Boot-4.0-Migration-Guide)
+requires Framework 7/Servlet 6.1 and discourages combining Boot 3 and 4 support in
+one artifact. The local default and legacy suites each passed all 252 tests on
+Java 17 with the owned disposable Redis. No production-source API migration was
+needed for this suite; the embedded HTTP test harness now uses
+`ConfigurableApplicationContext` and `local.server.port` to avoid a relocated
+Boot-specific context class. These observations do not establish compatibility
+with every host application's security/filter/container configuration.
+
+The 2026-10-22 final default `clean package` passed 252 tests, and the isolated
+installed-Maven consumer passed 32 tests, all with zero failures/errors/skips. Its
+resolved application tree confirms Jackson 3.1.8 alongside Jackson 2.21.8. Package
+receipts, baseline/patched runtime trees, runtime JARs and legacy test outputs are
+ignored under `.evidence/security-dependencies/`. The consumer covers installed-JAR
+class origin, wrapper boundaries, real embedded HTTP/Security and owned Redis.
+No external Redis, server configuration change, scanner suppression or registry
+publication was performed by this dependency-maintenance task.
 
 ## Build and install locally
 
@@ -88,7 +140,7 @@ ReplayStore appGuardReplay(StringRedisTemplate redis) {
 }
 ```
 
-The tested dependency versions are `org.springframework.data:spring-data-redis:3.5.13` and `io.lettuce:lettuce-core:6.6.0.RELEASE`; Boot's Redis starter also provides them through its dependency management. Configure connection/command timeouts and lifecycle in the application. Each claim issues a single atomic `SET key 1 NX EX ttl`, with `ttl=expires-now` in `1..150`. Key names are the protocol's SHA-256 of the compact JSON `[appId,keyId,nonce]` array and interoperate across languages. Conflict returns false; exceptions/null fail closed. Redis pipelines/transactions that cannot immediately return a claim result are unsupported and fail closed. Operators must prevent eviction of live security keys, provision capacity, secure connections, and establish their required persistence/replication/restart guarantees.
+The tested dependency versions are `org.springframework.data:spring-data-redis:4.1.1` and `io.lettuce:lettuce-core:7.5.2.RELEASE`; Boot's Redis starter also provides them through its dependency management. Configure connection/command timeouts and lifecycle in the application. Each claim issues a single atomic `SET key 1 NX EX ttl`, with `ttl=expires-now` in `1..150`. Key names are the protocol's SHA-256 of the compact JSON `[appId,keyId,nonce]` array and interoperate across languages. Conflict returns false; exceptions/null fail closed. Redis pipelines/transactions that cannot immediately return a claim result are unsupported and fail closed. Operators must prevent eviction of live security keys, provision capacity, secure connections, and establish their required persistence/replication/restart guarantees.
 
 Only for tests/development, explicitly supply `new LocalReplayStore()` (default 10000 live entries) or `new LocalReplayStore(capacity)`. This synchronized store is volatile and single-process. Never select it implicitly for distributed or production replay guarantees.
 

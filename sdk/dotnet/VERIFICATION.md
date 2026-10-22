@@ -86,3 +86,55 @@ consumer references the `.nupkg`, not the source project. The artifact hash belo
 supersedes the historical168-test snapshot above; no publication is claimed.
 
 Final post-fix nupkg SHA-256: `d116ee3e83efedcd99f1d7060889e06f46f0e6ef4a077d0e9729bb9fb2160a81`. Packed README includes the mandatory original-header evidence feature; package inventory contains no tools/tests/private material.
+
+## 2026-10-22 shared Redis adapter follow-up
+
+The opt-in `RedisReplayStore` now accepts a host-owned `IDatabaseAsync` from
+StackExchange.Redis **3.4.5** (exact direct dependency and refreshed checked-in
+NuGet locks). Official API/connection guidance was checked at
+<https://seredis.dev/Basics.html>, <https://seredis.dev/Configuration.html> and the
+maintainer's `IDatabaseAsync` API source. No connection is opened by the adapter.
+The earlier statement that the runtime has no third-party dependencies describes
+its original baseline and no longer applies.
+
+Fresh local verification used the exact existing Microsoft SDK **10.0.402** at
+`/Users/uulab/.codex/worktrees/appguard-protocol-foundation/appguard/sdk/dotnet/.tools/dotnet/dotnet`,
+with certificate generation disabled, telemetry disabled, first-time experience
+skipped, isolated `.tools/redis-cli-home` and `.tools/redis-packages` directories.
+`APPGUARD_TEST_REDIS_URL` selected the parent's owned disposable loopback Redis,
+database 2. No shared key cleanup, FLUSH, CONFIG, credential or server-lifecycle
+operation was performed by this owner.
+
+- Deliberate lock refresh followed by locked solution restore: passed.
+- Full Release suite: **237 passed, 0 failed, 0 skipped**, including three live
+  Redis tests. Without the opt-in URL those three tests explicitly skip.
+- Release solution build: **0 warnings, 0 errors**; pack: passed.
+- Independent connections: 48 simultaneous same-scope claims produced exactly
+  one winner; cross-client duplicate, app/key/nonce isolation, visible value,
+  remaining TTL, expiry and subsequent reclaim passed.
+- Injected-client contract tests: exact shared hashed key and atomic
+  `SET key 1 NX EX ttl`, strict time/scope validation before I/O, malformed
+  response/backend failure redaction, pre-cancel, pending-command cancel and
+  cancellation during completion passed.
+- A closed real client failed privately through the direct store, verifier and
+  middleware; middleware returned fixed 503 JSON and never dispatched.
+- Isolated consumer in `.tools/redis-consumer` restored the built local NuGet
+  package into its own `.tools/redis-consumer-final-packages` cache, then completed
+  locked restore, Release build/run and actual Redis claim/replay checks. It had
+  no source ProjectReference and printed `PACKAGED_REDIS_CONSUMER_OK`.
+- Package inventory contained only library DLL, README, license and NuGet
+  metadata; test fixture/probe/runtime/cache/private files were absent.
+- Scoped `git diff --check`: passed.
+
+Local unpublished package SHA-256:
+`b6476295fc17a2c9aaf337735e931b6aa87625f9919123d556791ed86b9693a2`.
+This binds the uncommitted package snapshot, not a release or published version.
+
+The test-only `tools/RedisProbe` solution project supports root cross-SDK
+verification with a separate process/client: `URL APP KEY NONCE NOW EXPIRES`
+prints exactly `CLAIMED` or `REPLAY`. Parent integration owns the actual
+cross-language matrix, CI workflow and fresh whole-stage review. CI should supply
+an owned disposable Redis URL and all .NET environment guards before invoking
+`scripts/verify.sh`; it must not mistake an unset URL's skips for shared-backend
+proof. No Redis persistence/restart/failover configuration, production ingress,
+provider state, publication, physical device or hardware result is claimed.

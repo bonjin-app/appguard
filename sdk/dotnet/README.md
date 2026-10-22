@@ -6,7 +6,7 @@ A verified request proves possession of a trusted pre-enrolled P-256 key over sp
 
 ## Build and package locally
 
-Use SDK **10.0.402** pinned in `global.json`. .NET 10 is an [active LTS release](https://dotnet.microsoft.com/en-us/platform/support/policy/dotnet-core). The SDK project uses framework crypto and ASP.NET Core, with no third party runtime package dependencies. Test dependencies have exact versions and checked-in NuGet locks.
+Use SDK **10.0.402** pinned in `global.json`. .NET 10 is an [active LTS release](https://dotnet.microsoft.com/en-us/platform/support/policy/dotnet-core). The SDK project uses framework crypto and ASP.NET Core, plus pinned StackExchange.Redis for the opt-in shared replay adapter. Runtime and test dependencies use checked-in NuGet locks.
 
 ```sh
 # Uses an already installed SDK; never installs a runtime or trusts a certificate.
@@ -101,9 +101,37 @@ host-owned. Source-checkout evidence: [cancellation verification](../../docs/sec
 
 `IReplayStore.ClaimAsync(ReplayScope scope, long expires, long now, CancellationToken ct)` must atomically return true for exactly one live claim and false for a prior live claim. Throw on errors/capacity failure. A deployment-wide store must preserve this property across all instances, restarts and cancellation/timeout outcomes; do not retry an uncertain claim permissively. A backend may have committed before a timeout, so a failed request can conservatively retain its nonce.
 
-`InMemoryReplayStore(capacity: 10000)` is **explicit opt-in, volatile and process-local**, intended for tests/development. Its lock provides single-winner claims and bounded capacity, expiry cleanup and cancellation before mutation. There is no implicit middleware store. **No distributed/Redis backend is included or tested.** Supply a real shared store for a multi-instance deployment; an adapter-shaped stub is not sufficient.
+`InMemoryReplayStore(capacity: 10000)` is **explicit opt-in, volatile and process-local**, intended for tests/development. Its lock provides single-winner claims and bounded capacity, expiry cleanup and cancellation before mutation. There is no implicit middleware store. For multi-instance deployments, explicitly supply `RedisReplayStore` with a configured StackExchange.Redis database, or another real shared store.
 
-`ReplayScope.StorageKey` supplies the portable `appguard:v0:replay:<sha256(compact_json_scope)>` key. Shared Redis implementations must use a single atomic `SET key 1 NX EX (expires-now)` operation and remaining TTL in `1..150` seconds. Durability, no eviction of live claims, capacity, transport security and restart guarantees belong to the deployment.
+`RedisReplayStore(IDatabaseAsync database)` uses the pinned StackExchange.Redis **3.4.5** client. The host creates, configures, reuses and disposes the connection; the adapter never connects, reads credentials, changes Redis configuration or falls back to process-local state. Follow the client's [connection reuse guidance](https://seredis.dev/Basics.html) and [configuration reference](https://seredis.dev/Configuration.html) for TLS, credentials, connection/command timeouts and deployment topology.
+
+```csharp
+using AppGuard;
+using StackExchange.Redis;
+
+// Host-owned, trusted configuration; create once for the application lifecycle.
+using var connection = await ConnectionMultiplexer.ConnectAsync(hostRedisOptions);
+IReplayStore sharedReplayStore = new RedisReplayStore(connection.GetDatabase());
+// Supply sharedReplayStore to AppGuardOptions / VerificationContext.
+```
+
+`ReplayScope.StorageKey` supplies the portable `appguard:v0:replay:<sha256(compact_json_scope)>` key shared with the Python, Node, Java and Go SDKs. The adapter validates the scope and Unix-second timestamps and performs exactly one atomic `SET key 1 NX EX (expires-now)` with TTL in `1..150` seconds. Only the Redis simple-string `OK` succeeds; a Redis null response means replay. Unexpected responses and backend errors produce fixed `REPLAY_STORE_UNAVAILABLE` without backend exception details.
+
+Pre-canceled calls issue no command. Cancellation while awaiting Redis prevents a successful return, but **cannot retract a command already sent**: the claim may remain until expiry. The direct adapter throws cancellation with the supplied token; the existing verifier maps store failures to `REPLAY_STORE_UNAVAILABLE`, and middleware retains its canceled-request response behavior. A late backend fault after cancellation is consumed without logging or exposing its private details through the host's unobserved-task exception event. Client timeouts bound backend work even after request cancellation. Never retry an uncertain claim permissively.
+
+A shared atomic claim does not by itself provide persistence or replication guarantees. Operators must secure transport/access, provision capacity, prevent eviction of live claims, and configure/test Redis persistence, failover, restart and outage behavior for their deployment. No production Redis configuration or restart/failover proof is included.
+
+To enable the three live tests, set `APPGUARD_TEST_REDIS_URL=redis://127.0.0.1:PORT/DB` to an **owned disposable credential-free loopback Redis**, database `0..15`, before running `scripts/verify.sh`. Without it the live tests explicitly skip. They use independent connections and random scopes; cleanup deletes only their own hashed keys. Unit contract tests always run. Tests cover a 48-way single-winner race, shared visibility, app/key/nonce isolation, bounded TTL, expiry and redacted closed-client failure through the verifier and middleware. These are local server tests, separate from production, CI, device and provider evidence.
+
+The test-only independent-process probe accepts `URL APP KEY NONCE NOW EXPIRES`:
+
+```sh
+# Build the solution first; apply the same .NET environment guards as scripts/verify.sh.
+dotnet tools/RedisProbe/bin/Release/net10.0/RedisProbe.dll \
+  "$APPGUARD_TEST_REDIS_URL" test-app test-key AAECAwQFBgcICQoLDA0ODw 100 130
+```
+
+It prints exactly `CLAIMED` or `REPLAY`; failures print fixed `REPLAY_STORE_UNAVAILABLE` to stderr and exit 2. It never deletes keys. The probe is excluded from the NuGet package.
 
 ## Policy and audit
 

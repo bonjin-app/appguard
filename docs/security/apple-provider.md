@@ -1,10 +1,12 @@
-# Experimental Apple initial-attestation backend
+# Experimental Apple attestation and assertion backend
 
 `appguard.providers.apple.AppleAppAttestVerifier` is an optional callable backend for
 the Python `EnrollmentService`. It authenticates an **initial App Attest object**
 against the bundled, pinned Apple App Attestation Root CA. It performs no Apple
 account, entitlement, Keychain, device, receipt-assessment or attestation network
 operations. Importing the module does not access credentials or the network.
+The opt-in [assertion lifecycle](apple-lifecycle.md) adds durable key association,
+request-bound one-use challenges, revocation and monotonic assertion counters.
 
 ```python
 from appguard.providers.apple import AppleAppAttestVerifier
@@ -111,6 +113,19 @@ failed verification leaves it unconsumed. Public errors are fixed
 exception chaining and no evidence/token material. Enrollment maps a backend
 exception to its existing fixed `ATTESTATION_UNAVAILABLE` code.
 
+`backend.verify_initial(challenge, evidence)` performs the same checks and returns
+an immutable `VerifiedAppleAttestation`. It retains the verdict, canonical App
+Attest key ID, canonical DER SPKI public key, configured Apple App ID/environment,
+verification time, and verified signed category/version when present. Its
+`opaque_receipt` bytes are bounded **unverified** CMS input. The object is a trusted
+in-process handoff; never deserialize client JSON into it. Calling the existing
+`backend(challenge, evidence)` still returns only `AttestationVerdict`. Neither
+pure verification method consumes server state. Persistent initial association
+and assertions require the separate lifecycle service explicitly.
+For atomic request-key enrollment with verified receipt storage, use the opt-in
+[AppleEnrollmentService](apple-enrollment.md). It leaves this callback contract
+unchanged and uses a dedicated combined SQLite store.
+
 ## Pinned provenance and conservative iOS compatibility
 
 The bundled public root was fetched on **2026-10-20**, only from Apple's official
@@ -144,7 +159,7 @@ There is no claim that this conservative profile supports every current/future
 iOS certificate. Future legitimate profiles require source-grounded review and
 an explicit implementation update.
 
-## Verification evidence and remaining lifecycle
+## Verification evidence and remaining provider gates
 
 Tests generate real synthetic root/intermediate/leaf certificates and P-256 keys,
 then replace a **private trust-loader only in the tests**. The deployable public
@@ -160,18 +175,25 @@ timestamp. Its example certificate is expired at implementation time. That check
 proves the sample chain parsing/signature and pinned ACL path only. The public example has flags `0x40` plus a trailing extension dictionary and therefore rejects at this verifier's ED/trailing-data guard; no successful whole-sample validation is claimed. It is not a successful full
 enrollment, current provider-account connection or device-attestation test.
 
+Synthetic tests also verify [persistent key association and assertion
+verification](apple-lifecycle.md), including real independent SQLite processes,
+restart, strict ECDSA/CBOR/DER, request/subject/environment isolation, monotonic
+counters, revocation, final expiry checks and atomic rollback after storage faults.
+
 **Pending:** genuine current-device acquisition and end-to-end verification;
-persisting the attested public key, user/device association and receipt; enforcing
-global key association/reuse rules; assertion verification with monotonic counter
-storage; independently verifying/storing receipts and Apple fraud assessments;
-revocation/fraud-risk policy. Receipts are bounded opaque input here, not trusted
-fraud metrics. A finite initial verdict is not continuous app integrity, request
-assertion verification, jailbreak detection or hardware-backed request-key proof.
+live receipt/assessment provider validation; and deployment fraud-risk policy.
+The separate [receipt verifier](apple-receipts.md) and [atomic enrollment service](apple-enrollment.md)
+provide software verification and durable verified receipt replacement. Retained
+receipts in this pure initial verifier remain bounded opaque input, not trusted
+fraud metrics. A finite initial verdict is not continuous app integrity, jailbreak
+detection or hardware-backed request-key proof. The assertion lifecycle is an
+explicit independent guard and does not change existing enrollment callbacks or
+automatically authorize application requests.
 
 The verification rules follow Apple's current
 [server verification guide](https://developer.apple.com/documentation/devicecheck/validating-apps-that-connect-to-your-server)
 and [public validation example](https://developer.apple.com/documentation/devicecheck/attestation-object-validation-guide),
-retrieved on 2026-10-20. This experimental backend must not be presented as a
+refreshed on 2026-10-22. This experimental backend must not be presented as a
 complete App Attest lifecycle or broad production/device certification.
 
 

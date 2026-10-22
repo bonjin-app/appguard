@@ -40,3 +40,14 @@ approval or broad production security/performance guarantees. Optional native
 root/hook/jailbreak hints now have [scoped local evidence](local-risk-verification.md);
 they remain bypassable and never establish integrity. Optional AI/console and
 unsupported deployment adapters remain future work.
+
+## Non-device operating qualification
+
+Subsequent optional integrations now include shared Redis adapters for all six
+server SDKs, explicit Google credential refresh, Apple assertion counters and CMS
+receipt lifecycle with atomic enrollment persistence, and a pinned direct-TLS
+Python ingress. See [current scope and operating limits](../development/nondevice-readiness.md).
+These additions qualify the tested boundaries without changing the foundation's
+trusted identity/key/clock/authorization requirements. Process-crash checks do not
+prove disk/replica durability or prevent stale snapshot rollback. Provider PKI
+fixtures and a historical receipt sample do not establish a current live exchange.

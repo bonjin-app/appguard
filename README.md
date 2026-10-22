@@ -37,7 +37,7 @@ export APPGUARD_PACKAGES="$(mktemp -d)"
 
 | Component | Requirements | Install guide |
 | --- | --- | --- |
-| Spring Boot | Java 17, Maven; Boot 3.5 Servlet/MVC | [Starter](#install-spring) |
+| Spring Boot | Java 17, Maven; Boot 4.1.1 Servlet/MVC | [Starter](#install-spring) |
 | Python | Python 3.11+; FastAPI, Django ASGI or Flask through ASGI | [Python SDK](#install-python) |
 | Node.js | Node 22+; ESM; Express, Fastify or NestJS/Express | [Node SDK](#install-node) |
 | ASP.NET Core | .NET SDK 10.0.402 / ASP.NET Core 10 | [.NET SDK](#install-dotnet) |
@@ -311,20 +311,20 @@ The core will run without an AI model, paid AI API, or mandatory AppGuard cloud 
 | Component | Status |
 | --- | --- |
 | Draft protocol and Python reference | Implemented; locally tested, not production-ready |
-| [Spring Boot 3.5 / Java 17](sdk/spring-boot/README.md) | Experimental starter, MVC filter and Redis adapter |
+| [Spring Boot 4.1.1 / Java 17](sdk/spring-boot/README.md) | Experimental starter, MVC filter and Redis adapter |
 | [Python 3.11+](sdk/python/README.md) | Experimental ASGI verifier; FastAPI, Django ASGI, Flask through WsgiToAsgi |
 | [Node.js 22+](sdk/node/README.md) | Experimental native verifier; Express, Fastify, NestJS and Redis adapter |
 | [Android Java/Kotlin](sdk/android/README.md) | Native signer, Keystore and enrollment proofs; AAR/JVM tests/API35 emulator checks |
 | [Apple Swift/iOS](sdk/apple/README.md) | Native signer, Security key adapter, enrollment proofs and App Attest acquisition wrapper; host tests/unsigned Simulator build |
 | [Unity UPM](sdk/unity/README.md) | Typed JNI/C ABI package and async local risk API; [138 EditMode tests](sdk/unity/STRICT_JSON_VERIFICATION.md), [Android Release and iOS Simulator IL2CPP runtime checks](sdk/unity/PLAYER_RUNTIME_VERIFICATION.md), unsigned iOS device Release build; physical-device runtime pending |
-| [Expo / React Native](sdk/expo/README.md) | Expo58 async native module;61 tests,44-file relocation, packed Android and unsigned arm64 Simulator CocoaPods compile; engine/device runtime pending |
+| [Expo / React Native](sdk/expo/README.md) | Expo58 async native module;61 tests,40-file relocation, packed Android and unsigned arm64 Simulator CocoaPods compile; engine/device runtime pending |
 | [Flutter](sdk/flutter/README.md) | Async platform-channel local risk API;64 tests, background queue/native adapter checks and Simulator library compile; engine/device runtime pending |
-| [ASP.NET Core](sdk/dotnet/README.md) | Experimental strict verifier/middleware; mandatory original-header feature;175 tests and isolated NuGet consumer |
+| [ASP.NET Core](sdk/dotnet/README.md) | Experimental strict verifier/middleware; mandatory original-header feature;238 tests and isolated NuGet consumer |
 | [Go net/http](sdk/go/README.md) | Experimental verifier/middleware; race/vet and isolated consumer; trusted pre-parser evidence required |
-| [PHP](sdk/php/README.md) | Experimental verifier/explicit ingress adapter;514 assertions and5 raw loopback requests; no Laravel/Symfony integration claim |
+| [PHP](sdk/php/README.md) | Experimental verifier/explicit ingress adapter;649 assertions and5 raw loopback requests; no Laravel/Symfony integration claim |
 | Shared Redis replay claims | Implemented; deployment durability/eviction guarantees are operator-owned |
 | [Enrollment / policy / audit](docs/security/enrollment-policy.md) | Python SQLite challenge/proof/key and subject-wide revocation; all six server languages pass deterministic42-case presets and allowlisted audit output |
-| [Apple/Google provider verification](docs/security/provider-verification.md) | Experimental Python backends;223 offline provider tests and Android acquisition module. Genuine current-device/account verification pending; Apple lifecycle incomplete |
+| [Apple/Google provider verification](docs/security/provider-verification.md) | Experimental Python verification, explicit OAuth refresh, Apple assertions and atomic verified-receipt enrollment; [lifecycle details](docs/security/apple-enrollment.md). Genuine device/account verification pending |
 | [Build / CLI](tools/cli/README.md) | Android R8 setup/build; Flutter obfuscation/Expo minification commands; encrypted mapping archive/verify/restore; local prerequisite/CI checks, strict UTF-8 preservation and actual isolated Android release build |
 | [Local root/hook/jailbreak hints](protocol/local-risk-v0.md) | Experimental Android/iOS typed scanners; host tests and platform builds; physical rooted/hooked-device efficacy unverified |
 | Optional console / AI | Planned, not implemented; core works without either |
@@ -384,3 +384,32 @@ The Python core entry point is `appguard.verify.verify_request`; `appguard_refer
 Read [CONTRIBUTING.md](CONTRIBUTING.md), [SECURITY.md](SECURITY.md), the [threat model](docs/security/threat-model.md), and the [draft protocol](protocol/request-v0.md). Publish no real secrets or production key material in issues, fixtures or logs.
 
 Project-authored code and documentation are licensed under [Apache-2.0](LICENSE). Dependency and third-party licenses remain their own.
+
+## Non-device production qualification
+
+All six server SDKs now offer an explicitly configured shared Redis replay adapter.
+Spring Boot defaults to **4.1.1 / Java 17**; the explicit `legacy-boot3.5` source
+profile is a compatibility check, not the maintained production baseline.
+
+Python adds [atomic Apple enrollment and receipt state](docs/security/apple-enrollment.md),
+[assertions and counters](docs/security/apple-lifecycle.md),
+[CMS receipt verification/refresh](docs/security/apple-receipts.md), and an explicit
+[Google service-account token provider](docs/security/google-provider.md).
+For the optional direct-TLS server and receipt parser, install in your application environment:
+
+```sh
+python3 -m pip install "$APPGUARD_REPO/sdk/python[server,apple,redis]"
+```
+
+Use the [TLS ingress guide and executable example](docs/deployment/python-ingress.md).
+After building both server runners against the same **new disposable loopback Redis**,
+`uv run --frozen --project sdk/python python scripts/check_cross_sdk_replay.py --extended`
+checks all six SDKs against one replay namespace. The qualification runner creates
+its own Redis before crash, outage, capacity and load tests; it accepts no external
+Redis URL. [Commands, evidence and operating limits](docs/development/nondevice-readiness.md).
+
+[Candidate/SBOM/checksum/vulnerability/secret/license automation](docs/development/release-readiness.md)
+prepares unpublished source candidates. Passing automated checks still leaves
+license review, independent audit, actual provider/account integration, deployment
+qualification and maintainer release approval outstanding. Physical devices remain
+pending and outside this qualification. This is not an audited production release.

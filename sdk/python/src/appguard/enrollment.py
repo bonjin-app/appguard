@@ -102,5 +102,9 @@ class EnrollmentService:
                                           "ecdsa-p256-sha256", False),
                                 "verified" if verdict else "missing", verdict.provider if verdict else None,
                                 verdict.expires if verdict else None)
-        self.store.finish(challenge, credential, now=now, clock=self._now)
+        self._finish(challenge, credential, verdict, now)
         return credential
+
+    def _finish(self, challenge, credential, verdict, now):
+        """Protected provider extension; the default store contract is unchanged."""
+        self.store.finish(challenge, credential, now=now, clock=self._now)

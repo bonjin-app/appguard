@@ -158,10 +158,32 @@ post-revocation challenge may be issued. See the
 [Apple initial attestation](../../docs/security/apple-provider.md) can supply its
 trusted provider callback. They do not acquire deployment credentials or establish
 provider/device approval. Apple uses a conservative iOS-only compatibility pin;
-its assertion/receipt/counter lifecycle remains incomplete. Importing a provider
-performs no network or credential discovery.
+optional [assertion/counter state](../../docs/security/apple-lifecycle.md),
+[CMS receipts](../../docs/security/apple-receipts.md) and
+[atomic enrollment](../../docs/security/apple-enrollment.md) are explicit integrations.
+Importing a provider performs no network or credential discovery.
 
 The full integrated SDK suite passed474 tests with a disposable Redis after the
 provider review fix; all223 provider tests also run from a separately installed
 wheel. See [provider verification](../../docs/security/provider-verification.md)
 for exact offline proof and remaining external checks.
+
+## Optional direct TLS and provider lifecycle
+
+```sh
+python3 -m pip install "/absolute/path/to/appguard/sdk/python[server,apple,redis]"
+```
+
+The pinned [direct-TLS ingress](../../docs/deployment/python-ingress.md) adds real
+HTTP/1.1 wire evidence capture and bounded admission/deadlines. Other ASGI servers
+remain separate trusted integrations. The [executable host example](../../examples/python-ingress/server.py)
+requires explicit TLS material, a trusted enrolled public key, host authentication
+and a configured Redis backend. No credentials or network are discovered on import.
+
+For Apple, choose either standalone state services or the dedicated combined
+`SqliteAppleEnrollmentStore` / `AppleEnrollmentService` for transactional request-key,
+Apple-key and independently verified receipt activation. Existing databases are
+not automatically migrated. `GoogleServiceAccountTokenProvider` explicitly takes
+a configured service-account email and RSA private PEM; it refreshes fixed-scope
+tokens with conservative cache/waiter bounds. Real provider/account integration
+and deployment policy remain required. See the [non-device qualification](../../docs/development/nondevice-readiness.md).

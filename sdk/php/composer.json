@@ -30,5 +30,8 @@
       "/tests/",
       "/tools/"
     ]
+  },
+  "suggest": {
+    "ext-redis": "Required only for the optional ExtRedisCommandClient; connection and configuration remain host-owned."
   }
 }

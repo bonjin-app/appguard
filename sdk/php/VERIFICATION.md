@@ -43,7 +43,53 @@ Input is one conformance-shaped JSON object or an array of 1..100 objects, at mo
 
 ## Limits and unverified deployments
 
-API syntax targets PHP 8.2+ on 64-bit runtimes; execution here proves PHP 8.5.11 only. No Laravel, Symfony, PSR-7/15, FPM, Apache, Linux, Windows or distributed replay deployment was run. The native callback adapter requires operator-supplied trusted pre-normalization evidence. Ordinary normalized front controllers cannot supply that proof and must fail closed. Local replay state is bounded, volatile and confined to one interpreter; PHP-FPM request/worker separation, restarts and multiple hosts require an explicit atomic shared implementation. No Redis adapter, distributed-lock or backend durability guarantee is claimed.
+API syntax targets PHP 8.2+ on 64-bit runtimes; execution here proves PHP 8.5.11 only. No Laravel, Symfony, PSR-7/15, FPM, Apache, Linux, Windows or distributed replay deployment was run. The native callback adapter requires operator-supplied trusted pre-normalization evidence. Ordinary normalized front controllers cannot supply that proof and must fail closed. Local replay state is bounded, volatile and confined to one interpreter; PHP-FPM request/worker separation, restarts and multiple hosts require an explicit atomic shared implementation. The optional Redis adapter now has separate live evidence below; backend durability and deployment guarantees remain unverified.
 
 
 Parent integration completed: fresh Android1+Apple8 public fixtures verified with replay/body/target/token mutations rejected; full extended runner passed. One fresh whole-stage review and exact remaining/deferred limits are recorded in [extended verification](../../docs/security/extended-server-verification.md).
+
+
+## Optional Redis adapter verification (2026-10-22)
+
+Fresh PHP 8.5.11 checks passed: **647 assertions** and the existing **5 raw loopback HTTP requests**. New interface tests exercise exact canonical SET arguments, 1/150-second boundaries, conflict, invalid scope/nonce/time, strict response types and exception redaction. Interface test doubles do not establish phpredis transport behavior.
+
+Actual **phpredis 6.3.0** was downloaded from the [official PECL release](https://pecl.php.net/package/redis/6.3.0), SHA-256 `0d5141f634bd1db6c1ddcda053d25ecf2c4fc1c395430d534fd3f8d51dd7f0b5`. The task-local `.tools/redis-build/redis-6.3.0/redis.so` was built using clang's bundle/dynamic-lookup mode and the existing PHP 8.5.11 generated headers (read only); its source list matches release `config.m4`, with optional serializers/compression/session disabled. No global installation, existing toolchain changes or php.ini were used. Ignored build command/log are beside the module. This is a local test build, not a packaged extension distribution.
+
+With `-n -d extension=/absolute/path/redis.so`, the actual live harness passed against the parent-owned disposable loopback Redis DB3: eight separate PHP processes/connections started behind a barrier and produced exactly one winner; another connection rejected replay and read the canonical key/value/TTL; a one-second claim expired; literal replies and host prefix/serializer bypass were checked; pipeline, Redis error replies and unconnected-client calls failed closed. Only this run's random scoped keys were deleted. No Redis FLUSH or configuration commands were issued. This proves local phpredis/Redis behavior, not TLS/authentication/failover/replication/eviction durability or FPM/framework deployment.
+
+CI must install `ext-redis` and run both the normal no-extension suite and explicit live probe:
+
+```sh
+php -n tests/run-all.php
+# Set APPGUARD_TEST_REDIS_URL to the CI-owned disposable service.
+python3 tests/redis_integration.py php -n -d extension=/absolute/path/redis.so
+```
+
+Resolve the installed extension's absolute path in CI before using `-n`; do not depend on loading a global php.ini. Preserve isolated Composer home/cache, disabled plugins/scripts and frozen-lock consumer checks.
+
+The isolated Composer consumer also passed with remote repositories disabled, mirrored package source (`symlink: false`), a frozen-lock install, no Redis extension, and generated-autoloader use of `RedisCommandClient`/`RedisReplayStore`. Composer strict validation passed; the optional extension suggestion changes no runtime dependency or lock content.
+
+### Strict literal status correction (2026-10-22)
+
+Independent review reproduced a queued-claim failure with the actual phpredis
+6.3.0 runtime: `rawCommand('MULTI')` left `getMode()` reporting `Redis::ATOMIC`,
+and default status coercion mapped the server's `QUEUED` reply to boolean `true`.
+The adapter reported success despite the transaction being discarded and no
+replay key being stored. Local transaction mode alone was insufficient.
+
+The bridge now requires the host to set `Redis::OPT_REPLY_LITERAL=true`, checks
+its exact enabled value before every command, and accepts only literal `'OK'`.
+It does not set or restore host options. Default nonliteral mode fails before
+sending a claim; a raw-MULTI queued response fails closed. The executable live
+and cross-language probes explicitly configure literal mode in their host code.
+
+Fresh checks after correction passed: **649 SDK assertions**, **61 status cases**
+within that suite, and **5 raw loopback HTTP requests**. The actual ext-redis live
+harness passed against the parent-owned disposable loopback Redis DB5, covering
+the eight-process race, canonical key/value/TTL, expiry, prefix/serializer bypass,
+nonliteral mode rejection without mutation, raw-MULTI/QUEUED rejection with no
+committed claim, normal pipeline rejection, provider error and unavailable
+client. Unit tests also reject boolean success and `QUEUED` from custom clients.
+Only fresh UUID-scoped test keys were removed, with no Redis configuration or
+shared database cleanup. These remain local software/owned-Redis results; no
+hosted durability, TLS, production account or deployment guarantee is implied.

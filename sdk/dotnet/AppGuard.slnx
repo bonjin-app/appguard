@@ -5,5 +5,6 @@
   <Folder Name="/tests/">
     <Project Path="tests/AppGuard.Tests/AppGuard.Tests.csproj" />
     <Project Path="tools/InteropProbe/InteropProbe.csproj" />
+    <Project Path="tools/RedisProbe/RedisProbe.csproj" />
   </Folder>
 </Solution>

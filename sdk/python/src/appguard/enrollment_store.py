@@ -113,17 +113,21 @@ class SqliteEnrollmentStore:
             # its validated clock so that this final gate includes that wait.
             if clock is not None:
                 now = clock()
-            row = db.execute("SELECT app,subject,kid,origin,fingerprint,nonce,expires,pem FROM appguard_challenges WHERE nonce=?", (challenge.nonce,)).fetchone()
-            if row is None or Challenge(*row) != challenge or now >= challenge.expires:
-                raise EnrollmentError("CHALLENGE_REJECTED")
-            if credential.attestation == "verified" and now >= credential.attestation_expires:
-                raise EnrollmentError("ATTESTATION_REJECTED")
-            if db.execute("SELECT 1 FROM appguard_keys WHERE app=? AND kid=?", (challenge.app_id, challenge.key_id)).fetchone():
-                raise EnrollmentError("KEY_ID_IN_USE")
-            key = credential.key
-            db.execute("INSERT INTO appguard_keys VALUES (?,?,?,?,?,?,?,?)", (key.app_id, key.key_id, key.subject,
-                       key.public_key_pem, int(key.revoked), credential.attestation, credential.provider, credential.attestation_expires))
-            db.execute("DELETE FROM appguard_challenges WHERE nonce=?", (challenge.nonce,))
+            self._finish_transaction(db, challenge, credential, now)
+
+    def _finish_transaction(self, db, challenge, credential, now):
+        """Protected insertion inside an already owned SQLite transaction."""
+        row = db.execute("SELECT app,subject,kid,origin,fingerprint,nonce,expires,pem FROM appguard_challenges WHERE nonce=?", (challenge.nonce,)).fetchone()
+        if row is None or Challenge(*row) != challenge or now >= challenge.expires:
+            raise EnrollmentError("CHALLENGE_REJECTED")
+        if credential.attestation == "verified" and now >= credential.attestation_expires:
+            raise EnrollmentError("ATTESTATION_REJECTED")
+        if db.execute("SELECT 1 FROM appguard_keys WHERE app=? AND kid=?", (challenge.app_id, challenge.key_id)).fetchone():
+            raise EnrollmentError("KEY_ID_IN_USE")
+        key = credential.key
+        db.execute("INSERT INTO appguard_keys VALUES (?,?,?,?,?,?,?,?)", (key.app_id, key.key_id, key.subject,
+                   key.public_key_pem, int(key.revoked), credential.attestation, credential.provider, credential.attestation_expires))
+        db.execute("DELETE FROM appguard_challenges WHERE nonce=?", (challenge.nonce,))
 
     @_redacted
     def lookup(self, app_id, subject, key_id):

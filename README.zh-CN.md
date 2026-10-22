@@ -28,7 +28,7 @@ export APPGUARD_PACKAGES="$(mktemp -d)"
 
 | 组件 | 要求 | 安装指南 |
 | --- | --- | --- |
-| Spring Boot | Java 17、Maven；Boot 3.5 Servlet/MVC | [Starter](#install-spring) |
+| Spring Boot | Java 17、Maven；Boot 4.1.1 Servlet/MVC | [Starter](#install-spring) |
 | Python | Python 3.11+；FastAPI、Django ASGI 或通过 ASGI 运行的 Flask | [Python SDK](#install-python) |
 | Node.js | Node 22+；ESM；Express、Fastify 或 NestJS/Express | [Node SDK](#install-node) |
 | ASP.NET Core | .NET SDK 10.0.402 / ASP.NET Core 10 | [.NET SDK](#install-dotnet) |
@@ -251,20 +251,20 @@ CLI 涵盖 Android R8、Expo export、Flutter Android APK 混淆，以及显式�
 | 组件 | 状态 |
 | --- | --- |
 | 协议草案和 Python 参考实现 | 已实现并在本地测试，尚未达到生产可用状态 |
-| [Spring Boot 3.5 / Java 17](sdk/spring-boot/README.md) | 实验性 starter、MVC 过滤器和 Redis 适配器 |
+| [Spring Boot 4.1.1 / Java 17](sdk/spring-boot/README.md) | 实验性 starter、MVC 过滤器和 Redis 适配器 |
 | [Python 3.11+](sdk/python/README.md) | 实验性 ASGI 验证器；支持 FastAPI、Django ASGI、通过 WsgiToAsgi 运行的 Flask |
 | [Node.js 22+](sdk/node/README.md) | 实验性原生验证器；Express、Fastify、NestJS 和 Redis 适配器 |
 | [Android Java/Kotlin](sdk/android/README.md) | 原生签名器、Keystore 和注册证明；AAR/JVM 测试/API35 模拟器检查 |
 | [Apple Swift/iOS](sdk/apple/README.md) | 原生签名器、Security 密钥适配器、注册证明和 App Attest 证据获取封装；宿主机测试/未签名 Simulator 构建 |
 | [Unity UPM](sdk/unity/README.md) | 类型化 JNI/C ABI 软件包和异步本地风险 API；[138 项 EditMode 测试](sdk/unity/STRICT_JSON_VERIFICATION.md)、[Android Release 和 iOS Simulator IL2CPP 运行时检查](sdk/unity/PLAYER_RUNTIME_VERIFICATION.md)、未签名的 iOS 真机 Release 构建；真机运行时验证待完成 |
-| [Expo / React Native](sdk/expo/README.md) | Expo58 异步原生模块；61 项测试、44 个文件的重定位、打包后的 Android 及未签名 arm64 Simulator CocoaPods 编译；引擎/真机运行时验证待完成 |
+| [Expo / React Native](sdk/expo/README.md) | Expo58 异步原生模块；61 项测试、40 个文件的重定位、打包后的 Android 及未签名 arm64 Simulator CocoaPods 编译；引擎/真机运行时验证待完成 |
 | [Flutter](sdk/flutter/README.md) | 异步 platform-channel 本地风险 API；64 项测试、后台队列/原生适配器检查和 Simulator 库编译；引擎/真机运行时验证待完成 |
-| [ASP.NET Core](sdk/dotnet/README.md) | 实验性严格验证器/中间件；强制要求原始请求头 feature；175 项测试及隔离的 NuGet 使用方验证 |
+| [ASP.NET Core](sdk/dotnet/README.md) | 实验性严格验证器/中间件；强制要求原始请求头 feature；238 项测试及隔离的 NuGet 使用方验证 |
 | [Go net/http](sdk/go/README.md) | 实验性验证器/中间件；race/vet 检查及隔离的使用方验证；需要可信的解析前证据 |
-| [PHP](sdk/php/README.md) | 实验性验证器/显式入口适配器；514 项断言和 5 次原始回环请求；不宣称支持 Laravel/Symfony 集成 |
+| [PHP](sdk/php/README.md) | 实验性验证器/显式入口适配器；649 项断言和 5 次原始回环请求；不宣称支持 Laravel/Symfony 集成 |
 | 共享 Redis 防重放占用记录 | 已实现；部署持久性/淘汰保证由运维方负责 |
 | [注册 / 策略 / 审计](docs/security/enrollment-policy.md) | Python SQLite 质询/证明/密钥及主体范围撤销；全部六种服务端语言通过确定性的 42 个预设用例，并输出符合允许列表的审计内容 |
-| [Apple/Google 服务提供方验证](docs/security/provider-verification.md) | 实验性 Python 后端；223 项离线服务提供方测试和 Android 证据获取模块。真实当前设备/账号验证待完成；Apple 生命周期尚不完整 |
+| [Apple/Google 服务提供方验证](docs/security/provider-verification.md) | 实验性 Python 验证、显式 OAuth 刷新、Apple assertion 及已验证回执的原子注册；[生命周期详情](docs/security/apple-enrollment.md)。真实设备/账号验证待完成 |
 | [Build / CLI](tools/cli/README.md) | Android R8 设置/构建；Flutter 混淆/Expo 压缩命令；加密映射文件归档/验证/恢复；本地前置条件/CI 检查、严格保留 UTF-8 及实际隔离的 Android release 构建 |
 | [本地 root/hook/越狱提示](protocol/local-risk-v0.md) | 实验性 Android/iOS 类型化扫描器；宿主机测试和平台构建；在已 root/被 hook 的真机上的有效性尚未验证 |
 | 可选控制台 / AI | 已规划，尚未实现；核心功能不依赖二者 |
@@ -324,3 +324,30 @@ Python 核心入口为 `appguard.verify.verify_request`；`appguard_reference` �
 请阅读 [CONTRIBUTING.md](CONTRIBUTING.md)、[SECURITY.md](SECURITY.md)、[威胁模型](docs/security/threat-model.md)及[协议草案](protocol/request-v0.md)。请勿在 issue、测试夹具或日志中发布真实机密或生产密钥材料。
 
 项目自行编写的代码和文档采用 [Apache-2.0](LICENSE) 许可证。依赖项及第三方内容仍遵循各自的许可证。
+
+## 不含真机的运行验证
+
+全部 6 种服务端 SDK 均提供显式配置的共享 Redis 防重放适配器。
+Spring Boot 默认采用 **4.1.1 / Java 17**。显式 `legacy-boot3.5` 源码配置仅用于
+兼容性检查，不属于持续维护的生产基线。
+
+Python 新增 [Apple 注册及回执的原子存储](docs/security/apple-enrollment.md)、
+[assertion 与计数器](docs/security/apple-lifecycle.md)、
+[CMS 回执验证/刷新](docs/security/apple-receipts.md)，以及显式的
+[Google 服务账号令牌提供器](docs/security/google-provider.md)。
+可选的直接 TLS 服务及回执解析器在应用环境中安装：
+
+```sh
+python3 -m pip install "$APPGUARD_REPO/sdk/python[server,apple,redis]"
+```
+
+参阅 [TLS 接入指南及可执行示例](docs/deployment/python-ingress.md)。
+用同一个**全新、可丢弃的本地 Redis**运行两组服务端验证命令后，执行
+`uv run --frozen --project sdk/python python scripts/check_cross_sdk_replay.py --extended`，
+检查 6 种 SDK 的共享防重放命名空间。故障、强制退出、容量及负载验证器自行创建 Redis，
+不接收外部 Redis URL。[命令、证据及运行限制](docs/development/nondevice-readiness.md)。
+
+[候选源码/SBOM/校验和/漏洞/秘密信息/许可证自动化](docs/development/release-readiness.md)
+准备未发布的源码候选。通过自动检查后，仍需许可证审查、独立安全审计、实际提供方/账号联调、
+部署环境验证及维护者发布批准。真机验证保持待办，不属于本次范围。
+这不是已完成外部审计的生产版本。

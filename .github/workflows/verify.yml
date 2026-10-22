@@ -64,7 +64,18 @@ jobs:
     name: Go race/vet, .NET and PHP
     runs-on: ubuntu-24.04
     timeout-minutes: 20
+    services:
+      redis:
+        image: redis:7.2.10
+        ports:
+          - 127.0.0.1:6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
     env:
+      APPGUARD_TEST_REDIS_URL: redis://127.0.0.1:6379/0
       DOTNET_GENERATE_ASPNET_CERTIFICATE: 'false'
       DOTNET_CLI_TELEMETRY_OPTOUT: '1'
       DOTNET_SKIP_FIRST_TIME_EXPERIENCE: '1'
@@ -72,6 +83,13 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.11'
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        with:
+          version: 0.13.3
+          enable-cache: false
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: 1.27.3
@@ -86,13 +104,91 @@ jobs:
       - uses: shivammathur/setup-php@eb7c497e18156a6bbabfef1d3a82760b9eda3962 # 2.40.0
         with:
           php-version: 8.5.11
-          extensions: openssl, phar, iconv
+          extensions: openssl, phar, iconv, redis-6.3.0
           tools: composer:2.10.3
           coverage: none
+        env:
+          fail-fast: true
+      - name: Disable persistence on the fresh extended test Redis
+        env:
+          REDIS_CONTAINER: ${{ job.services.redis.id }}
+        run: |
+          docker exec "$REDIS_CONTAINER" redis-cli CONFIG SET save ""
+          docker exec "$REDIS_CONTAINER" redis-cli CONFIG SET appendonly no
       - name: Runner lifecycle and failure propagation
-        run: python3 .github/tests/test_extended_runner.py -v
+        run: |
+          python3 .github/tests/test_extended_runner.py -v
+          python3 .github/tests/test_verify_workflow.py -v
       - name: Frozen dependency verification and SDK suites
         run: bash scripts/test-extended-server-sdks.sh
+
+      - name: Actual pinned ext-redis independent-process integration
+        run: |
+          redis_module="$(php -n -r 'echo ini_get("extension_dir"), "/redis.", PHP_SHLIB_SUFFIX;')"
+          [[ "$redis_module" = /* && -f "$redis_module" && -r "$redis_module" ]] || { echo 'Expected readable redis module in absolute PHP extension_dir' >&2; exit 1; }
+          php -n -d "extension=$redis_module" -r 'exit(phpversion("redis") === "6.3.0" ? 0 : 1);'
+          python3 sdk/php/tests/redis_integration.py php -n -d "extension=$redis_module"
+          printf 'APPGUARD_PHP_REDIS_EXTENSION=%s\n' "$redis_module" >> "$GITHUB_ENV"
+      - name: Frozen Python dependencies and cross-language extended replay
+        run: |
+          uv sync --locked --project sdk/python
+          uv run --frozen --project sdk/python python scripts/check_cross_sdk_replay.py --extended-only
+
+  operational-qualification:
+    name: Owned Redis resilience and bounded adversarial qualification
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.11'
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        with:
+          version: 0.13.3
+          enable-cache: false
+      - name: Frozen qualification dependencies
+        run: uv sync --locked --project sdk/python
+      - name: Build owned Redis 7.2.10 from checksum-pinned source
+        run: |
+          redis_state="$(mktemp -d "$RUNNER_TEMP/appguard-redis-source.XXXXXX")"
+          trap 'rm -rf -- "$redis_state"' EXIT
+          redis_archive="$redis_state/redis-7.2.10.tar.gz"
+          curl --fail --silent --show-error --location --proto '=https' --tlsv1.2 --output "$redis_archive" https://download.redis.io/releases/redis-7.2.10.tar.gz
+          python3 - "$redis_archive" <<'PYTHON'
+          import hashlib, pathlib, sys
+          expected = 'e576ad54bc53770649c556933ecd555b975e3dac422e46356102436a437b43c7'
+          if hashlib.sha256(pathlib.Path(sys.argv[1]).read_bytes()).hexdigest() != expected:
+              sys.exit('Redis source checksum mismatch')
+          PYTHON
+          tar -xzf "$redis_archive" -C "$redis_state"
+          make -C "$redis_state/redis-7.2.10" -j2 MALLOC=libc redis-server
+          owned_runtime="$RUNNER_TEMP/appguard-redis-owned"
+          mkdir "$owned_runtime"
+          install -m 755 "$redis_state/redis-7.2.10/src/redis-server" "$owned_runtime/redis-server"
+          printf 'APPGUARD_REDIS_SERVER=%s/redis-server\n' "$owned_runtime" >> "$GITHUB_ENV"
+      - name: Qualification regressions and release tooling safety
+        run: |
+          uv run --frozen --project sdk/python python .github/tests/test_replay_qualification.py -v
+          uv run --frozen --project sdk/python python .github/tests/test_adversarial_qualification.py -v
+          python3 -m unittest discover -s scripts/release/tests -v
+          python3 .github/tests/test_verify_workflow.py -v
+      - name: Bounded owned replay load and adversarial mutation evidence
+        run: |
+          uv run --frozen --project sdk/python python scripts/qualification/replay_resilience.py --redis-server "$APPGUARD_REDIS_SERVER" --iterations 1000 --concurrency 16 > "$RUNNER_TEMP/appguard-replay-qualification.json"
+          uv run --frozen --project sdk/python python scripts/qualification/adversarial_profile.py --iterations 10000 > "$RUNNER_TEMP/appguard-adversarial-qualification.json"
+      - name: Retain synthetic qualification evidence
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: operational-qualification-${{ github.sha }}
+          path: |
+            ${{ runner.temp }}/appguard-replay-qualification.json
+            ${{ runner.temp }}/appguard-adversarial-qualification.json
+          if-no-files-found: warn
+          retention-days: 7
 
   javascript-clients:
     name: CLI and Expo TypeScript/package checks

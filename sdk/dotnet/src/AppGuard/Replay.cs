@@ -10,7 +10,7 @@ public sealed record ReplayScope
         try{Validation.Identifier(appId);Validation.Identifier(keyId);Validation.Nonce(nonce);}catch(AppGuardException){throw new AppGuardException("REPLAY_STORE_UNAVAILABLE");}
         AppId=appId;KeyId=keyId;Nonce=nonce;
     }
-    /// <summary>The portable compact-JSON SHA256 key; no Redis backend is supplied by this package.</summary>
+    /// <summary>The portable compact-JSON SHA256 key shared by the server SDKs.</summary>
     public string StorageKey=>"appguard:v0:replay:"+Convert.ToHexStringLower(SHA256.HashData(Encoding.UTF8.GetBytes(JsonSerializer.Serialize(new[]{AppId,KeyId,Nonce}))));
 }
 /// <summary>Implement atomic single-winner claims for the whole deployment. Errors must throw; never fail open.</summary>

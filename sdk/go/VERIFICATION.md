@@ -129,3 +129,42 @@ redacted audit callback errors/panics.
 
 
 Parent integration completed: fresh Android1+Apple8 public fixtures verified with replay/body/target/token mutations rejected; full extended runner passed. One fresh whole-stage review and exact remaining/deferred limits are recorded in [extended verification](../../docs/security/extended-server-verification.md).
+
+## 2026-10-22 opt-in Redis adapter follow-up
+
+The earlier no-third-party/no-Redis statements describe the original receipt.
+This follow-up adds `redis.go`, deterministic and disposable integration tests,
+and `tools/claim-redis`. `go.mod`/`go.sum` pin go-redis v9.23.0 (plus xxhash v2.3.0,
+atomic v1.12.0 and x/sys v0.48.0 indirect dependencies). No production RESP parser
+or automatically selected backend is included.
+
+Fresh checks used the existing task-local Go 1.27.3 binary, `GOTOOLCHAIN=local`,
+`GOWORK=off`, and task-specific `/tmp/appguard-go-redis-{cache,path}`. The parent
+started and owned a new disposable Redis on numeric loopback, DB1; its receipt
+is `.superpowers/sdd/2026-10-22-nondevice-production-readiness/redis-shared/owner.json`.
+Tests used only that explicitly supplied URL and random scope keys. No `FLUSH`,
+Redis configuration mutation, external database, or hosted deployment was used.
+
+- `go test -count=1 -json ./...`: exit 0, 317 test/subtest pass events, no failed
+  tests. Both live Redis tests passed; the CLI package has no standalone tests.
+- `go test -race -count=1 -json ./...`: exit 0, same 317 pass events, no races.
+- `go vet ./...` and `go build ./...`: exit 0, no diagnostics.
+- Canonical known hash parity, exact `SET key 1 NX EX ttl`, fixed errors without
+  wrapped causes, malformed scope/noncanonical nonce/time bounds, nil/typed-nil
+  client, backend panic/invalid response, pre/post cancellation and an owned
+  stalled `net.Pipe` connection timeout all passed.
+- Two independent real Redis clients competed over 32 simultaneous claims: exactly
+  one accepted; value `1` and bounded relative TTL were read back. Duplicate
+  rejection, one-second expiry/reclaim, client usability after claims, host-owned
+  close, and isolation after another client's close passed.
+
+The context timeout test exercises the maintained client's handshake I/O on an
+owned stalled transport. It does not prove cancellation of arbitrary application
+callbacks or delivery on a failed socket. A deadline/connection fault can leave an
+already committed claim; no retry, fallback or undo is performed by the adapter.
+Host client configuration must disable command retries and set finite network
+bounds plus `ContextTimeoutEnabled`; constructor injection does not alter it.
+
+Shared-host, hosted TLS, ACL, persistence/replication/failover, no-live-key-eviction,
+restart recovery and deployment capacity remain host operational gates. This
+receipt establishes local disposable-backend behavior, not production deployment.

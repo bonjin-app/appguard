@@ -1,5 +1,10 @@
 # Provider implementation verification
 
+Historical initial provider-adapter evidence,2026-10-20.
+For the subsequent assertion/receipt/OAuth/atomic enrollment implementation, see
+[non-device qualification](../development/nondevice-readiness.md). Counts, gaps and
+review findings below describe that original stage, not the current support matrix.
+
 Experimental local provider adapters,2026-10-20. These are optional Python
 EnrollmentService backends; other server languages still need their own trusted
 provider integration. They do not replace user authentication or authorization.

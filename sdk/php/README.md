@@ -54,7 +54,7 @@ HTTPS is required by default from a trusted transport indication; forwarded head
 
 `CallbackReplayStore` can wrap an existing atomic callback; it validates the scope/deadline, requires an exact boolean result and redacts failures. Atomicity of the injected backend remains the caller's responsibility.
 
-Implement `ReplayStore::claim(array $scope, mixed $expires, mixed $now): mixed` using an atomic backend for production; remaining TTL must be 1..150 seconds. Follow `protocol/http-v0.md` for the shared compact-JSON SHA-256 replay key and one `SET ... NX EX` command if using Redis. No Redis adapter or distributed-store guarantee is supplied or tested here.
+Implement `ReplayStore::claim(array $scope, mixed $expires, mixed $now): mixed` using an atomic backend for production; remaining TTL must be 1..150 seconds. Follow `protocol/http-v0.md` for the shared compact-JSON SHA-256 replay key and one `SET ... NX EX` command if using Redis. The optional `RedisReplayStore` below implements that contract. Backend persistence, eviction policy and failover remain deployment responsibilities.
 
 ## Policy and audit
 
@@ -65,3 +65,30 @@ Readonly policy/context/decision objects copy bounded signals. `Audit::event` co
 ## Verification
 
 Run `php -n tests/run-all.php` (with Python 3 for the loopback test harness) from this package in the repository. The suite loads all 40 request, 43 wire and 42 policy vectors and adds independent OpenSSL-generated signatures, strict DER/scalar/curve checks, resource/type/identity/replay errors, policy/audit redaction, exact-byte stream capture and native adapter integration. See `VERIFICATION.md` for the executed runtime, commands and evidence limits.
+
+
+## Optional shared Redis replay store
+
+The package keeps Redis optional. Install maintained [phpredis](https://github.com/phpredis/phpredis) (`ext-redis`, suggested by Composer) in the application runtime. Supply an already configured, connected `Redis` object:
+
+```php
+use AppGuard\{RedisReplayStore, ExtRedisCommandClient};
+
+// $redis is host-owned: configure TLS/auth/DB and finite connect/read timeouts first.
+$redis->setOption(\Redis::OPT_REPLY_LITERAL, true); // Required: preserve OK versus QUEUED.
+$replay = new RedisReplayStore(new ExtRedisCommandClient($redis));
+// Pass $replay to Verifier or HttpAdapter as the required replay store.
+```
+
+The SDK never connects, discovers credentials, selects a DB, changes Redis options, or installs a fallback. `RedisReplayStore::key($scope)` produces the shared compact-JSON SHA-256 key. Each valid claim issues exactly `SET key 1 NX EX ttl`, with TTL 1..150 seconds. The phpredis bridge uses `rawCommand` so client serializers, compression and prefixes cannot rewrite the protocol key/value; it rejects transaction/pipeline mode on every call. The host must enable `Redis::OPT_REPLY_LITERAL=true`; the bridge checks this setting before each command and accepts only the literal `'OK'` success, with `false`/`null` representing nil conflicts. phpredis's default boolean status conversion cannot distinguish `OK` from `QUEUED`, so default mode fails before issuing a claim. A queued response is never accepted, including transactions started through `rawCommand('MULTI')` that bypass phpredis's local mode tracking. Backend errors expose only fixed `REPLAY_STORE_UNAVAILABLE` failures without a previous exception. Other configured clients can implement `RedisCommandClient::execute(array $command): mixed`, returning exactly `'OK'` or `null`; unexpected results fail closed.
+
+Use a dedicated connection; do not share it with application transactions/pipelines. Configure finite synchronous connection/read timeouts in the host. Provision no eviction of live claims and persistence/failover consistent with your replay guarantees. A Redis restart, eviction or asynchronous replication loss can lose claims; the SDK cannot establish those operational guarantees.
+
+Run the separate integration harness only against a new **owned disposable** Redis URL, never a production database. It uses random scoped keys, deletes only its own keys, and makes no FLUSH or server configuration changes:
+
+```sh
+# Supply APPGUARD_TEST_REDIS_URL in the environment (redis:// or rediss://).
+python3 tests/redis_integration.py /absolute/path/php -n -d extension=/absolute/path/redis.so
+```
+
+This fails if the extension or server is unavailable; it is not silently skipped by the unit suite. The harness covers eight independent simultaneous clients, one winner, cross-process rejection, exact canonical storage/TTL, expiry, literal responses/prefix bypass, default nonliteral-mode denial without mutation, raw-MULTI/QUEUED rejection, pipeline, backend errors and unconnected-client denial. The harness and cross-language probe explicitly enable literal replies as host configuration. For cross-language probes, use the same explicit PHP options with `tests/redis_live.php cross APP_ID KEY_ID NONCE`; stdout is only `CLAIMED` or `REPLAY`, with a fixed error on stderr. Probe TTL defaults to 30 seconds; the shared harness may pass explicit `NOW EXPIRES` arguments.

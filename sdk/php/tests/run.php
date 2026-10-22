@@ -28,5 +28,6 @@ $rows=vectors('policy');eq(count($rows),42,'policy corpus count');
 $localRisk=vectors('local-risk-policy');eq(count($localRisk),24,'local risk policy corpus count');
 foreach(array_merge($rows,$localRisk) as $v){eq(get_object_vars(PolicyEngine::evaluate(new Policy(...$v['policy']),new PolicyContext(...$v['context']),$v['now'])),$v['expected'],'policy '.$v['id']);}
 require __DIR__.'/security.php';
+require __DIR__.'/redis.php';
 $count+=require __DIR__.'/error_status.php';
 echo "PASS: 40 request, 43 HTTP, 42 baseline+24 local-risk policy vectors; $count assertions\n";

@@ -27,7 +27,7 @@ export APPGUARD_PACKAGES="$(mktemp -d)"
 
 | コンポーネント | 要件 | インストールガイド |
 | --- | --- | --- |
-| Spring Boot | Java 17、Maven、Boot 3.5 Servlet/MVC | [Starter](#install-spring) |
+| Spring Boot | Java 17、Maven、Boot 4.1.1 Servlet/MVC | [Starter](#install-spring) |
 | Python | Python 3.11+、FastAPI、Django ASGI、または ASGI 経由の Flask | [Python SDK](#install-python) |
 | Node.js | Node 22+、ESM、Express、Fastify、または NestJS/Express | [Node SDK](#install-node) |
 | ASP.NET Core | .NET SDK 10.0.402 / ASP.NET Core 10 | [.NET SDK](#install-dotnet) |
@@ -250,20 +250,20 @@ CLI は Android R8、Expo export、Flutter Android APK の難読化、明示的�
 | コンポーネント | 状況 |
 | --- | --- |
 | ドラフトプロトコルと Python リファレンス | 実装済み、ローカルでテスト済み、本番利用の準備は未完了 |
-| [Spring Boot 3.5 / Java 17](sdk/spring-boot/README.md) | 実験段階の Starter、MVC フィルター、Redis アダプター |
+| [Spring Boot 4.1.1 / Java 17](sdk/spring-boot/README.md) | 実験段階の Starter、MVC フィルター、Redis アダプター |
 | [Python 3.11+](sdk/python/README.md) | 実験段階の ASGI 検証器。FastAPI、Django ASGI、WsgiToAsgi 経由の Flask に対応 |
 | [Node.js 22+](sdk/node/README.md) | 実験段階のネイティブ検証器。Express、Fastify、NestJS、Redis アダプターに対応 |
 | [Android Java/Kotlin](sdk/android/README.md) | ネイティブ署名器、Keystore、登録時の証明。AAR／JVM テスト／API35 エミュレーターで確認済み |
 | [Apple Swift/iOS](sdk/apple/README.md) | ネイティブ署名器、Security 鍵アダプター、登録時の証明、App Attest 取得ラッパー。ホスト上のテスト／未署名の Simulator ビルドを実施済み |
 | [Unity UPM](sdk/unity/README.md) | 型付き JNI/C ABI パッケージと非同期ローカルリスク API。[138 件の EditMode テスト](sdk/unity/STRICT_JSON_VERIFICATION.md)、[Android Release と iOS Simulator の IL2CPP ランタイム確認](sdk/unity/PLAYER_RUNTIME_VERIFICATION.md)、未署名の iOS 実機用 Release ビルドを実施済み。実機での動作確認は未完了 |
-| [Expo / React Native](sdk/expo/README.md) | Expo58 非同期ネイティブモジュール。61 件のテスト、44 ファイルの再配置、パッケージ化した Android と未署名 arm64 Simulator の CocoaPods コンパイルを確認済み。エンジン／実機での動作確認は未完了 |
+| [Expo / React Native](sdk/expo/README.md) | Expo58 非同期ネイティブモジュール。61 件のテスト、40 ファイルの再配置、パッケージ化した Android と未署名 arm64 Simulator の CocoaPods コンパイルを確認済み。エンジン／実機での動作確認は未完了 |
 | [Flutter](sdk/flutter/README.md) | 非同期プラットフォームチャネルのローカルリスク API。64 件のテスト、バックグラウンドキュー／ネイティブアダプターの確認、Simulator ライブラリのコンパイルを実施済み。エンジン／実機での動作確認は未完了 |
-| [ASP.NET Core](sdk/dotnet/README.md) | 実験段階の厳密な検証器／ミドルウェア。元のヘッダーを提供する機能が必須。175 件のテストと分離した NuGet 利用側プロジェクトで確認済み |
+| [ASP.NET Core](sdk/dotnet/README.md) | 実験段階の厳密な検証器／ミドルウェア。元のヘッダーを提供する機能が必須。238 件のテストと分離した NuGet 利用側プロジェクトで確認済み |
 | [Go net/http](sdk/go/README.md) | 実験段階の検証器／ミドルウェア。race/vet と分離した利用側プロジェクトで確認済み。信頼できる解析前の情報が必須 |
-| [PHP](sdk/php/README.md) | 実験段階の検証器／明示的な受信アダプター。514 件のアサーションと 5 件の生のループバックリクエストで確認済み。Laravel/Symfony との連携は未確認 |
+| [PHP](sdk/php/README.md) | 実験段階の検証器／明示的な受信アダプター。649 件のアサーションと 5 件の生のループバックリクエストで確認済み。Laravel/Symfony との連携は未確認 |
 | Redis を共有したリプレイ防止の記録 | 実装済み。デプロイ環境の永続性／エビクション保証は運用者の責任 |
 | [登録／ポリシー／監査](docs/security/enrollment-policy.md) | Python SQLite のチャレンジ／証明／鍵と、主体全体の失効。サーバー側の全 6 言語で決定的な 42 ケースのプリセットと、許可リストに基づく監査出力を検証済み |
-| [Apple/Google プロバイダー検証](docs/security/provider-verification.md) | 実験段階の Python バックエンド。223 件のオフラインプロバイダーテストと Android 取得モジュール。現在の実機／アカウントを使った真正な検証は未完了。Apple のライフサイクル対応は未完了 |
+| [Apple/Google プロバイダー検証](docs/security/provider-verification.md) | 実験段階の Python 検証、明示的 OAuth 更新、Apple assertion と検証済みレシートのアトミック登録。[詳細](docs/security/apple-enrollment.md)。実機／アカウント検証は未完了 |
 | [Build / CLI](tools/cli/README.md) | Android R8 のセットアップ／ビルド、Flutter 難読化／Expo 圧縮コマンド、暗号化済みマッピングのアーカイブ／検証／復元。ローカル前提条件／CI チェック、厳密な UTF-8 保持、分離環境での実際の Android リリースビルドを確認済み |
 | [ローカルの root 化／フック／脱獄の兆候](protocol/local-risk-v0.md) | 実験段階の Android/iOS 型付きスキャナー。ホスト上のテストとプラットフォームビルドを実施済み。root 化／フック済み実機での有効性は未検証 |
 | 任意のコンソール／AI | 計画段階、未実装。コアはどちらもなしで動作 |
@@ -323,3 +323,31 @@ Python コアのエントリーポイントは `appguard.verify.verify_request` 
 [CONTRIBUTING.md](CONTRIBUTING.md)、[SECURITY.md](SECURITY.md)、[脅威モデル](docs/security/threat-model.md)、[ドラフトプロトコル](protocol/request-v0.md)をお読みください。Issue、フィクスチャ、ログに本物のシークレットや本番の鍵データを公開しないでください。
 
 プロジェクトで作成したコードとドキュメントには [Apache-2.0](LICENSE) ライセンスが適用されます。依存関係とサードパーティのライセンスは、それぞれのものが適用されます。
+
+## 実機を除く運用検証
+
+6 種類すべてのサーバー SDK が、明示的に設定する共有 Redis リプレイ防止アダプターを提供します。
+Spring Boot の標準は **4.1.1 / Java 17** です。明示的な `legacy-boot3.5` ソース
+プロファイルは互換性検査用であり、保守対象の本番標準環境ではありません。
+
+Python には [Apple 登録とレシートのアトミック保存](docs/security/apple-enrollment.md)、
+[assertion とカウンター](docs/security/apple-lifecycle.md)、
+[CMS レシートの検証／更新](docs/security/apple-receipts.md)、明示的な
+[Google サービスアカウントのトークン供給](docs/security/google-provider.md)を追加しました。
+任意の直接 TLS サーバーとレシートパーサーはアプリケーション環境でインストールします。
+
+```sh
+python3 -m pip install "$APPGUARD_REPO/sdk/python[server,apple,redis]"
+```
+
+[TLS ガイドと実行例](docs/deployment/python-ingress.md)を参照してください。
+2 種類のサーバー検証コマンドを同じ**新しい使い捨てローカル Redis**で実行した後、
+`uv run --frozen --project sdk/python python scripts/check_cross_sdk_replay.py --extended`で
+6 SDK 共通のリプレイ名前空間を検査できます。障害、強制終了、容量、負荷の検証器は
+自身の Redis を作成し、外部 Redis URL を受け取りません。
+[コマンド、証拠、運用上の制限](docs/development/nondevice-readiness.md)。
+
+[候補ソース／SBOM／チェックサム／脆弱性／秘密情報／ライセンスの自動化](docs/development/release-readiness.md)は
+未公開のソース候補を準備します。自動検査の成功後も、ライセンスレビュー、独立監査、
+実際のプロバイダー／アカウント連携、デプロイ検証、保守者のリリース承認が必要です。
+実機検証は保留中で今回の対象外です。外部監査済みの本番リリースではありません。
