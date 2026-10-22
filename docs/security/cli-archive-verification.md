@@ -70,3 +70,51 @@ Raw logs, the local package, source/file hashes and independent review receipt
 are retained under `.superpowers/evidence/2026-10-21-vault-verify/` on local main.
 These results do not establish production, provider, device, hosted CI, public
 registry or Windows runtime behavior. Other SDKs and protocols are unchanged.
+
+## Local verification and review
+
+Reviewed runtime/package source:
+`4de896e9135a44bfb68e9a31f67af2bbbc2d73eb`, Node 22.23.2 on macOS
+as local user 501.
+
+- Baseline whole CLI suite: 32 passed, one Windows-only skip. Selected RED tests
+  before implementation: 11 cases, seven expected assertion failures and four
+  existing passes. Nested validation cases are not counted as individually
+  executed RED failures before the missing API was implemented.
+- Final whole suite: 75 leaf cases, 74 passed, zero failed, one Windows-only skip.
+  The TAP summary also counts four successful parent containers (79 total events,
+  78 pass); these containers are excluded from the leaf count. Parent and reviewer
+  freshly reran the whole suite. `git diff --check` passed.
+- Offline, lifecycle-scripts-disabled local npm pack/install: all 10 file bytes
+  and modes match committed source, tarball and installed copy. Archive SHA-256:
+  `b2474d936ec576861195ba9f324401c9d1559f38dea08eb4b71befa7034581b8`.
+  Eight installed subprocess probes passed, including a synthetic v0 archive
+  created by previous main `f43f872f7fe1119f33e12bf68e423791f60cd7be`.
+- Independent security review found no blocking findings. The reviewer freshly
+  reran source and installed probes, plus eight independently written installed
+  boundary cases. All passed; a targeted rollback rerun is a subset of those
+  eight. The base archive also restored byte-for-byte. Checks included 1000 empty
+  files, 1001-file rejection, binary/empty restore and private modes, late invalid
+  entries, filesystem guards, existing destinations and post-first-write cleanup.
+
+These test tiers overlap; parent containers, repeated executions and consumer
+probes are not added into one distinct-case total. Review inspected baseline/RED
+records without rerunning them, and rehashed the existing package rather than
+packing/installing another copy. Buffer clearing was reviewed in control flow,
+not established through memory forensics. Large decoded/payload limit arithmetic
+was inspected without allocating full 64/96 MiB boundary fixtures; an oversized
+sparse archive rejection was exercised.
+
+Two initial independent review-fixture attempts failed because of filesystem
+assumptions: this volume accepted a Unicode filename that the fixture expected
+to reject, and restore destination create/remove legitimately changes its
+parent's directory timestamps. Direct host probes established the actual path
+limit; corrected rollback assertions check retained entries/bytes/modes while
+allowing parent timestamp changes. Both failed logs, probe versions and the final
+passing results are retained. Neither required a production change.
+
+The final verification-record commit only changes this root security document;
+reviewed CLI source and package remain unchanged. No real platform build,
+provider/device validation, remote CI, publication, deployment or global Codex
+configuration operation was performed. Other SDK runtime suites were not repeated
+for this CLI-only stage.
