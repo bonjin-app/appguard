@@ -8,6 +8,7 @@ fixed checks, counts, identifiers and hashes enter the retained receipt.
 import argparse
 from contextlib import contextmanager
 from datetime import datetime, timezone
+import errno
 import hashlib
 import importlib.util
 import json
@@ -106,6 +107,29 @@ def cancellation_scope():
         signal.signal(signal.SIGTERM, previous)
 
 
+def wait_for_group_absence(child):
+    """A permission error is benign only after the reaped child's group is gone."""
+    if child.poll() is None:
+        return False
+    deadline = time.monotonic() + .25
+    while True:
+        try:
+            os.killpg(child.pid, 0)
+        except ProcessLookupError:
+            return True
+        except PermissionError as error:
+            if error.errno != errno.EPERM:
+                raise
+            # Darwin can report EPERM for a zombie-only group after TERM.
+            # It is not proof of exit: require a subsequent ESRCH instead.
+            # Apple xnu/bsd/kern/kern_sig.c, killpg1(), skips SZOMB members:
+            # https://github.com/apple-oss-distributions/xnu/blob/main/bsd/kern/kern_sig.c
+            pass
+        if time.monotonic() >= deadline:
+            return False
+        time.sleep(.01)
+
+
 def bounded_command(command, *, timeout=30, limit=2097152, env=None, cwd=None):
     """Bound output, elapsed time and retained memory for every CLI command."""
     require(0 < timeout <= 1200 and 0 < limit <= 8388608)
@@ -139,6 +163,9 @@ def bounded_command(command, *, timeout=30, limit=2097152, env=None, cwd=None):
                     os.killpg(child.pid, action)
                 except ProcessLookupError:
                     pass
+                except PermissionError as error:
+                    if error.errno != errno.EPERM or not wait_for_group_absence(child):
+                        raise
                 try:
                     child.wait(timeout=2)
                 except subprocess.TimeoutExpired:

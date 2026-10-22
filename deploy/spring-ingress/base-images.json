@@ -4,17 +4,17 @@
   "verification": "Registry index response digest header and SHA-256 of exact bytes matched. Linux amd64/arm64 child manifest and OCI config blob SHA-256 values matched their descriptors; declared versions were read from those hash-bound configs. Metadata is not runtime execution, native dependency closure or vulnerability approval.",
   "images": [
     {
-      "image": "docker.io/library/python:3.11.17-slim-trixie@sha256:cce12316475d7d56d605f76e1d811d0dc4e7227f2d4afd29951521264f504ff8",
-      "registry_url": "https://registry-1.docker.io/v2/library/python/manifests/3.11.17-slim-trixie",
+      "image": "docker.io/library/python:3.11.17-alpine3.24@sha256:03c8e956bf1eee7763faf3a9fbb24b3ff9c0496cc2dbc5bcb0d6ac1f6268a287",
+      "registry_url": "https://registry-1.docker.io/v2/library/python/manifests/3.11.17-alpine3.24",
       "official_image": "https://hub.docker.com/_/python",
-      "manifest_sha256": "cce12316475d7d56d605f76e1d811d0dc4e7227f2d4afd29951521264f504ff8",
+      "manifest_sha256": "03c8e956bf1eee7763faf3a9fbb24b3ff9c0496cc2dbc5bcb0d6ac1f6268a287",
       "platform_manifests": {
-        "amd64": "sha256:b95327ce1439e687237841b0210677aeadd62d55a060a5f6bcb9c15bf6251dd3",
-        "arm64": "sha256:a03d3aeb81ae3061d2e23874bf1a8ed418e919dcfe89f2ad4167bd58de639573"
+        "amd64": "sha256:aa6a96bb556a9088ad5d8d600b07b64a1255f9c8b0ebe769231d312b63596e51",
+        "arm64": "sha256:5637082443bdaba42831fe0afe466b55f372c0cb3405d2e3ea822e319648ab0b"
       },
       "platform_configs": {
-        "amd64": "sha256:b4403f3b7acf5e0700a5dd4e7ab01456d62b557a208a04f8a42d3470d93b5730",
-        "arm64": "sha256:ce943473dc7b8943c49a44fd574e31dea7863b079e818198b63b8917f7abee0d"
+        "amd64": "sha256:55eb24f99e3b25262b714057f7128c459f7144b39064fd268edf499f4e596a92",
+        "arm64": "sha256:a54c0c924fef46927f12bdb56f19f09be78b94461bd99347d7e4756d041e82f0"
       },
       "platform_declared_versions": {
         "amd64": {

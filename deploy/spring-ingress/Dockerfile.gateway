@@ -1,12 +1,12 @@
-FROM python:3.11.17-slim-trixie@sha256:cce12316475d7d56d605f76e1d811d0dc4e7227f2d4afd29951521264f504ff8 AS build
+FROM python:3.11.17-alpine3.24@sha256:03c8e956bf1eee7763faf3a9fbb24b3ff9c0496cc2dbc5bcb0d6ac1f6268a287 AS build
 WORKDIR /opt/appguard
 COPY deploy/spring-ingress/uv.requirements.txt /tmp/uv.requirements.txt
 RUN python -m pip install --no-cache-dir --disable-pip-version-check --no-deps --require-hashes -r /tmp/uv.requirements.txt
 COPY sdk/python/ ./
-RUN UV_LINK_MODE=copy uv sync --locked --no-dev --extra server --extra redis --no-install-project --python /usr/local/bin/python
+RUN UV_LINK_MODE=copy uv sync --locked --no-build --no-dev --extra server --extra redis --no-install-project --python /usr/local/bin/python
 RUN .venv/bin/python -I -c 'import importlib.metadata as m,json; from pathlib import Path; pairs=[(d.metadata["Name"].lower().replace("_","-"),d.version) for d in m.distributions()]; inventory=dict(pairs); assert len(inventory)==len(pairs); Path("runtime-inventory.json").write_text(json.dumps(inventory,sort_keys=True))'
 
-FROM python:3.11.17-slim-trixie@sha256:cce12316475d7d56d605f76e1d811d0dc4e7227f2d4afd29951521264f504ff8
+FROM python:3.11.17-alpine3.24@sha256:03c8e956bf1eee7763faf3a9fbb24b3ff9c0496cc2dbc5bcb0d6ac1f6268a287
 RUN PYTHONDONTWRITEBYTECODE=1 /usr/local/bin/python -m pip uninstall --yes setuptools wheel pip \
     && rm -rf /usr/local/lib/python3.11/ensurepip \
     && /usr/local/bin/python -I -c 'import importlib.util; assert all(importlib.util.find_spec(name) is None for name in ("pip","setuptools","wheel","ensurepip"))'

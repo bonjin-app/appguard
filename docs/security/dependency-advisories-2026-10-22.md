@@ -183,8 +183,10 @@ bundled CA store. The official fix removes that root. CI and the container's
 private build stage now pin 0.13.4, with official PyPI wheel hashes. uv is not
 copied into the final gateway image. Historical verification records retain
 the version actually used; they are not evidence for the corrected build.
-A fresh source/image scan is required to verify remediation, and the two
-unfixed Expo tool findings remain separate. No finding is suppressed.
+The [fresh source scan](https://github.com/bonjin-app/appguard/actions/runs/39761540771)
+no longer reported the uv finding and still failed on the two unfixed Expo
+tool findings. This remediation does not resolve those separate advisories.
+No finding is suppressed.
 
 ## Native runtime and build baseline
 
@@ -205,5 +207,18 @@ CI also pins that exact Java build and the Redis service image digest, and
 verifies the Redis 7.2.16 source archive SHA256
 `960a8ec15e34ff40e57ff16837b26b33bd81f2da6d24497bb63de532a323a18e`
 against the [official Redis hash registry](https://github.com/redis/redis-hashes).
-Rebuilds, actual operating tests and fresh image scans are required; updated
-versions alone do not establish zero findings or complete native coverage.
+The [Trixie/Noble image run](https://github.com/bonjin-app/appguard/actions/runs/39763656167)
+passed all 12 operating checks, actual executable-version and Python inventory
+readbacks, and owned-resource cleanup. Its exact-image scan cataloged all three
+required OS inventories and expected gateway/backend application packages. It
+reported 164 gateway records (44 HIGH, no CRITICAL), 31 backend records (MEDIUM
+and LOW), and zero Redis OS-package records; no finding listed a fixed version.
+This remains a failed vulnerability gate. Source-built native Redis/JVM closure
+is incomplete, so zero Redis OS-package findings do not certify the Redis binary.
+
+The gateway profile now uses the official Python 3.11.17 Alpine 3.24 image to
+reduce unrelated operating-system packages. Both supported architecture
+manifests/configs and required locked musl wheels were checked; that metadata
+does not substitute for the subsequent actual build, operating and image scan.
+The Noble backend remains unchanged. Updated versions or smaller images alone
+do not establish zero findings or complete native coverage.

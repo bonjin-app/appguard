@@ -97,6 +97,40 @@ class ContainerQualificationTests(unittest.TestCase):
     def setUp(self):
         self.module = load_module()
 
+    def test_gateway_alpine_pin_and_binary_wheels_cover_both_linux_architectures(self):
+        import tomllib
+        metadata = json.loads((ROOT / 'deploy/spring-ingress/base-images.json').read_text())
+        python = next(image for image in metadata['images'] if '/python:' in image['image'])
+        self.assertIn(':3.11.17-alpine3.24@sha256:',python['image'])
+        dockerfile = (ROOT / 'deploy/spring-ingress/Dockerfile.gateway').read_text()
+        self.assertEqual([line.split()[1] for line in dockerfile.splitlines() if line.startswith('FROM ')],
+            [python['image'].removeprefix('docker.io/library/')] * 2)
+        self.assertIn('uv sync --locked --no-build --no-dev --extra server --extra redis --no-install-project',dockerfile)
+        hashes = (ROOT / 'deploy/spring-ingress/uv.requirements.txt').read_text()
+        for digest in ('e90ab42825587821096cb0d071e387468da38cfa22818c91f9c0b3c0453048e8',
+                '52b5c753a7c2d5f8323a70bb4c93118988356331d0758afa6446c81f974e7196'):
+            self.assertIn('--hash=sha256:'+digest,hashes)
+        packages = {package['name']:package for package in tomllib.loads((ROOT / 'sdk/python/uv.lock').read_text())['package']}
+        root = packages['appguard-server']
+        pending = [entry['name'] for entry in root['dependencies']]
+        for extra in ('server','redis'):
+            pending.extend(entry['name'] for entry in root['optional-dependencies'][extra])
+        visited = set()
+        while pending:
+            name = pending.pop()
+            if name in visited:
+                continue
+            visited.add(name)
+            package = packages[name]
+            pending.extend(entry['name'] for entry in package.get('dependencies',[]))
+            for architecture in ('x86_64','aarch64'):
+                wheels = [wheel['url'].rsplit('/',1)[-1] for wheel in package['wheels']]
+                compatible = any(wheel.endswith('-none-any.whl') or
+                    ('musllinux_1_2_'+architecture+'.whl' in wheel and
+                        ('-cp311-' in wheel or '-cp39-abi3-' in wheel)) for wheel in wheels)
+                with self.subTest(package=name,architecture=architecture):
+                    self.assertTrue(compatible,'locked production dependency lacks a Python 3.11 musl wheel')
+
     def test_configured_local_log_driver_is_valid_with_one_bounded_file(self):
         services = json.loads((ROOT / 'deploy/spring-ingress/compose.json').read_text())['services']
         services['probe'] = self.module.qualification_override(Path('/private/owned'),10001,10001,PROJECT,OWNER)['services']['probe']
@@ -308,6 +342,53 @@ class ContainerQualificationTests(unittest.TestCase):
                     self.module.run_startup(StartupDocker({}, volume=volume), ['compose'], report, PROJECT, OWNER)
             self.assertEqual(report['phase'], phase)
 
+    def test_command_cleanup_accepts_permission_race_only_after_group_absence(self):
+        real_killpg = os.killpg
+        observations = []
+        def raced(group, action):
+            observations.append(int(action))
+            if action == signal.SIGKILL:
+                raise PermissionError(1, 'fixed exited-group race')
+            return real_killpg(group, action)
+        with patch.object(self.module.os, 'killpg', new=raced):
+            self.assertEqual(self.module.bounded_command([sys.executable, '-c', 'print("ok")'],
+                timeout=3, limit=1024), 'ok\n')
+        self.assertIn(0, observations)
+
+    def test_command_cleanup_propagates_permission_denial_without_confirmed_group_absence(self):
+        real_killpg = os.killpg
+        def denied(group, action):
+            if action == signal.SIGTERM:
+                return real_killpg(group, action)
+            raise PermissionError(1, 'fixed unconfirmed group')
+        started = time.monotonic()
+        with patch.object(self.module.os, 'killpg', new=denied):
+            with self.assertRaises(PermissionError):
+                self.module.bounded_command([sys.executable, '-c', 'print("ok")'], timeout=3, limit=1024)
+        self.assertLess(time.monotonic() - started, 1)
+
+    def test_command_cleanup_never_reclassifies_other_permission_errors_as_absence(self):
+        real_killpg = os.killpg
+        for code in (13, None):
+            def denied(group, action):
+                if action == signal.SIGKILL:
+                    raise PermissionError(code, 'fixed non-EPERM failure')
+                return real_killpg(group, action)
+            with self.subTest(errno=code), patch.object(self.module.os, 'killpg', new=denied):
+                with self.assertRaises(PermissionError) as caught:
+                    self.module.bounded_command([sys.executable, '-c', 'print("ok")'], timeout=3, limit=1024)
+                self.assertEqual(caught.exception.errno, code)
+
+    def test_group_absence_requires_the_exact_owned_leader_to_have_exited(self):
+        child = subprocess.Popen([sys.executable, '-c', 'import time;time.sleep(30)'],
+            stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, start_new_session=True)
+        try:
+            self.assertFalse(self.module.wait_for_group_absence(child))
+            self.assertIsNone(child.poll())
+        finally:
+            child.terminate()
+            child.wait(timeout=2)
+
     def test_successful_command_stops_owned_grandchild_after_redirected_output(self):
         # The command exits successfully and closes its pipe, but its child
         # still belongs to our process group despite redirecting both streams.
@@ -333,10 +414,11 @@ class ContainerQualificationTests(unittest.TestCase):
             self.assertTrue(stopped, 'successful command leaked its owned process group')
         finally:
             # Preserve test isolation even when exercising the unfixed runner.
-            try:
-                os.killpg(group, signal.SIGKILL)
-            except ProcessLookupError:
-                pass
+            if not stopped:
+                try:
+                    os.killpg(group, signal.SIGKILL)
+                except ProcessLookupError:
+                    pass
 
     def test_receipt_publication_uses_held_directory_and_private_mode(self):
         with tempfile.TemporaryDirectory() as temporary:

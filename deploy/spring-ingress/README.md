@@ -23,7 +23,7 @@ The current pins use Python 3.11.17 and Redis 7.2.16. The Maven 3.9.16
 builder and Temurin 17 JRE both declare `jdk-17.0.20.1+1` on amd64 and arm64
 in their hash-bound OCI configuration metadata. Runtime execution and image
 vulnerability checks remain separate verification steps.
-The gateway deliberately uses Debian 13 Trixie and the backend uses Ubuntu
+The gateway deliberately uses Alpine 3.24 (musl) and the backend uses Ubuntu
 24.04 Noble as their runtime OS baselines. Exact-image scans must reassess these
 contents; a newer baseline does not imply zero vulnerabilities or native binary
 dependency closure.
@@ -33,7 +33,7 @@ Upstream sources are the official [Python](https://hub.docker.com/_/python),
 [Redis](https://hub.docker.com/_/redis) images.
 
 The gateway installs hash-pinned uv 0.13.4 from official PyPI wheels and runs
-`uv sync --locked --no-dev --extra server --extra redis --no-install-project`.
+`uv sync --locked --no-build --no-dev --extra server --extra redis --no-install-project`.
 It copies the SDK source separately into the final image, avoiding an unlocked
 isolated build backend. Runtime dependencies come from `sdk/python/uv.lock`;
 development dependencies, uv and its build cache are absent from the final stage.
@@ -47,6 +47,15 @@ JARs from source and copies the actual resolved runtime JARs into a Java 17 JRE
 image. Image builds skip Java tests; the regular SDK/qualification suites must
 pass separately. Maven POMs use fixed versions; reproducible here means recorded
 inputs and build steps, not a claim of byte-identical JAR/image builds.
+
+The explicit `3.11.17-alpine3.24` Python tag is pinned to its reviewed index;
+Alpine 3.24 is a [maintained upstream release](https://alpinelinux.org/releases/).
+Every locked production dependency has a compatible pure-Python or musl wheel
+for amd64 and arm64, including cryptography and cffi. The uv requirements include
+the [official PyPI](https://pypi.org/pypi/uv/0.13.4/json) musl x86_64 wheel hash;
+the existing aarch64 wheel supports both libc variants. `--no-build` rejects a
+source-build fallback. These checks establish available inputs; actual image
+execution and an exact-image vulnerability scan are still required.
 
 ## Explicit operator inputs
 

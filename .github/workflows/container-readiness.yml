@@ -41,10 +41,10 @@ jobs:
           python3 .github/tests/test_container_image_scan.py -v
       - name: Build and exercise the owned container deployment
         run: |
-          uv run --frozen --project sdk/python python .github/diagnostics/encrypted_startup.py --docker-context default --java-home "$JAVA_HOME" --output "$RUNNER_TEMP/appguard-spring-containers"
+          uv run --frozen --project sdk/python python scripts/qualification/spring_containers.py --docker-context default --java-home "$JAVA_HOME" --output "$RUNNER_TEMP/appguard-spring-containers"
       - name: Scan the exact runtime images without suppressions
         run: |
-          uv run --frozen --project sdk/python python .github/diagnostics/encrypted_image_scan.py --receipt "$RUNNER_TEMP/appguard-spring-containers/receipt.json" --docker-context default --output "$RUNNER_TEMP/appguard-container-image-scans"
+          python3 scripts/qualification/scan_container_images.py --receipt "$RUNNER_TEMP/appguard-spring-containers/receipt.json" --docker-context default --output "$RUNNER_TEMP/appguard-container-image-scans"
       - name: Retain fixed-schema operating and image status only
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
@@ -55,14 +55,3 @@ jobs:
             ${{ runner.temp }}/appguard-container-image-scans/status.json
           if-no-files-found: warn
           retention-days: 7
-
-      - name: Retain encrypted temporary container diagnostics
-        if: failure()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-        with:
-          name: encrypted-container-diagnostics-${{ github.sha }}
-          path: |
-            ${{ runner.temp }}/appguard-startup.encrypted.json
-            ${{ runner.temp }}/appguard-image-scan.encrypted.json
-          if-no-files-found: ignore
-          retention-days: 1

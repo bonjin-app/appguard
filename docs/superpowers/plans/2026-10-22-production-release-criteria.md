@@ -18,7 +18,7 @@ global tool configuration changes, or recursive agents.
 - [x] Extend `scripts/qualification/spring_ingress.py` and its focused tests with
   bounded soak/concurrency and owned outage/restart/admission scenarios. Observe
   failing tests first, then verify actual signed requests and cleanup.
-- [ ] Add `deploy/spring-ingress/` container build/runtime sources and an owned
+- [x] Add `deploy/spring-ingress/` container build/runtime sources and an owned
   container qualification runner plus tests. Check official base-image digests;
   test actual running containers in hosted CI when no local daemon exists.
 - [x] Add `scripts/release/verify_hosted.py` and focused tests. Verify live GitHub
@@ -39,9 +39,16 @@ Workers own disjoint operational, container and hosted-verifier modules. The
 main agent owns license collection, documentation, integration and final review.
 
 The repository-level private vulnerability reporting setting was enabled and
-read back separately; no provider account was provisioned. Container execution,
-the final sustained run and exact-main hosted verification remain pending until
-the corresponding evidence is collected. An internal scanner review identified
-output races, process cleanup and empty-inventory acceptance. Regression tests
-and independent review now cover the fixes; actual Linux execution remains
-pending. Native Redis/JVM dependency coverage is explicitly incomplete.
+read back separately; no provider account was provisioned. Actual Linux container
+execution passed all 12 operating checks at `ecab22c`, including exact runtime
+versions, effective isolation, outage recovery, ordinary Redis AOF restart
+retention and owned-resource cleanup. Image scanning remains failed on reported
+findings. Internal review identified and fixed output races, process cleanup
+and empty-inventory acceptance; actual CI additionally exposed a Docker logging
+configuration failure and the process probes exposed disabled Redis reconnect.
+The final sustained run and exact-main hosted verification must be collected
+after this source commit is frozen; their separate hash-bound receipts, rather
+than this implementation plan, attest their outcomes. Native Redis/JVM
+dependency coverage is explicitly incomplete. Temporary encrypted diagnostic
+code and its owned private key were removed before final integration; raw
+scanner reports are not published.
