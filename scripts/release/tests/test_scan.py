@@ -100,7 +100,7 @@ class ScanTests(unittest.TestCase):
         self.assertTrue(all((key in os.environ) == (key in identity) and
             (key not in identity or os.environ[key] == identity[key]) for key in ('HOME', 'CODEX_HOME')),
             'actual process identity environment must remain unchanged')
-        self.assertEqual([row[0] for row in observations], ['maven', 'syft', 'trivy', 'trivy', 'trivy'])
+        self.assertEqual([row[0] for row in observations], ['maven', 'syft', 'trivy', 'trivy', 'trivy', 'trivy', 'trivy'])
         self.assertTrue(all(row[1] for row in observations), 'tool identity environment must be preserved')
         self.assertTrue(all(row[2] for row in observations), 'tool caches and config roots must be private')
         self.assertTrue(all(row[3] for row in observations), 'unrelated tool settings and credentials must be filtered')
@@ -186,7 +186,7 @@ class ScanTests(unittest.TestCase):
             with patch.object(m, 'install_tool', return_value=fake):
                 self.assertEqual(m.run_scans(source.parent, base / 'reports'), 1)
             statuses = json.loads((base / 'reports/status.json').read_text())
-            self.assertEqual(len(statuses['commands']), 5)
+            self.assertEqual(len(statuses['commands']), 7)
             self.assertTrue(all(x['returncode'] == 7 for x in statuses['commands'] if x['name'] != 'maven-runtime'))
             self.assertEqual((base / 'reports/syft.log').read_text().strip(), 'scanner-failure')
             self.assertEqual(list(base.glob('.scan-*')), [])
@@ -295,6 +295,81 @@ class ScanTests(unittest.TestCase):
                 self.assertEqual(item['returncode'], 1)
                 self.assertEqual(item['finding_counts'][key], 1)
 
+    def test_required_backport_commands_bind_ancestry_and_positive_findings_block(self):
+        from scripts.release.tests.test_tool_backport_catalog import fixture
+        from publication_evidence import validate_scan_evidence, EvidenceDenied
+        m = self.module()
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp).resolve()
+            source, unused_reports, manifest = fixture(base)
+            candidate = base / 'candidate'; candidate.mkdir(); source.rename(candidate / 'source')
+            source = candidate / 'source'
+            pom = source / 'sdk/spring-boot/pom.xml'; pom.parent.mkdir(parents=True); pom.write_text('<project/>')
+            (candidate / 'manifest.json').write_text(json.dumps({'sha256': {
+                p.relative_to(candidate).as_posix(): hashlib.sha256(p.read_bytes()).hexdigest()
+                for p in source.rglob('*') if p.is_file()}}))
+            observed = {}
+            def invoke(command, **kwargs):
+                if '-o' in command:
+                    target = Path(command[command.index('-o') + 1].split('=', 1)[1])
+                    report = {'bomFormat': 'CycloneDX', 'specVersion': '1.6', 'components': []}
+                    if 'maven-runtime' not in target.name:
+                        report = json.loads((unused_reports / 'sbom-source.raw.cdx.json').read_text())
+                    else:
+                        jar = target.parent / 'maven-runtime/org/example/library/1/library-1.jar'
+                        report['components'] = [
+                            {'type': 'library', 'name': 'library', 'version': '1', 'purl': 'pkg:maven/org.example/library@1',
+                             'properties': [{'name': 'syft:location:0:path', 'value': '/org/example/library/1/library-1.jar'}]},
+                            {'type': 'file', 'name': str(jar), 'hashes': [
+                                {'alg': 'SHA-256', 'content': hashlib.sha256(jar.read_bytes()).hexdigest()}]}]
+                else:
+                    target = Path(command[command.index('--output') + 1])
+                    report = {'SchemaVersion': 2, 'Results': [], 'ArtifactName': command[-1],
+                        'ArtifactType': 'filesystem' if 'fs' in command else 'cyclonedx'}
+                    if 'tool-backports' in target.name:
+                        self.assertEqual(Path(command[-1]).name, 'sbom-tool-backports.cdx.json')
+                        self.assertEqual(Path(command[command.index('--ignorefile') + 1]).read_text(), '')
+                        self.assertNotIn('--ignore-unfixed', command)
+                        self.assertEqual(command[command.index('--severity') + 1], 'UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL')
+                        observed[target.name] = {c['purl'] for c in json.loads(Path(command[-1]).read_text())['components']}
+                        if target.name == 'trivy-tool-backports.json':
+                            report['Results'] = [{'Vulnerabilities': [
+                                {'VulnerabilityID': 'GHSA-vfj7-8cjw-p6xm', 'PkgName': 'braces'},
+                                {'VulnerabilityID': 'GHSA-86w9-cpqp-85rv', 'PkgName': 'node-forge'}]}]
+                target.write_text(json.dumps(report))
+                return m.subprocess.CompletedProcess(command, 0)
+            def export_fixture(source, state, reports, env):
+                jar = reports / 'maven-runtime/org/example/library/1/library-1.jar'
+                jar.parent.mkdir(parents=True); jar.write_bytes(b'owned fixture')
+                relative = jar.relative_to(reports / 'maven-runtime').as_posix()
+                sha = hashlib.sha256(jar.read_bytes()).hexdigest()
+                (reports / 'maven-runtime-manifest.json').write_text(json.dumps({
+                    'returncode': 0, 'jar_sha256': {relative: sha}, 'sha256': {relative: sha}}))
+                (reports / 'maven-runtime-dependencies.txt').write_text('org.example:library:jar:1:runtime\n')
+                return {'name': 'maven-runtime', 'returncode': 0}
+            with patch.object(m, 'install_tool', side_effect=lambda name, state: state / name), \
+                    patch.object(m, 'export_maven', side_effect=export_fixture), \
+                    patch.object(m.subprocess, 'run', side_effect=invoke):
+                self.assertEqual(m.run_scans(candidate, base / 'scans'), 1)
+            scans = base / 'scans'; status = json.loads((scans / 'status.json').read_text())
+            self.assertEqual(len(status['commands']), 10)
+            self.assertFalse(status['automated_checks_passed'])
+            self.assertFalse(status['release_ready'])
+            for purls in observed.values():
+                self.assertTrue({'pkg:npm/braces@3.0.3', 'pkg:npm/node-forge@1.4.0'} <= purls)
+            self.assertEqual(len(observed), 2)
+            tool = next(c for c in status['commands'] if c['name'] == 'trivy-tool-backports')
+            self.assertEqual(tool['finding_counts']['Vulnerabilities'], 2)
+            self.assertEqual(tool['input_sha256'], hashlib.sha256((scans / 'sbom-tool-backports.cdx.json').read_bytes()).hexdigest())
+            self.assertEqual(next(c for c in status['commands'] if c['name'] == 'trivy-sbom')['finding_counts']['Vulnerabilities'], 0)
+            self.assertTrue(all(c['returncode'] == (1 if c['name'] == 'trivy-tool-backports' else 0)
+                                for c in status['commands']), status['commands'])
+            with self.assertRaises(EvidenceDenied) as denied: validate_scan_evidence(scans, status)
+            self.assertEqual(denied.exception.reason, 'vulnerability_findings')
+            public = m.public_check_summary(status)
+            self.assertEqual(next(c for c in public['checks'] if c['check'] == 'trivy-tool-backports')['vulnerabilities'], 2)
+            self.assertNotIn('GHSA', json.dumps(public))
+
     def test_license_findings_stay_visible_without_security_failure(self):
         m = self.module()
         with tempfile.TemporaryDirectory() as tmp:
@@ -358,7 +433,7 @@ class ScanTests(unittest.TestCase):
                 self.assertEqual(m.run_scans(base / 'candidate', base / 'reports'), 0)
             status = json.loads((base / 'reports/status.json').read_text())
             self.assertTrue(status['automated_checks_passed'])
-            self.assertEqual(len(status['commands']), 8)
+            self.assertEqual(len(status['commands']), 10)
             for name in ('trivy-sbom.json', 'trivy-licenses.json'):
                 self.assertIn('pkg:pypi/builder@3.2', json.loads((base / 'reports' / name).read_text())['ObservedPurls'])
             raw = json.loads((base / 'reports/sbom-source.raw.cdx.json').read_text())

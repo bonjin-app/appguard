@@ -6,9 +6,11 @@ from pathlib import Path
 REQUIRED_CHECKS = frozenset((
     'maven-runtime', 'syft', 'trivy-sbom', 'trivy-licenses', 'trivy-secrets',
     'syft-maven-runtime', 'trivy-maven-runtime', 'trivy-maven-runtime-licenses',
+    'trivy-tool-backports', 'trivy-tool-backports-licenses',
 ))
 REPORT_CHECKS = ('trivy-sbom', 'trivy-licenses', 'trivy-secrets',
-                 'trivy-maven-runtime', 'trivy-maven-runtime-licenses')
+                 'trivy-maven-runtime', 'trivy-maven-runtime-licenses',
+                 'trivy-tool-backports', 'trivy-tool-backports-licenses')
 KINDS = ('Vulnerabilities', 'Secrets', 'Licenses')
 
 
@@ -51,6 +53,7 @@ def count_findings(report):
 def validate_report_binding(scans, status, command, report):
     name = command['name']
     target = ('source' if name == 'trivy-secrets' else
+              'sbom-tool-backports.cdx.json' if 'tool-backports' in name else
               'sbom-maven-runtime.cdx.json' if 'maven-runtime' in name else 'sbom.cdx.json')
     artifact = command.get('scan_artifact_name')
     if (not isinstance(artifact, str) or not artifact.startswith('/') or Path(artifact).name != target

@@ -3,6 +3,7 @@ import hashlib
 import importlib.util
 import json
 from pathlib import Path
+import shutil
 import subprocess
 import sys
 import tempfile
@@ -16,7 +17,7 @@ MARKER = 'SYNTHETIC-SECRET-DO-NOT-PUBLISH-8b117a'
 
 
 class PublicationTests(unittest.TestCase):
-    def setup_inputs(self, base, code=0, secrets=0, build_pin=False):
+    def setup_inputs(self, base, code=0, secrets=0, build_pin=False, backports=False):
         candidate = base / 'candidate'
         scans = base / 'scans'
         (candidate / 'source/docs').mkdir(parents=True)
@@ -29,6 +30,9 @@ class PublicationTests(unittest.TestCase):
         for name in ('dependency-coverage.json', 'licenses.json'):
             (candidate / name).write_text('{}')
         (candidate / 'source/package-lock.json').write_text(json.dumps({'lockfileVersion': 3, 'packages': {'': {}}}))
+        if backports:
+            shutil.copytree(SCRIPT.parents[2] / 'tools/dependency-backports',
+                            candidate / 'source/tools/dependency-backports')
         if build_pin:
             (candidate / 'source/pyproject.toml').write_text('[build-system]\nrequires=["builder>=1"]\n'
                 '[tool.uv]\nrequire-build-hashes=true\nbuild-constraint-dependencies=['
@@ -42,7 +46,7 @@ class PublicationTests(unittest.TestCase):
         status = {'candidate_commit': 'a'*40,
                   'candidate_manifest_sha256': hashlib.sha256((candidate / 'manifest.json').read_bytes()).hexdigest(),
                   'automated_checks_passed': code == 0, 'commands': [], 'unsafe_metadata': MARKER}
-        for name in ('trivy-sbom', 'trivy-licenses', 'trivy-secrets', 'trivy-maven-runtime', 'trivy-maven-runtime-licenses'):
+        for name in ('trivy-sbom', 'trivy-licenses', 'trivy-secrets', 'trivy-maven-runtime', 'trivy-maven-runtime-licenses', 'trivy-tool-backports', 'trivy-tool-backports-licenses'):
             count = secrets if name == 'trivy-secrets' else 0
             status['commands'].append({'name': name, 'returncode': code if name == 'trivy-secrets' else 0,
                                        'report_available': True,
@@ -54,6 +58,8 @@ class PublicationTests(unittest.TestCase):
         (scans / 'trivy-secrets.log').write_text(MARKER)
         from python_build_catalog import prepare_python_build_catalog
         prepare_python_build_catalog(candidate / 'source', raw, scans)
+        from tool_backport_catalog import prepare_tool_backport_catalog
+        prepare_tool_backport_catalog(candidate / 'source', scans)
         from source_catalog import validate_source_catalog
         validate_source_catalog(candidate / 'source', scans / 'sbom.cdx.json', scans)
         status['commands'].append({'name':'syft','returncode':0,'recorded_npm_lock_coverage_passed':True,
@@ -91,7 +97,7 @@ class PublicationTests(unittest.TestCase):
         for command in status['commands']:
             name = command['name']
             if not name.startswith('trivy-'): continue
-            target = 'source' if name == 'trivy-secrets' else 'sbom-maven-runtime.cdx.json' if 'maven-runtime' in name else 'sbom.cdx.json'
+            target = 'source' if name == 'trivy-secrets' else 'sbom-tool-backports.cdx.json' if 'tool-backports' in name else 'sbom-maven-runtime.cdx.json' if 'maven-runtime' in name else 'sbom.cdx.json'
             path = scans / (name + '.json')
             report = json.loads(path.read_text())
             report.update(ArtifactType='filesystem' if name == 'trivy-secrets' else 'cyclonedx', ArtifactName='/original/' + target)
@@ -185,6 +191,79 @@ class PublicationTests(unittest.TestCase):
             self.assertTrue((output / 'scans/sbom.cdx.json').exists())
             self.assertFalse((output / 'scans/trivy-secrets.json').exists())
             self.assertFalse((output / 'scans/trivy-secrets.log').exists())
+
+    def test_backport_catalog_and_both_bound_reports_are_staged(self):
+        with tempfile.TemporaryDirectory() as temp:
+            base = Path(temp).resolve()
+            candidate, scans = self.setup_inputs(base, backports=True)
+            output = self.run_gate(base, candidate, scans)
+            self.assertTrue(json.loads((output / 'public-status.json').read_text())['source_publication_allowed'])
+            for name in ('sbom-tool-backports.cdx.json', 'tool-backport-provenance.json',
+                         'trivy-tool-backports.json', 'trivy-tool-backports-licenses.json'):
+                self.assertEqual((output / 'scans' / name).read_bytes(), (scans / name).read_bytes())
+
+    def test_missing_or_changed_backport_catalog_and_positive_ancestry_deny(self):
+        for mode in ('missing_catalog', 'missing_provenance', 'ancestry', 'classification', 'provenance',
+                     'missing_vulnerability_command', 'missing_license_command', 'wrong_report_input', 'positive'):
+            with self.subTest(mode=mode), tempfile.TemporaryDirectory() as temp:
+                base = Path(temp).resolve()
+                candidate, scans = self.setup_inputs(base, backports=True)
+                status = json.loads((scans / 'status.json').read_text())
+                if mode.startswith('missing_'):
+                    filename = {'missing_catalog': 'sbom-tool-backports.cdx.json',
+                                'missing_provenance': 'tool-backport-provenance.json'}.get(mode)
+                    if filename: (scans / filename).unlink()
+                    else:
+                        name = 'trivy-tool-backports' + ('-licenses' if mode == 'missing_license_command' else '')
+                        status['commands'] = [c for c in status['commands'] if c['name'] != name]
+                elif mode in ('ancestry', 'classification'):
+                    path = scans / 'sbom-tool-backports.cdx.json'; document = json.loads(path.read_text())
+                    component = next(c for c in document['components'] if c['purl'] == 'pkg:npm/braces@3.0.3')
+                    if mode == 'ancestry': document['components'].remove(component)
+                    else: component['scope'] = 'excluded'
+                    path.write_text(json.dumps(document))
+                    self.stamp_reports(scans, status)  # Updated report hashes cannot bypass reconstruction.
+                elif mode == 'provenance':
+                    path = scans / 'tool-backport-provenance.json'; document = json.loads(path.read_text())
+                    document['advisory_closure_verified'] = True; path.write_text(json.dumps(document))
+                elif mode == 'wrong_report_input':
+                    next(c for c in status['commands'] if c['name'] == 'trivy-tool-backports')['input_sha256'] = hashlib.sha256((scans / 'sbom.cdx.json').read_bytes()).hexdigest()
+                else:
+                    path = scans / 'trivy-tool-backports.json'
+                    path.write_text(json.dumps({'SchemaVersion': 2, 'Results': [{'Vulnerabilities': [
+                        {'VulnerabilityID': 'GHSA-vfj7-8cjw-p6xm'}, {'VulnerabilityID': 'GHSA-86w9-cpqp-85rv'}]}]}))
+                    target = next(c for c in status['commands'] if c['name'] == 'trivy-tool-backports')
+                    target['finding_counts']['Vulnerabilities'] = 2; target['returncode'] = 1
+                    status['automated_checks_passed'] = False; self.stamp_reports(scans, status)
+                (scans / 'status.json').write_text(json.dumps(status))
+                output = self.run_gate(base, candidate, scans)
+                safe = json.loads((output / 'public-status.json').read_text())
+                self.assertFalse(safe['source_publication_allowed'])
+                self.assertFalse(safe['release_ready'])
+                if mode == 'positive': self.assertEqual(safe['reason'], 'vulnerability_findings')
+                self.assertEqual([p.name for p in output.iterdir()], ['public-status.json'])
+
+    def test_late_and_staged_backport_evidence_mutations_are_denied(self):
+        spec = importlib.util.spec_from_file_location('publication_gate_tool_mutation', SCRIPT)
+        gate = importlib.util.module_from_spec(spec); spec.loader.exec_module(gate)
+        for mode in ('late', 'staged'):
+            with self.subTest(mode=mode), tempfile.TemporaryDirectory() as temp:
+                base = Path(temp).resolve(); candidate, scans = self.setup_inputs(base, backports=True)
+                if mode == 'late':
+                    original = gate.validate_source_catalog
+                    def change_after_validation(*args):
+                        result = original(*args); (scans / 'tool-backport-provenance.json').write_text('{}'); return result
+                    context = patch.object(gate, 'validate_source_catalog', side_effect=change_after_validation)
+                else:
+                    original = gate.shutil.copyfile
+                    def change_copy(source, destination):
+                        result = original(source, destination)
+                        if Path(destination).name == 'tool-backport-provenance.json': Path(destination).write_text('{}')
+                        return result
+                    context = patch.object(gate.shutil, 'copyfile', side_effect=change_copy)
+                with context: safe = gate.stage_publication(candidate, scans, base / 'publication', 'a' * 40)
+                self.assertFalse(safe['source_publication_allowed'])
+                self.assertEqual([p.name for p in (base / 'publication').iterdir()], ['public-status.json'])
 
     def test_declared_build_provenance_is_staged_with_bound_hashes(self):
         with tempfile.TemporaryDirectory() as temp:
@@ -340,7 +419,7 @@ class PublicationTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             base = Path(temp).resolve()
             candidate, scans = self.setup_inputs(base)
-            for name in ('trivy-sbom', 'trivy-licenses', 'trivy-maven-runtime', 'trivy-maven-runtime-licenses'):
+            for name in ('trivy-sbom', 'trivy-licenses', 'trivy-maven-runtime', 'trivy-maven-runtime-licenses', 'trivy-tool-backports', 'trivy-tool-backports-licenses'):
                 (scans / (name + '.json')).write_bytes((scans / 'trivy-secrets.json').read_bytes())
             output = self.run_gate(base, candidate, scans)
             self.assertFalse(json.loads((output / 'public-status.json').read_text())['source_publication_allowed'])

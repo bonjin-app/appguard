@@ -15,6 +15,7 @@ from candidate import write_json
 from scan import verify_candidate
 from source_catalog import validate_source_catalog
 from runtime_catalog import validate_runtime_catalog
+from tool_backport_catalog import validate_tool_backport_catalog
 from publication_evidence import EvidenceDenied, read_evidence, validate_scan_evidence
 
 CANDIDATE_FILES = ('source.tar.gz', 'manifest.json', 'dependency-coverage.json', 'licenses.json')
@@ -22,6 +23,8 @@ SCAN_FILES = ('status.json', 'source-lock-coverage.json', 'license-review.json',
               'trivy-sbom.json', 'trivy-maven-runtime.json', 'trivy-licenses.json',
               'trivy-maven-runtime-licenses.json', 'sbom.cdx.json', 'sbom-maven-runtime.cdx.json',
               'sbom-source.raw.cdx.json', 'python-build-catalog-overlay.json',
+              'sbom-tool-backports.cdx.json', 'tool-backport-provenance.json',
+              'trivy-tool-backports.json', 'trivy-tool-backports-licenses.json',
               'maven-runtime-manifest.json', 'maven-runtime-dependencies.txt',
               'runtime-lock-coverage.json', 'runtime-catalog-overlay.json', 'sbom-maven-runtime.raw.cdx.json')
 
@@ -96,6 +99,7 @@ def stage_publication(candidate, scans, output, expected_commit):
         if recorded_coverage.get('schema') != 1 or recorded_coverage.get('all_recorded_packages_cataloged') is not True:
             raise EvidenceDenied('source_coverage_unverified')
         with tempfile.TemporaryDirectory(prefix='.coverage-check-', dir=output.parent) as verification:
+            backports = validate_tool_backport_catalog(candidate / 'source', scans)
             actual_coverage = validate_source_catalog(candidate / 'source', sbom_path, Path(verification))
             if recorded_coverage != actual_coverage:
                 raise EvidenceDenied('source_coverage_unverified')
@@ -145,6 +149,8 @@ def stage_publication(candidate, scans, output, expected_commit):
                 if any(digest(staged / 'scans' / name) != scan_pins[name] for name in SCAN_FILES):
                     raise ValueError('Staged scan evidence integrity mismatch')
                 with tempfile.TemporaryDirectory(prefix='.runtime-recheck-', dir=output.parent) as verification:
+                    if validate_tool_backport_catalog(candidate / 'source', scans) != backports:
+                        raise ValueError('Tool backport evidence changed while staging')
                     if validate_runtime_catalog(scans / 'maven-runtime', scans / 'maven-runtime-manifest.json',
                                                 scans / 'sbom-maven-runtime.cdx.json', Path(verification)) != recorded_runtime:
                         raise ValueError('Runtime artifacts changed while staging')

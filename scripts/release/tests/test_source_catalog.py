@@ -22,6 +22,20 @@ def module():
 
 
 class CatalogTests(unittest.TestCase):
+    def test_raw_fork_component_cannot_bypass_missing_archive_provenance(self):
+        m = module()
+        with tempfile.TemporaryDirectory() as temp:
+            base = Path(temp).resolve(); source = base / 'source'; source.mkdir()
+            (source / 'package-lock.json').write_text(json.dumps({'lockfileVersion': 3, 'packages': {
+                '': {}, 'node_modules/braces': {'name': '@appguard/braces', 'version': '3.0.3-appguard.1',
+                    'resolved': 'file:tools/dependency-backports/archives/appguard-braces-3.0.3-appguard.1.tgz',
+                    'integrity': 'not-the-reviewed-integrity'}}}))
+            sbom = base / 'sbom.json'
+            sbom.write_text(json.dumps({'components': [{'type': 'library', 'name': 'braces', 'group': '@appguard',
+                'version': '3.0.3-appguard.1', 'purl': 'pkg:npm/%40appguard/braces@3.0.3-appguard.1',
+                'properties': [{'name': 'syft:location:0:path', 'value': '/package-lock.json'}]}]}))
+            with self.assertRaises(ValueError): m.validate_source_catalog(source, sbom, base)
+
     def test_initial_fifo_sbom_is_rejected_without_blocking(self):
         with tempfile.TemporaryDirectory() as temp:
             base = Path(temp).resolve()

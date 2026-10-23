@@ -16,7 +16,8 @@ from candidate import validate_path, write_json
 from source_catalog import write_syft_config, validate_source_catalog
 from runtime_catalog import prepare_runtime_catalog
 from python_build_catalog import prepare_python_build_catalog
-from publication_evidence import count_findings, validate_report_binding
+from tool_backport_catalog import prepare_tool_backport_catalog
+from publication_evidence import count_findings, validate_report_binding, REQUIRED_CHECKS
 
 # Official immutable GitHub release asset digests, read 2026-10-22 from
 # https://api.github.com/repos/{anchore/syft,aquasecurity/trivy}/releases/tags/{version}
@@ -236,6 +237,12 @@ def run_scans(candidate, output):
                                    '--output', str(reports / 'trivy-secrets.json'), '--timeout', '10m',
                                    str(candidate / 'source')]),
             ]
+            for name, scanner, exit_code in [('trivy-tool-backports', 'vuln', '1'),
+                                              ('trivy-tool-backports-licenses', 'license', '0')]:
+                commands.append((name, [str(trivy), 'sbom', '--config', str(config), '--ignorefile', str(ignore),
+                    '--scanners', scanner, '--severity', 'UNKNOWN,LOW,MEDIUM,HIGH,CRITICAL',
+                    '--exit-code', exit_code, '--format', 'json', '--output', str(reports / (name + '.json')),
+                    '--timeout', '10m', str(reports / 'sbom-tool-backports.cdx.json')]))
             if maven['returncode'] == 0:
                 commands.extend([
                     ('syft-maven-runtime', [str(syft), 'scan', 'dir:' + str(reports / 'maven-runtime'),
@@ -284,6 +291,7 @@ def run_scans(candidate, output):
                 if name == 'syft' and item['returncode'] == 0:
                     try:
                         prepare_python_build_catalog(candidate / 'source', reports / 'sbom-source.raw.cdx.json', reports)
+                        prepare_tool_backport_catalog(candidate / 'source', reports)
                         validate_source_catalog(candidate / 'source', reports / 'sbom.cdx.json', reports)
                         item['recorded_npm_lock_coverage_passed'] = True
                         item['recorded_source_lock_coverage_passed'] = True
@@ -317,7 +325,9 @@ def run_scans(candidate, output):
                 raise ValueError('Candidate manifest changed during final verification')
         except Exception as error:
             status['error'] = str(error)
-        failed = 'error' in status or any(item['returncode'] != 0 for item in status['commands'])
+        names = [item['name'] for item in status['commands']]
+        failed = ('error' in status or len(names) != len(REQUIRED_CHECKS) or set(names) != REQUIRED_CHECKS
+                  or any(item['returncode'] != 0 for item in status['commands']))
         status['automated_checks_passed'] = not failed
         status['release_ready'] = False
         status['remaining_release_gates'] = [
@@ -335,7 +345,8 @@ def run_scans(candidate, output):
 def public_check_summary(status):
     """Fixed-label counts for CI debugging; never raw errors, paths or findings."""
     known = {'maven-runtime', 'syft', 'trivy-sbom', 'trivy-licenses', 'trivy-secrets',
-             'syft-maven-runtime', 'trivy-maven-runtime', 'trivy-maven-runtime-licenses'}
+             'syft-maven-runtime', 'trivy-maven-runtime', 'trivy-maven-runtime-licenses',
+             'trivy-tool-backports', 'trivy-tool-backports-licenses'}
     checks = []
     for item in status.get('commands', []):
         if not isinstance(item, dict) or not isinstance(item.get('name'), str) or item['name'] not in known:

@@ -18,12 +18,12 @@ class EvidenceTests(unittest.TestCase):
         spec.loader.exec_module(self.module)
 
     def fixture(self, root):
-        for name in ('sbom.cdx.json', 'sbom-maven-runtime.cdx.json'):
+        for name in ('sbom.cdx.json', 'sbom-maven-runtime.cdx.json', 'sbom-tool-backports.cdx.json'):
             (root / name).write_text('{"bomFormat":"CycloneDX","components":[]}')
         commands = []
         for name in ('maven-runtime', 'syft', 'syft-maven-runtime'):
             commands.append({'name': name, 'returncode': 0, 'report_available': True})
-        for name in ('trivy-sbom', 'trivy-licenses', 'trivy-secrets', 'trivy-maven-runtime', 'trivy-maven-runtime-licenses'):
+        for name in ('trivy-sbom', 'trivy-licenses', 'trivy-secrets', 'trivy-maven-runtime', 'trivy-maven-runtime-licenses', 'trivy-tool-backports', 'trivy-tool-backports-licenses'):
             commands.append({'name': name, 'returncode': 0, 'report_available': True,
                              'finding_counts': {'Vulnerabilities': 0, 'Secrets': 0, 'Licenses': 0}})
             (root / (name + '.json')).write_text(json.dumps({'SchemaVersion': 2, 'Results': []}))
@@ -35,7 +35,7 @@ class EvidenceTests(unittest.TestCase):
         for command in status['commands']:
             name = command['name']
             if not name.startswith('trivy-'): continue
-            target = 'source' if name == 'trivy-secrets' else 'sbom-maven-runtime.cdx.json' if 'maven-runtime' in name else 'sbom.cdx.json'
+            target = 'source' if name == 'trivy-secrets' else 'sbom-tool-backports.cdx.json' if 'tool-backports' in name else 'sbom-maven-runtime.cdx.json' if 'maven-runtime' in name else 'sbom.cdx.json'
             path = root / (name + '.json')
             report = json.loads(path.read_text())
             report.update(ArtifactType='filesystem' if name == 'trivy-secrets' else 'cyclonedx', ArtifactName='/original/' + target)
@@ -47,7 +47,15 @@ class EvidenceTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             root = Path(temp).resolve()
             commands = self.module.validate_scan_evidence(root, self.fixture(root))
-            self.assertEqual(len(commands), 8)
+            self.assertEqual(len(commands), 10)
+
+    def test_omitted_backport_scans_cannot_be_a_complete_scan_set(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root = Path(temp).resolve()
+            status = self.fixture(root)
+            status['commands'] = [c for c in status['commands'] if 'tool-backports' not in c['name']]
+            with self.assertRaises(self.module.EvidenceDenied):
+                self.module.validate_scan_evidence(root, status)
 
     def test_incomplete_ambiguous_or_forged_status_denied(self):
         for mode in ('missing', 'duplicate', 'unknown', 'boolean_code', 'boolean_count', 'nonzero', 'claimed_failure', 'missing_report', 'wrong_schema', 'null_results', 'bad_finding', 'count_mismatch'):
@@ -73,7 +81,8 @@ class EvidenceTests(unittest.TestCase):
     def test_actual_findings_deny_with_accurate_fixed_reason(self):
         for kind, name, reason in [('Secrets', 'trivy-secrets', 'secret_findings'),
                                    ('Vulnerabilities', 'trivy-sbom', 'vulnerability_findings'),
-                                   ('Vulnerabilities', 'trivy-maven-runtime', 'vulnerability_findings')]:
+                                   ('Vulnerabilities', 'trivy-maven-runtime', 'vulnerability_findings'),
+                                   ('Vulnerabilities', 'trivy-tool-backports', 'vulnerability_findings')]:
             with self.subTest(kind=kind, name=name), tempfile.TemporaryDirectory() as temp:
                 root = Path(temp).resolve()
                 status = self.fixture(root)
@@ -113,7 +122,23 @@ class EvidenceTests(unittest.TestCase):
             target['finding_counts']['Licenses'] = 1
             (root / 'trivy-licenses.json').write_text('{"SchemaVersion":2,"Results":[{"Licenses":[{"Name":"Apache-2.0"}]}]}')
             self.stamp(root, status)
-            self.assertEqual(len(self.module.validate_scan_evidence(root, status)), 8)
+            self.assertEqual(len(self.module.validate_scan_evidence(root, status)), 10)
+
+    def test_both_backport_reports_require_their_own_input_and_report_hash(self):
+        for name in ('trivy-tool-backports', 'trivy-tool-backports-licenses'):
+            for mode in ('source_input', 'stale_report', 'missing_report', 'source_artifact'):
+                with self.subTest(name=name, mode=mode), tempfile.TemporaryDirectory() as temp:
+                    root = Path(temp).resolve(); status = self.fixture(root)
+                    command = next(c for c in status['commands'] if c['name'] == name)
+                    path = root / (name + '.json')
+                    if mode == 'source_input': command['input_sha256'] = 'b' * 64
+                    elif mode == 'stale_report': path.write_text(path.read_text() + ' ')
+                    elif mode == 'missing_report': path.unlink()
+                    else:
+                        report = json.loads(path.read_text()); report['ArtifactName'] = '/original/sbom.cdx.json'
+                        path.write_text(json.dumps(report)); command['scan_artifact_name'] = report['ArtifactName']
+                        command['report_sha256'] = hashlib.sha256(path.read_bytes()).hexdigest()
+                    with self.assertRaises(self.module.EvidenceDenied): self.module.validate_scan_evidence(root, status)
 
 
 if __name__ == '__main__': unittest.main()
