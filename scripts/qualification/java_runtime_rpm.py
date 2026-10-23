@@ -150,7 +150,7 @@ def finalize(report):
     report['reason']='native_requirements_met' if report['native_checks_passed'] else 'native_requirements_unmet' if report['measurement_complete'] else 'inventory_unverified'
 
 
-def collect(report, execute, architecture, tree_parser, ldd_parser):
+def collect(report, execute, architecture, tree_parser, ldd_parser, library_path):
     """Store validated observations immediately; no disk I/O or retries here."""
     def stage(name, mode, args=(), timeout=60):
         report['stages'][name]=status(True,False,'protocol_unverified')
@@ -221,7 +221,9 @@ def collect(report, execute, architecture, tree_parser, ldd_parser):
                     elf.update(exit_code=row['code'],dependencies=deps,missing=missing,loader_output_valid=valid)
                     for line in row['lines']:
                         found=re.fullmatch(r'\s*(?:\S+ => )?(/\S+) \(0x[0-9a-fA-F]{1,16}\)\s*',line)
-                        if found and not path(found[1]).startswith(ROOT+'/'):paths.add(path(found[1]))
+                        if found:
+                            canonical=path(library_path(found[1],extra_roots=('/usr/lib64',)))
+                            if not canonical.startswith(ROOT+'/'):paths.add(canonical)
                 report['checks']['linkage_resolved']=all(row['loader_output_valid'] and not row['missing'] for row in report['elfs'])
                 report['counts']['missing_dependencies']=sum(len(row['missing']) for row in report['elfs'])
             except (ValueError,KeyError,TypeError):report['stages']['native_linkage']=status(True,False,'protocol_unverified',0)

@@ -1,6 +1,7 @@
 """Bounded native-runtime inventory semantics; no Docker or network required."""
 import copy
 import contextlib
+import hashlib
 import importlib.util
 import inspect
 import io
@@ -589,6 +590,50 @@ class RpmRuntimeTests(unittest.TestCase):
             self.assertNotIn('HOST_SECRET',json.dumps(kwargs['env']))
             self.assertNotIn('HOME=', ' '.join(command));self.assertNotIn('CODEX_HOME=', ' '.join(command))
         self.assertNotIn('_rpm_raw',result)
+
+    def test_rpm_canonical_linkage_paths_join_bundled_hash_and_os_provider(self):
+        from test_java_runtime_rpm import envelope
+        fake,modes,commands,base=self.rpm_call()
+        canonical_jre='/opt/java/openjdk/lib/libjli.so'
+        canonical_os='/usr/lib64/libc.so.6'
+        requested=[]
+        def call(command,**kwargs):
+            args=command[3:]
+            if args[0]!='exec':return base(command,**kwargs)
+            index=args.index('AppGuardRuntimeInventory')+1
+            mode=args[index]
+            if mode=='tree':
+                value=json.loads(base(command,**kwargs))['data']
+                record='FILE\tlib/libjli.so\t'+'c'*64+'\t128\t7f454c4602010100000000000000000003003e00\n'
+                return envelope(value.replace('END\t7\t0\t2\n',record+'END\t8\t0\t3\n'))
+            if mode=='linkage':
+                return envelope([dict(path=name,code=0,lines=[
+                    'libjli.so => /opt/java/openjdk/bin/../lib/libjli.so (0x00000001)',
+                    'libc.so.6 => /usr/lib64/../lib64/libc.so.6 (0x00000002)'])
+                    for name in args[index+1:]])
+            if mode=='providers':requested.append(args[index+1:])
+            return base(command,**kwargs)
+        with tempfile.TemporaryDirectory() as directory,patch.object(self.m,'bounded_command',side_effect=call), \
+                patch('platform.system',return_value='Linux'),patch('platform.machine',return_value='x86_64'):
+            result=self.m.inspect_runtime(self.image,'linux/amd64',Path(directory).resolve()/'out',
+                features=True,package_profile='rpm-ubi10-v1')
+        self.assertTrue(result['stages']['native_linkage']['complete'])
+        self.assertTrue(result['stages']['native_providers']['complete'])
+        self.assertEqual(requested,[[canonical_os]])
+        self.assertTrue(result['measurement_complete'])
+        self.assertTrue(result['cleanup']);self.assertTrue(fake.removed)
+        self.assertEqual(result['counts']['missing_dependencies'],0)
+        self.assertEqual(len(result['elfs']),3)
+        for elf in result['elfs']:
+            bundled,provided=elf['dependencies']
+            self.assertEqual(bundled,dict(soname='libjli.so',resolution='bundled_jre',
+                path_sha256=hashlib.sha256(canonical_jre.encode()).hexdigest(),sha256='c'*64,providers=[]))
+            self.assertEqual(provided['path_sha256'],hashlib.sha256(canonical_os.encode()).hexdigest())
+            self.assertEqual(provided['sha256'],'b'*64)
+            self.assertEqual(provided['providers'][0]['name'],'glibc')
+        self.assertEqual(result['schema'],4)
+        for flag in ('release_ready','coverage_complete','native_binary_coverage','external_approval'):
+            self.assertFalse(result[flag])
 
     def test_rpm_configuration_rejects_unsafe_image_env_before_create(self):
         for values in (['JAVA_TOOL_OPTIONS='],['LD_PRELOAD=SECRET'],['UNKNOWN=SECRET']):

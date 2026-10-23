@@ -461,7 +461,7 @@ def inspect_runtime(image, platform, output, docker_context='default', features=
                     try: owned(validate=True)
                     except (Exception, KeyboardInterrupt): raise rpm.StopCollection('identity_unverified') from None
                     return call(['exec', identifier, *command], timeout)
-                rpm.collect(report, execute_rpm, architecture, parse_inventory, parse_ldd)
+                rpm.collect(report, execute_rpm, architecture, parse_inventory, parse_ldd, library_path)
             else:
                 parsed = parse_inventory(call([*prefix, INVENTORY_SCRIPT], timeout=300), architecture)
                 report.update(parsed)
