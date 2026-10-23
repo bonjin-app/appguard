@@ -47,6 +47,10 @@ class AssessmentTests(unittest.TestCase):
                     report = assess.assess(helper.candidate, scans, helper.base / 'assessment', COMMIT,
                                           container_run_id=42, container_artifact=helper.archive)
                 self.assertEqual(self.gate(report, 'owned_container_ci')['state'], expected)
+                decision = helper.base / 'assessment/container.json'
+                self.assertTrue(decision.is_file())
+                self.assertEqual(hashlib.sha256(decision.read_bytes()).hexdigest(),
+                                 report['sha256']['container_verification'])
                 self.assertFalse(report['release_ready'])
                 self.assertEqual(self.gate(report, 'consumer_container_graph')['state'], 'pending_external')
                 self.assertEqual(self.gate(report, 'external_security_audit')['state'], 'pending_external')
@@ -83,6 +87,10 @@ class AssessmentTests(unittest.TestCase):
             with patch.object(verify_hosted, 'fetch_github', side_effect=helper.fetch):
                 report = assess.assess(candidate, scans, base / 'assessment', COMMIT, hosted_run_id=42)
             self.assertEqual(self.gate(report, 'hosted_ci')['state'], 'pass')
+            decision = base / 'assessment/hosted.json'
+            self.assertTrue(decision.is_file())
+            self.assertEqual(hashlib.sha256(decision.read_bytes()).hexdigest(),
+                             report['sha256']['hosted_verification'])
             self.assertFalse(report['release_ready'])
 
     def test_hosted_gate_uses_live_verifier_and_never_approves_external_gates(self):

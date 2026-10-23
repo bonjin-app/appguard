@@ -220,6 +220,28 @@ gate can pass from its result; scans, external approvals and deployment gates
 remain independent. Original input identities/hashes are checked again after
 networking. External approvals are not inferred from the result.
 
+The assessment directory retains `hosted.json` and `container.json` when their
+live verifier decisions were validated, including valid negative decisions.
+Their exact bytes match `sha256.hosted_verification` and
+`sha256.container_verification` in `assessment.json`; a missing or contradictory
+decision receives neither a hash nor a companion file. No saved decision is
+accepted as a replacement for live verification. If an original assessment input
+changes after verification, the retained decision records that earlier observation
+while the affected assessment gates remain blocked.
+
+Publication creates a new private directory (0700) with fixed files (0600),
+links the bounded decision bodies first, then links `assessment.json` as the
+completion marker. Readers should require that marker and verify its companion
+hashes. Only these validated, redacted bodies are retained; private snapshots,
+verifier work directories and raw logs are excluded. Identity, content or
+publication failures prevent a completed result and report the existing fixed
+CLI error (exit 1). Cooperative cancellation removes recorded owned partial
+files while preserving replacement or preexisting objects. Cancellation just
+after directory creation, before its identity is recorded, may leave an empty
+directory without a completion marker. SIGKILL and host failure cannot guarantee
+cleanup. Current-user processes and the operating system are trusted.
+`--check` still exits 2 when any required gate remains unmet.
+
 ### Owned container artifact verification
 
 The separate container verifier accepts a local artifact ZIP as **untrusted

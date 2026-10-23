@@ -49,6 +49,7 @@ _SCAN_REASONS = frozenset((
     'scan_checks_failed', 'publication_copy_failed',
 ))
 _JSON_SOURCE_NAMES = frozenset(('package-lock.json', 'packages.lock.json', 'composer.lock'))
+_VERIFIER_FILES = {'hosted_verification': 'hosted.json', 'container_verification': 'container.json'}
 _ERROR = 'Unable to create privacy-bounded readiness assessment\n'
 
 
@@ -296,47 +297,163 @@ def _ledger(expected_commit, profile, passed, reason, qualification_state, quali
             'unresolved_gate_count': sum(gate['state'] != 'pass' for gate in gates), 'gates': gates}
 
 
-def _publish(output, report, workspace):
-    """Exclusively reserve a new directory, then atomically link one complete file.
+def _document_pin(path, *, generated=False):
+    # A generated ledger is not input JSON: a lowered input parser bound must
+    # still permit the original blocked-assessment result to be published.
+    pin = _read(path, keep=not generated)
+    pin.pop('json')
+    return pin
 
-    An existing result is never renamed over or removed. The only visible report
-    file appears with all bytes present. No raw private snapshot is linked.
+
+def _private_document_pin(path, *, generated=False):
+    pin = _document_pin(path, generated=generated)
+    info = path.lstat()
+    if (not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid()
+            or stat.S_IMODE(info.st_mode) != 0o600 or _stamp(info) != pin['stamp']):
+        raise _InvalidEvidence()
+    return pin
+
+
+def _publish(output, report, workspace, decisions=None):
+    """Link complete, pinned decisions first and the assessment commit marker last.
+
+    Only fixed redacted decision files are retained. Cooperative failure removes
+    recorded owned links; replacement objects are preserved. Cancellation before
+    the new directory's identity is recorded may leave an empty reservation.
+    SIGKILL/host failure cannot guarantee cleanup. Current-user processes and the
+    operating system are trusted.
     """
-    staged = workspace / 'assessment.json'
-    staged.write_text(json.dumps(report, indent=2, sort_keys=True) + '\n', encoding='utf-8')
-    staged.chmod(0o600)
-    output.mkdir(mode=0o700)
-    identity = _stamp(output.lstat())[:2]
-    directory = None
-    linked = False
+    decisions = decisions or {}
+    directory = parent = identity = None
+    linked, records = {}, {}
     try:
-        directory = os.open(output, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
-        if _stamp(os.fstat(directory))[:2] != identity:
-            raise AssessmentError()
-        os.link(staged, 'assessment.json', dst_dir_fd=directory, follow_symlinks=False)
-        linked = True
-        if _stamp(output.lstat())[:2] != identity:
-            raise AssessmentError()
-    except (OSError, ValueError):
-        if linked and directory is not None:
-            os.unlink('assessment.json', dir_fd=directory)
-        if output.exists() and _stamp(output.lstat())[:2] == identity:
-            output.rmdir()
+        output = _path(output, new=True)
+        ancestors = {path: _stamp(path.lstat())[:2] for path in (output.parent, *output.parent.parents)}
+        parent = os.open(output.parent, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+        required = {key for key in _VERIFIER_FILES if key in report['sha256']}
+        if set(decisions) != required:
+            raise _InvalidEvidence()
+        for key, decision in decisions.items():
+            if decision['pin']['sha256'] != report['sha256'][key]:
+                raise _InvalidEvidence()
+            records[_VERIFIER_FILES[key]] = decision
+        staged = workspace / 'assessment.json'
+        raw = (json.dumps(report, indent=2, sort_keys=True, allow_nan=False) + '\n').encode()
+        with os.fdopen(os.open(staged, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600), 'wb') as stream:
+            created = _stamp(os.fstat(stream.fileno()))[:2]
+            stream.write(raw); stream.flush(); os.fsync(stream.fileno())
+        pin = _private_document_pin(staged, generated=True)
+        if pin['stamp'][:2] != created or pin['sha256'] != hashlib.sha256(raw).hexdigest():
+            raise _InvalidEvidence()
+        records['assessment.json'] = {'path': staged, 'pin': pin, 'generated': True}
+
+        def guard():
+            for path, expected in ancestors.items():
+                info = path.lstat()
+                if not stat.S_ISDIR(info.st_mode) or _stamp(info)[:2] != expected:
+                    raise _InvalidEvidence()
+            if _stamp(os.fstat(parent))[:2] != ancestors[output.parent]:
+                raise _InvalidEvidence()
+            if directory is not None:
+                info = os.stat(output.name, dir_fd=parent, follow_symlinks=False)
+                held = os.fstat(directory)
+                if (not stat.S_ISDIR(info.st_mode) or _stamp(info)[:2] != identity
+                        or _stamp(held)[:2] != identity or held.st_uid != os.getuid()
+                        or stat.S_IMODE(held.st_mode) != 0o700):
+                    raise _InvalidEvidence()
+            for name, record in records.items():
+                if 'source' in record and _document_pin(record['source']) != record['source_pin']:
+                    raise _InvalidEvidence()
+                if _private_document_pin(record['path'], generated=record.get('generated', False)) != record['pin']:
+                    raise _InvalidEvidence()
+                if name in linked:
+                    info = os.stat(name, dir_fd=directory, follow_symlinks=False)
+                    if (not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid()
+                            or stat.S_IMODE(info.st_mode) != 0o600 or _stamp(info) != record['pin']['stamp']):
+                        raise _InvalidEvidence()
+
+        guard()
+        os.mkdir(output.name, mode=0o700, dir_fd=parent)
+        info = os.stat(output.name, dir_fd=parent, follow_symlinks=False)
+        if not stat.S_ISDIR(info.st_mode) or info.st_uid != os.getuid() or stat.S_IMODE(info.st_mode) != 0o700:
+            raise _InvalidEvidence()
+        identity = _stamp(info)[:2]
+        directory = os.open(output.name, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=parent)
+        for name, record in records.items():
+            guard()
+            previous = record['pin']
+            # Record the expected inode before the syscall so cancellation after
+            # a successful link can still remove only that owned entry.
+            linked[name] = previous['stamp'][:2]
+            os.link(record['path'], name, dst_dir_fd=directory, follow_symlinks=False)
+            current = _private_document_pin(record['path'], generated=record.get('generated', False))
+            # A hard link changes ctime; every other identity/content pin remains.
+            if (current['stamp'][:4] != previous['stamp'][:4]
+                    or current['sha256'] != previous['sha256'] or current['size'] != previous['size']):
+                raise _InvalidEvidence()
+            record['pin'] = current
+            guard()
+    except BaseException as error:
+        if directory is not None:
+            def owned(name):
+                try:
+                    return _stamp(os.stat(name, dir_fd=directory, follow_symlinks=False))[:2] == linked.get(name)
+                except FileNotFoundError:
+                    return False
+            # Never remove a companion while our final marker could remain.
+            try:
+                if owned('assessment.json'):
+                    os.unlink('assessment.json', dir_fd=directory)
+                if not owned('assessment.json'):
+                    for name in linked:
+                        if name != 'assessment.json' and owned(name):
+                            os.unlink(name, dir_fd=directory)
+            except OSError:
+                pass
+        if parent is not None and identity is not None:
+            try:
+                info = os.stat(output.name, dir_fd=parent, follow_symlinks=False)
+                if stat.S_ISDIR(info.st_mode) and _stamp(info)[:2] == identity:
+                    os.rmdir(output.name, dir_fd=parent)
+            except OSError:
+                pass
+        if isinstance(error, (KeyboardInterrupt, SystemExit)):
+            raise
         raise AssessmentError() from None
     finally:
         if directory is not None:
             os.close(directory)
+        if parent is not None:
+            os.close(parent)
 
 
-def _verifier_report(path, returned):
-    """Require a bounded persisted report matching the verifier's return value."""
+def _verifier_report(path, returned, destination):
+    """Pin a matching live decision and preserve its exact bounded bytes."""
     if type(returned) is not dict:
         raise _InvalidEvidence()
     pin = _read(path, keep=True)
     canonical = lambda value: json.dumps(value, sort_keys=True, separators=(',', ':'), allow_nan=False)
     if canonical(pin['json']) != canonical(returned):
         raise _InvalidEvidence()
-    return pin['sha256']
+    with os.fdopen(os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK), 'rb') as stream:
+        info = os.fstat(stream.fileno())
+        if not stat.S_ISREG(info.st_mode) or _stamp(info) != pin['stamp']:
+            raise _InvalidEvidence()
+        raw = stream.read(MAX_JSON_BYTES + 1)
+        if (len(raw) != pin['size'] or hashlib.sha256(raw).hexdigest() != pin['sha256']
+                or _stamp(os.fstat(stream.fileno())) != pin['stamp']):
+            raise _InvalidEvidence()
+    if _stamp(path.lstat()) != pin['stamp']:
+        raise _InvalidEvidence()
+    destination.parent.mkdir(mode=0o700, exist_ok=True)
+    with os.fdopen(os.open(destination, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600), 'wb') as stream:
+        created = _stamp(os.fstat(stream.fileno()))[:2]
+        stream.write(raw); stream.flush(); os.fsync(stream.fileno())
+    copied = _private_document_pin(destination)
+    if copied['stamp'][:2] != created or copied['sha256'] != pin['sha256'] or copied['size'] != pin['size']:
+        raise _InvalidEvidence()
+    pin.pop('json')
+    return {'source': path, 'source_pin': pin, 'path': destination, 'pin': copied}
 
 
 def _assess(candidate, scans, output, expected_commit, *, qualification=None, profile='server-signature',
@@ -373,6 +490,7 @@ def _assess(candidate, scans, output, expected_commit, *, qualification=None, pr
     container_state, container_reason = 'pending_external', 'container_result_not_verified'
     with tempfile.TemporaryDirectory(prefix='.assessment-', dir=output.parent) as temporary:
         workspace = Path(temporary)
+        decisions = {}
         candidate_pins, scan_pins, qual_pin, container_pin = {}, {}, None, None
         try:
             candidate_pins, candidate_docs = _snapshot(candidate, workspace / 'candidate', candidate=True)
@@ -415,13 +533,14 @@ def _assess(candidate, scans, output, expected_commit, *, qualification=None, pr
                     # modes. Our privacy snapshot intentionally chmods to0600.
                     hosted = verify_hosted(candidate, expected_commit,
                                            'bonjin-app/appguard', hosted_run_id, workspace / 'hosted')
-                    report_digest = _verifier_report(workspace / 'hosted/hosted.json', hosted)
+                    decision = _verifier_report(workspace / 'hosted/hosted.json', hosted, workspace / 'decisions/hosted.json')
                     if (hosted.get('technical_gate_verified') is True
                             and hosted.get('candidate_commit') == expected_commit
                             and hosted.get('sha256', {}).get('candidate_manifest') == hashes.get('candidate_manifest')
                             and hosted.get('sha256', {}).get('source_archive') == hashes.get('source_archive')):
                         hosted_state, hosted_reason = 'pass', 'hosted_result_verified'
-                    hashes['hosted_verification'] = report_digest
+                    decisions['hosted_verification'] = decision
+                    hashes['hosted_verification'] = decision['pin']['sha256']
                 except Exception:
                     hosted_state, hosted_reason = 'blocked', 'hosted_result_unverified'
             if container_run_id is not None:
@@ -429,7 +548,7 @@ def _assess(candidate, scans, output, expected_commit, *, qualification=None, pr
                     from verify_container import verify_container
                     container = verify_container(candidate, expected_commit, container_run_id,
                                                  container_artifact, workspace / 'container')
-                    report_digest = _verifier_report(workspace / 'container/container.json', container)
+                    decision = _verifier_report(workspace / 'container/container.json', container, workspace / 'decisions/container.json')
                     if (container.get('technical_gate_verified') is True
                             and container.get('artifact_verified') is True
                             and container.get('candidate_commit') == expected_commit
@@ -438,7 +557,8 @@ def _assess(candidate, scans, output, expected_commit, *, qualification=None, pr
                             and container.get('sha256', {}).get('source_archive') == hashes.get('source_archive')
                             and container.get('sha256', {}).get('artifact_zip') == container_pin['sha256']):
                         container_state, container_reason = 'pass', 'container_result_verified'
-                    hashes['container_verification'] = report_digest
+                    decisions['container_verification'] = decision
+                    hashes['container_verification'] = decision['pin']['sha256']
                 except Exception:
                     container_state, container_reason = 'blocked', 'container_result_unverified'
             unchanged = _unchanged(candidate, candidate_pins) and _unchanged(scans, scan_pins)
@@ -467,7 +587,7 @@ def _assess(candidate, scans, output, expected_commit, *, qualification=None, pr
                 container_state, container_reason = 'blocked', 'container_result_unverified'
         report = _ledger(expected_commit, profile, passed, reason, qual_state, qual_reason, hashes, count,
                          hosted_state, hosted_reason, container_state, container_reason)
-        _publish(output, report, workspace)
+        _publish(output, report, workspace, decisions)
     return report
 
 
