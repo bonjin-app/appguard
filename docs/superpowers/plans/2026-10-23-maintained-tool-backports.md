@@ -42,7 +42,8 @@ Static archive parsing, safe paths and strict type/size/member limits remain req
 
 ### Task 3: Real consumer install and maintenance routing
 
-- [ ] Modify `sdk/expo/{package.json,package-lock.json,README.md}` for exact logical braces/Forge local overrides; inspect every lock diff.
+- [ ] Modify `sdk/expo/{package.json,package-lock.json,README.md}` for exact logical braces/Forge root direct file devDependencies
+  and matching `$braces`/`$node-forge` overrides; inspect every lock diff. Raw relative transitive overrides alone failed existing-importer migration.
   Begin only after task2 review; preserve unrelated graph identities/dependency flags. Add resolver override only after task4 review.
 - [ ] Implement `scripts/dependencies/verify-backports.cjs` to compare lock/SRI/archive metadata, logical resolution origins and every installed payload hash;
   wire supported install/test/build/typecheck/pack commands and `.github/workflows/verify.yml` without weakening `--ignore-scripts`.

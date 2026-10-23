@@ -81,8 +81,12 @@ Require normal filesystem/export/type-consumer comparisons before adoption; type
 ## Consumer and honest source scanning
 
 Packaging alone changes no consumer lock, scanner policy or gate. Only after ancestry catalog/scanning is reviewed,
-put logical-name overrides in `sdk/expo/package.json`, regenerate only its reviewed lock delta, and require local-archive SRI joins.
-Paths are `file:../../tools/dependency-backports/archives/...`; there is no repository-root package.json to inherit overrides from.
+add logical-name root devDependencies in `sdk/expo/package.json` using `file:../../tools/dependency-backports/archives/...`,
+and reference those exact direct specs with overrides `braces: "$braces"` and `node-forge: "$node-forge"`.
+Regenerate only the reviewed lock delta and require local-archive SRI joins; there is no repository-root package.json to inherit overrides from.
+This direct-dependency binding is required for migration of the existing nested registry-style graph: npm10.9.8 resolved a raw relative
+override from the existing importer's directory. An owned scoped-importer metadata regression reproduced that failure and verified the direct-reference remedy;
+this metadata observation does not establish actual SDK installation or relocation. Preserve all unrelated graph identities and flags.
 Every separate test/producer consumer root must declare the same policy; overrides inside transitive packages do not protect consumers.
 Verify fresh/relocated same-lock installs, original logical require paths, actual fork metadata/origins and complete installed file hashes.
 All npm/build/test/pack routes use `scripts/dependencies/verify-backports.cjs`; `verify.yml` and `sdk/expo` scripts/README wire that check.

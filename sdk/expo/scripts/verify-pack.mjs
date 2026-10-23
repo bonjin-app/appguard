@@ -5,7 +5,9 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import assert from 'node:assert/strict';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const pack = JSON.parse(execFileSync('npm',['pack','--json'],{cwd:root,encoding:'utf8',stdio:['ignore','pipe','inherit']}))[0];
+// Run guarded staging/build exactly once, including for direct invocation of this file.
+execFileSync('npm',['run','prepack'],{cwd:root,stdio:['ignore','inherit','inherit']});
+const pack = JSON.parse(execFileSync('npm',['pack','--ignore-scripts','--json'],{cwd:root,encoding:'utf8',stdio:['ignore','pipe','inherit']}))[0];
 mkdirSync(path.join(root,'.tools'),{recursive:true});
 const scratch = mkdtempSync(path.join(root,'.tools/relocated-'));
 try {

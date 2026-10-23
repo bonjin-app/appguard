@@ -246,7 +246,10 @@ jobs:
           npm pack ./tools/cli --pack-destination "$RUNNER_TEMP"
       - name: Expo frozen install, tests, types and relocated package
         run: |
+          python3 -I -B scripts/dependencies/build-backports.py --check
+          node --test scripts/dependencies/tests/installed-backports.test.cjs
           npm --prefix sdk/expo ci --ignore-scripts
+          npm --prefix sdk/expo run verify:backports
           npm --prefix sdk/expo test
           npm --prefix sdk/expo run typecheck
           npm --prefix sdk/expo run verify:pack

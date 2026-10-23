@@ -24,12 +24,13 @@
     "RISK_BRIDGE_VERIFICATION.md"
   ],
   "scripts": {
-    "build": "tsc -p tsconfig.json",
-    "typecheck": "tsc -p tsconfig.json --noEmit",
+    "build": "npm run verify:backports && tsc -p tsconfig.json",
+    "typecheck": "npm run verify:backports && tsc -p tsconfig.json --noEmit",
     "test": "npm run build && node --test test/*.test.cjs",
     "stage:native": "node scripts/stage-native.mjs",
-    "prepack": "npm run stage:native && npm run build",
-    "verify:pack": "node scripts/verify-pack.mjs"
+    "prepack": "npm run verify:backports && npm run stage:native && tsc -p tsconfig.json",
+    "verify:pack": "node scripts/verify-pack.mjs",
+    "verify:backports": "node ../../scripts/dependencies/verify-backports.cjs"
   },
   "peerDependencies": {
     "expo": "^58.0.0",
@@ -43,10 +44,16 @@
     "react": "19.3.0",
     "react-native": "0.88.0",
     "typescript": "6.0.3",
-    "@types/react": "19.3.0"
+    "@types/react": "19.3.0",
+    "braces": "file:../../tools/dependency-backports/archives/appguard-braces-3.0.3-appguard.1.tgz",
+    "node-forge": "file:../../tools/dependency-backports/archives/appguard-node-forge-1.4.0-appguard.1.tgz"
   },
   "engines": {
     "node": ">=22.13.0"
   },
-  "private": true
+  "private": true,
+  "overrides": {
+    "braces": "$braces",
+    "node-forge": "$node-forge"
+  }
 }

@@ -13,11 +13,48 @@ The npm package is private to guard accidental registry publication during this 
 From this repository's `sdk/expo` directory:
 
 ```sh
+python3 -I -B ../../scripts/dependencies/build-backports.py --check
 npm ci --ignore-scripts
+npm run verify:backports
 npm test
 npm run typecheck
 npm run verify:pack
 ```
+
+The checkout root declares logical `braces` and `node-forge` as direct
+`devDependencies` targeting the reviewed archives under
+`tools/dependency-backports/archives/`, with exact `$braces` and `$node-forge`
+override references to those direct specs. Keep both parts together: the root
+direct archive edge avoids the importer-relative archive lookup observed with
+raw relative overrides on the pinned npm toolchain. The owned metadata fixture
+verified that mechanism; actual Expo lock/install/relocation verification remains
+separate. These are local
+**development/tooling** dependencies of this Expo verification checkout; they are
+not the bridge's declared runtime dependencies. Every independent
+application or other consumer root needs its own reviewed override and lock
+policy. Overrides inside a transitive dependency do not protect an unrelated
+application root.
+
+`verify:backports` requires both direct-dev archive targets and exact `$` override
+references, then binds the reviewed manifest, archive SHA-256/SHA-512 SRI, exact
+lock locations and identities, every installed payload file (including Forge
+CommonJS, browser, worker, maps and original LICENSE), and logical resolution from
+Expo CLI, code-signing and micromatch consumers. It resolves entrypoints without
+executing the derivative exports. It fails if a dependency is absent. The separate
+Python `--check` command reconstructs the complete archives from retained inputs;
+JavaScript installed-file checks do not reproduce compilation or archive assembly.
+
+Run the explicit verifier after `npm ci --ignore-scripts`; no postinstall hook is
+required. Supported `build`, `typecheck`, `test` and `prepack` commands check payloads
+before tooling use. `verify:pack` and direct `node scripts/verify-pack.mjs` run the
+guarded prepack staging/build once, then pack with `--ignore-scripts` to avoid
+repeating lifecycle work. A bare `npm pack --ignore-scripts` skips preparation and
+is not a supported verification route.
+
+These checks do not clear original upstream ancestry findings, the unresolved
+bundled resolver lineage, or the source scan gate. They do not establish Forge
+compiler reproduction, fresh/relocated actual consumer adoption, registry
+publication or release approval; those require separate reviewed evidence.
 
 `npm pack` runs a repository-only staging step that copies the sibling native SDK Java/Swift sources and their licenses into `vendor/`. `PROVENANCE.json` records the source commit and exact per-file SHA-256 values, including uncommitted native changes. The tarball contains the built JS/declarations, native adapters, both Apple podspecs, vendored sources/licenses, contract snapshot, and config plugin. Native pod metadata uses version `0.0.0`: CocoaPods' default `>= 0` requirement excludes the npm baseline prerelease `0.0.0-experimental.1`. The package remains experimental. Consumer installation does not run staging and resolves no SDK paths outside the package.
 
