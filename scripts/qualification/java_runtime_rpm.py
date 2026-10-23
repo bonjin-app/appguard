@@ -1,4 +1,4 @@
-"""Explicit, diagnostic-only UBI10 observations. No production/feed approval."""
+"""Explicit, diagnostic-only RPM profiles. No production/feed approval."""
 import hashlib
 import json
 import posixpath
@@ -7,6 +7,8 @@ import re
 from scan_container_images import _json
 
 PROFILE = 'rpm-ubi10-v1'
+UBI8_PROFILE = 'rpm-ubi8-copy-jre-v1'
+PROFILES = (PROFILE, UBI8_PROFILE)
 STAGES = ('identity', 'features', 'jre_tree', 'rpm_database_hashes', 'rpm_inventory', 'native_linkage', 'native_providers')
 REASONS = frozenset(('not_attempted','measured','tool_unavailable','read_unavailable','query_failed',
     'protocol_unverified','prerequisite_incomplete','identity_unverified','resource_unverified',
@@ -43,13 +45,19 @@ def status(attempted=False, complete=False, reason='not_attempted', code=None):
     return dict(attempted=attempted,complete=complete,reason=reason,transport_exit_code=code)
 
 
-def initial_report(architecture):
-    require(architecture in ('amd64','arm64'))
-    return dict(package_profile=PROFILE, measurement_complete=False, final_identity_verified=False,
+def initial_report(architecture, *, profile=PROFILE):
+    require(architecture in ('amd64','arm64') and profile in PROFILES)
+    cpu=dict(architecture=architecture,scope='observed_ci_host_only',
+        required_baseline='x86-64-v3' if architecture == 'amd64' else 'ARMv8.0-A',
+        noble_baseline_preserved=False,host_instruction_baseline_verified=False,cpu_baseline_approved=False)
+    if profile == UBI8_PROFILE:
+        cpu.update(required_baseline='copied_jre_minimum_unverified',
+            declared_base_scope='RHEL8_generic_declared_OS_floor_only',
+            provenance='Pinned UBI8 architecture/version and declared RHEL8 OS floor; no copied-JRE ISA or GLIBC measurement',
+            copied_jre_minimum_cpu_verified=False,copied_jre_minimum_glibc_verified=False)
+    return dict(package_profile=profile, measurement_complete=False, final_identity_verified=False,
         stages={name:status() for name in STAGES}, features=None, package_inventory=None,
-        platform_observation=None, cpu_scope=dict(architecture=architecture,scope='observed_ci_host_only',
-            required_baseline='x86-64-v3' if architecture == 'amd64' else 'ARMv8.0-A',
-            noble_baseline_preserved=False, host_instruction_baseline_verified=False,cpu_baseline_approved=False),
+        platform_observation=None, cpu_scope=cpu,
         external_approval=False, legal_approval=False, complete_resolved_graph=False)
 
 
@@ -150,8 +158,9 @@ def finalize(report):
     report['reason']='native_requirements_met' if report['native_checks_passed'] else 'native_requirements_unmet' if report['measurement_complete'] else 'inventory_unverified'
 
 
-def collect(report, execute, architecture, tree_parser, ldd_parser, library_path):
+def collect(report, execute, architecture, tree_parser, ldd_parser, library_path, *, profile=PROFILE):
     """Store validated observations immediately; no disk I/O or retries here."""
+    require(profile in PROFILES and report.get('package_profile')==profile)
     def stage(name, mode, args=(), timeout=60):
         report['stages'][name]=status(True,False,'protocol_unverified')
         try:
@@ -186,7 +195,8 @@ def collect(report, execute, architecture, tree_parser, ldd_parser, library_path
     if raw is not None:
         try:
             tree=tree_parser(raw,architecture,tree_only=True);report.update(tree)
-            require(report['os']['id'] in ('rhel','ubi') and report['os']['version'].split('.')[0]=='10')
+            require(report['os']['id'] in ('rhel','ubi') and
+                (report['os']['version']=='8.10' if profile==UBI8_PROFILE else report['os']['version'].split('.')[0]=='10'))
         except (ValueError,KeyError,TypeError):report['stages']['jre_tree']=status(True,False,'protocol_unverified',0);tree=None
     elif report['stages']['jre_tree']['complete']:report['stages']['jre_tree']=status(True,False,'protocol_unverified',0)
     value=stage('rpm_database_hashes','database-hashes')

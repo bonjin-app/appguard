@@ -17,6 +17,7 @@ from scan_container_images import _json,_path,file_identity,verify_files
 
 BASES=dict(noble='sha256:07fa0356cf354c5252947575f42ed42aa6fd921f36438b7bc77ad81c31c537dd',
     ubi='sha256:25c83f52d080115d99d80eaeda67a5221b07b7066ae8248fdd37f6e1c6469aef')
+UBI8_BASE='sha256:c851eaf99ddf32811fdf8a216c2609cd0e55317ab8c46ecbaa3ea8298532f055'
 NATIVE_CHECKS=frozenset(('elf_platform_matches','java_identity_matches','release_identity_matches','required_files_present',
     'symlinks_contained','linkage_resolved','package_inventory_complete','native_providers_verified','runtime_features_passed'))
 FALSE_FLAGS=('release_ready','native_binary_coverage','coverage_complete')
@@ -52,9 +53,9 @@ def tree_digest(value):
     require(value.get('jre_tree_sha256')==digest);return digest
 
 
-def supporting_records(value,platform):
+def supporting_records(value,platform,profile=rpm.PROFILE):
     stages=value['stages'];architecture=platform.split('/')[1]
-    cpu=value.get('cpu_scope');expected_cpu=rpm.initial_report(architecture)['cpu_scope']
+    cpu=value.get('cpu_scope');expected_cpu=rpm.initial_report(architecture,profile=profile)['cpu_scope']
     require(type(cpu) is dict and cpu==expected_cpu and all(type(cpu[key]) is type(expected_cpu[key]) for key in expected_cpu))
     if stages['identity']['complete']:
         row=value.get('platform_observation')
@@ -100,7 +101,7 @@ def supporting_records(value,platform):
     require(not stages['native_providers']['complete'] or stages['native_linkage']['complete'] and stages['rpm_inventory']['complete'])
 
 
-def native(value,image,platform,ubi):
+def native(value,image,platform,ubi,profile=rpm.PROFILE):
     require(type(value) is dict and type(value.get('schema')) is int and value['schema']==(4 if ubi else 2)
         and value.get('evidence_class')=='owned_java_runtime_inventory' and value.get('image_id')==image and value.get('platform')==platform
         and all(value.get(key) is False for key in FALSE_FLAGS)
@@ -110,7 +111,7 @@ def native(value,image,platform,ubi):
     if value['inventory_complete']:require(set(checks)==NATIVE_CHECKS)
     features=value.get('features')
     if ubi:
-        require(value.get('package_profile')==rpm.PROFILE and type(value.get('measurement_complete')) is bool
+        require(value.get('package_profile')==profile and type(value.get('measurement_complete')) is bool
             and type(value.get('final_identity_verified')) is bool and type(value.get('stages')) is dict
             and set(value['stages'])==set(rpm.STAGES)
             and all(value.get(key) is False for key in ('external_approval','legal_approval','complete_resolved_graph')))
@@ -121,10 +122,14 @@ def native(value,image,platform,ubi):
             _,expected=rpm.parse_feature_result(features)
             require(value['stages']['features']==expected)
         else:require(not value['stages']['features']['complete'])
-        supporting_records(value,platform)
+        supporting_records(value,platform,profile)
         expected=copy.deepcopy(value);rpm.finalize(expected)
         require(all(value[key] is expected[key] for key in ('inventory_complete','measurement_complete','native_checks_passed')))
         complete=value['measurement_complete'];tree_complete=value['stages']['jre_tree']['complete']
+        if profile==rpm.UBI8_PROFILE and (tree_complete or value.get('os') is not None):
+            operating=value.get('os')
+            require(type(operating) is dict and operating.get('id') in ('rhel','ubi')
+                and operating.get('version')=='8.10' and operating.get('architecture')==platform.split('/')[1])
     else:
         if features is not None:
             require(type(features) is dict and set(features)=={'schema','checks','passed','exit_code'} and type(features['schema']) is int
@@ -142,14 +147,20 @@ def native(value,image,platform,ubi):
     return dict(collection_complete=complete,native_checks_passed=value['native_checks_passed'],features=features),digest
 
 
-def compare_reports(documents,images,platform):
+def compare_reports(documents,images,platform,*,profile=rpm.PROFILE,base_index=None,jre_source_index=None):
+    # Pins describe this fixed recipe; they are not independent image ancestry.
+    require(profile in rpm.PROFILES)
+    if profile==rpm.UBI8_PROFILE:
+        require(base_index==UBI8_BASE and jre_source_index==BASES['noble'])
+    else:
+        require(base_index in (None,BASES['ubi']) and jre_source_index in (None,BASES['noble']))
     require(type(images) is dict and set(images)=={'noble','ubi'} and len(set(images.values()))==2
         and all(type(image) is str and re.fullmatch(r'sha256:[0-9a-f]{64}',image) for image in images.values())
         and platform in ('linux/amd64','linux/arm64') and type(documents) is dict and set(documents)=={'noble','ubi','diagnostic'}
         and all(type(raw) is bytes and 0<len(raw)<=2*1024*1024 for raw in documents.values()))
     values={key:_json(raw) for key,raw in documents.items()};observed={};digests=[]
     for role in ('noble','ubi'):
-        result,digest=native(values[role],images[role],platform,role=='ubi');observed[role]=result;digests.append(digest)
+        result,digest=native(values[role],images[role],platform,role=='ubi',profile);observed[role]=result;digests.append(digest)
     scan=values['diagnostic']
     require(type(scan) is dict and type(scan.get('schema')) is int and scan['schema']==1
         and scan.get('evidence_class')=='diagnostic_image_vulnerability_comparison' and scan.get('platform')==platform
@@ -160,14 +171,14 @@ def compare_reports(documents,images,platform):
         require(type(row) is dict and row.get('image_id')==images[role] and type(row.get('vulnerabilities')) is int
             and 0<=row['vulnerabilities']<=100000 and type(row.get('finding_details_complete')) is bool
             and type(row.get('zero_findings_interpretable')) is bool)
-        # This diagnostic has no reviewed Red Hat10 feed control.
+        # Neither RPM diagnostic has a reviewed distribution-specific feed control.
         if role=='ubi':require(row['zero_findings_interpretable'] is False)
         counts[role]=row['vulnerabilities']
     require(type(scan.get('vulnerabilities')) is int and scan['vulnerabilities']==sum(counts.values()))
     require(not scan['measurement_complete'] or all(row['finding_details_complete'] and
         (row['vulnerabilities']>0 or row['zero_findings_interpretable']) for row in scan['images']))
     complete=all(row['collection_complete'] for row in observed.values()) and scan['measurement_complete']
-    return dict(schema=1,evidence_class='same_image_ubi_runtime_diagnostic',platform=platform,image_ids=images.copy(),
+    result=dict(schema=1,evidence_class='same_image_ubi_runtime_diagnostic',platform=platform,image_ids=images.copy(),
         sha256={key:sha(raw) for key,raw in documents.items()},base_index_pins=BASES.copy(),artifact_bindings_verified=True,
         collection_complete=complete,whole_jre_identity_matches=digests[0] is not None and digests[0]==digests[1],
         reported_native_results=observed,reported_findings=counts,ubi_feed_status='unverified',
@@ -177,6 +188,16 @@ def compare_reports(documents,images,platform):
             'original reports and complete tree records are bound; full scanner/native semantics are not independently repeated',
             'Debian13 calibration does not verify Red Hat10 feed coverage; zero UBI findings are unverified',
             'no production deployment, native vulnerability closure, external or legal approval'])
+    if profile==rpm.UBI8_PROFILE:
+        result.update(evidence_class='same_image_ubi8_copy_jre_runtime_diagnostic',package_profile=profile,
+            base_index_pins=dict(noble=BASES['noble'],ubi=UBI8_BASE),jre_source_index_pin=BASES['noble'],
+            recipe_pin_scope='fixed_recipe_inputs_not_independent_image_ancestry',
+            limitations=['selected fixed CI host only; copied-JRE minimum CPU, GLIBC and host-kernel compatibility remain unverified',
+                'whole vendor JRE records including classes.jsa, legal, security and symlinks participate in equality',
+                'original reports are bound; full scanner/native semantics are not independently repeated',
+                'Debian13 calibration does not verify UBI8 feed coverage; zero UBI8 findings are unverified',
+                'no production deployment, native vulnerability closure, external or legal approval'])
+    return result
 
 
 class Parser(argparse.ArgumentParser):
@@ -186,6 +207,9 @@ class Parser(argparse.ArgumentParser):
 def main(argv=None):
     parser=Parser(description=__doc__)
     for name in ('input','output','noble-image','ubi-image','platform'):parser.add_argument('--'+name,required=True)
+    parser.add_argument('--ubi-profile',choices=rpm.PROFILES,default=rpm.PROFILE)
+    parser.add_argument('--ubi-base-index')
+    parser.add_argument('--jre-source-index')
     try:
         args=parser.parse_args(argv);root=_path(args.input,directory=True);output=_path(args.output,new=True)
         parent=output.parent.stat();require(parent.st_uid==os.getuid() and not parent.st_mode&0o022)
@@ -193,7 +217,8 @@ def main(argv=None):
         documents={};pins={}
         for key,path in paths.items():
             pin,raw=file_identity(path,2*1024*1024,keep=True);documents[key]=raw;pins[path]=(2*1024*1024,pin)
-        value=compare_reports(documents,dict(noble=args.noble_image,ubi=args.ubi_image),args.platform)
+        value=compare_reports(documents,dict(noble=args.noble_image,ubi=args.ubi_image),args.platform,
+            profile=args.ubi_profile,base_index=args.ubi_base_index,jre_source_index=args.jre_source_index)
         rpm_info=_json(documents['ubi']).get('package_inventory')
         if rpm_info is not None:
             path=root/'native/ubi/rpm-inventory.tsv';pin,raw=file_identity(path,2*1024*1024,keep=True)
@@ -202,8 +227,14 @@ def main(argv=None):
             require(len(packages)==rpm_info['count'] and ('packages' not in ubi or packages==ubi['packages']))
             pins[path]=(2*1024*1024,pin);value['rpm_query_sha256']=pin['sha256']
         sources=Path(__file__).resolve().parent;source_pins={}
-        for name in ('inspect_java_runtime.py','java_runtime_rpm.py','java-runtime-probe.Dockerfile','java/AppGuardRuntimeProbe.java','java/AppGuardRuntimeInventory.java'):
-            path=sources/name;pin=file_identity(path,512*1024);pins[path]=(512*1024,pin);source_pins[name]=pin['sha256']
+        names=('inspect_java_runtime.py','java_runtime_rpm.py','java-runtime-probe.Dockerfile','java/AppGuardRuntimeProbe.java','java/AppGuardRuntimeInventory.java')
+        if args.ubi_profile==rpm.UBI8_PROFILE:
+            names+=('compare_java_ubi_evidence.py','../../.github/workflows/java-ubi8-copy-jre.yml')
+        for name in names:
+            # Normalize these fixed source names without following symlinks;
+            # file_identity still rejects symlink components and file changes.
+            path=Path(os.path.normpath(sources/name))
+            pin=file_identity(path,512*1024);pins[path]=(512*1024,pin);source_pins[name]=pin['sha256']
         value['collector_source_sha256']=source_pins
         raw=(json.dumps(value,indent=2,sort_keys=True,allow_nan=False)+'\n').encode();require(len(raw)<=32768)
         with private_publication(output) as publication:

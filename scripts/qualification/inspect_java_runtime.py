@@ -383,9 +383,9 @@ def validate_container(record, image, owner):
 def inspect_runtime(image, platform, output, docker_context='default', features=False, dependency_closure=False, package_profile='dpkg-v1'):
     require(type(image) is str and IMAGE.fullmatch(image) and platform in ('linux/amd64', 'linux/arm64') and docker_context == 'default')
     require(type(features) is bool and type(dependency_closure) is bool)
-    require(package_profile in ('dpkg-v1', rpm.PROFILE) and
+    require(package_profile in ('dpkg-v1', *rpm.PROFILES) and
         (package_profile == 'dpkg-v1' or features and not dependency_closure))
-    is_rpm = package_profile == rpm.PROFILE
+    is_rpm = package_profile in rpm.PROFILES
     output = _path(output, new=True)
     parent = output.parent.stat()
     require(parent.st_uid == os.getuid() and not parent.st_mode & 0o022)
@@ -403,7 +403,7 @@ def inspect_runtime(image, platform, output, docker_context='default', features=
             'no external approval, production or physical-hardware evidence'])
     if features: report['features'] = None
     if dependency_closure: report['dependency_closure'] = None
-    if is_rpm: report.update(rpm.initial_report(architecture), schema=4)
+    if is_rpm: report.update(rpm.initial_report(architecture, profile=package_profile), schema=4)
     with private_publication(output) as publication, tempfile.TemporaryDirectory(prefix='appguard-java-audit-') as temporary:
         state = Path(temporary).resolve(); state.chmod(0o700)
         home = state/'home'; home.mkdir(mode=0o700)
@@ -461,7 +461,7 @@ def inspect_runtime(image, platform, output, docker_context='default', features=
                     try: owned(validate=True)
                     except (Exception, KeyboardInterrupt): raise rpm.StopCollection('identity_unverified') from None
                     return call(['exec', identifier, *command], timeout)
-                rpm.collect(report, execute_rpm, architecture, parse_inventory, parse_ldd, library_path)
+                rpm.collect(report, execute_rpm, architecture, parse_inventory, parse_ldd, library_path, profile=package_profile)
             else:
                 parsed = parse_inventory(call([*prefix, INVENTORY_SCRIPT], timeout=300), architecture)
                 report.update(parsed)
@@ -549,7 +549,7 @@ def main(argv=None):
     parser.add_argument('--output', required=True)
     parser.add_argument('--features', action='store_true', help='Run baked-in Java feature probe in diagnostic images')
     parser.add_argument('--dependency-closure', action='store_true', help='Require fixed-snapshot dependency evidence in diagnostic image')
-    parser.add_argument('--package-profile', choices=('dpkg-v1', rpm.PROFILE), default='dpkg-v1')
+    parser.add_argument('--package-profile', choices=('dpkg-v1', *rpm.PROFILES), default='dpkg-v1')
     try:
         args = parser.parse_args(argv)
         with cancellation_scope(): result = inspect_runtime(args.image, args.platform, args.output, args.docker_context,

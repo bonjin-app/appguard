@@ -39,6 +39,16 @@ COPY scripts/qualification/install_java_runtime_dependencies.sh /usr/local/libex
 RUN timeout 600 /bin/sh /usr/local/libexec/appguard-install-java-runtime-dependencies install && ldconfig
 USER 10001:10001
 
+# Copy-only diagnostic: preserve the entire Noble JRE, including classes.jsa,
+# legal/security bytes and symlinks. Keep UBI8's PATH/container environment.
+FROM registry.access.redhat.com/ubi8/ubi-minimal@sha256:c851eaf99ddf32811fdf8a216c2609cd0e55317ab8c46ecbaa3ea8298532f055 AS ubi8-copy-jre
+COPY --from=vendor_jre /opt/java/openjdk/ /opt/java/openjdk/
+COPY --from=probe_build /probe/classes/ /opt/appguard/java-runtime-probe/
+COPY --from=probe_build /probe/LICENSE /usr/share/licenses/appguard/LICENSE
+USER 10001:10001
+ENTRYPOINT ["/opt/java/openjdk/bin/java"]
+CMD []
+
 # Diagnostic only: preserve the original UBI RPM DB/buildinfo/licenses and JRE.
 # UBI10 amd64 needs x86-64-v3; this is never a production-default replacement.
 FROM eclipse-temurin:17.0.20.1_1-jre-ubi10-minimal@sha256:25c83f52d080115d99d80eaeda67a5221b07b7066ae8248fdd37f6e1c6469aef AS ubi10

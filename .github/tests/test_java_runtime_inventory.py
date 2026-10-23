@@ -576,18 +576,21 @@ class RpmRuntimeTests(unittest.TestCase):
 
     def test_rpm_complete_measurement_preserves_home_and_codex_values_and_raw_metadata(self):
         fake,modes,commands,call=self.rpm_call()
+        caller={key:(key in os.environ,os.environ.get(key)) for key in ('HOME','CODEX_HOME')}
         with tempfile.TemporaryDirectory() as directory,patch.object(self.m,'bounded_command',side_effect=call), \
                 patch('platform.system',return_value='Linux'),patch('platform.machine',return_value='x86_64'), \
-                patch.dict(os.environ,{'HOME':'/owned/caller-home','CODEX_HOME':'/owned/caller-codex','JAVA_TOOL_OPTIONS':'HOST_SECRET'}):
+                patch.dict(os.environ,{'JAVA_TOOL_OPTIONS':'HOST_SECRET'}):
             output=Path(directory).resolve()/'out'
             result=self.m.inspect_runtime(self.image,'linux/amd64',output,features=True,package_profile='rpm-ubi10-v1')
             self.assertTrue((output/'rpm-inventory.tsv').is_file())
             self.assertEqual((output/'rpm-inventory.tsv').stat().st_mode&0o777,0o600)
         self.assertTrue(result['measurement_complete']);self.assertTrue(result['native_checks_passed'])
+        self.assertTrue(all((key in os.environ,os.environ.get(key))==expected for key,expected in caller.items()),
+            'caller_home_environment_changed')
         for command,kwargs in commands:
-            self.assertEqual(kwargs['env'].get('HOME'),'/owned/caller-home')
-            self.assertEqual(kwargs['env'].get('CODEX_HOME'),'/owned/caller-codex')
-            self.assertNotIn('HOST_SECRET',json.dumps(kwargs['env']))
+            self.assertTrue(all((key in kwargs['env'])==present and (not present or kwargs['env'][key]==value)
+                for key,(present,value) in caller.items()),'caller_home_environment_unverified')
+            self.assertTrue('HOST_SECRET' not in json.dumps(kwargs['env']),'host_java_environment_unverified')
             self.assertNotIn('HOME=', ' '.join(command));self.assertNotIn('CODEX_HOME=', ' '.join(command))
         self.assertNotIn('_rpm_raw',result)
 
