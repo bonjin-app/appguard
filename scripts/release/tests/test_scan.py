@@ -3,17 +3,109 @@ import importlib.util
 import io
 import json
 import os
+from collections import ChainMap
 from pathlib import Path
 import tarfile
 import tempfile
 import sys
 import unittest
+from types import SimpleNamespace
 from unittest.mock import patch
 
 SPEC = importlib.util.spec_from_file_location('scan', Path(__file__).resolve().parents[1] / 'scan.py')
 
 
 class ScanTests(unittest.TestCase):
+    def test_maven_child_disables_launcher_rc_without_mutating_caller_environment(self):
+        m = self.module()
+        identity = {key: os.environ[key] for key in ('HOME', 'CODEX_HOME') if key in os.environ}
+        for flag_present in (False, True):
+            with self.subTest(flag_present=flag_present), tempfile.TemporaryDirectory() as tmp:
+                base = Path(tmp).resolve()
+                source = base / 'source'
+                (source / 'sdk/spring-boot').mkdir(parents=True)
+                (source / 'sdk/spring-boot/pom.xml').write_text('<project/>')
+                (base / 'state').mkdir(); (base / 'reports').mkdir()
+                fake = base / 'mvn'
+                fake.write_text('owned executable placeholder; subprocess intercepted')
+                caller = {'PATH': '', **identity}
+                if flag_present: caller['MAVEN_SKIP_RC'] = '0'
+                before = dict(caller)
+                observations = []
+                def invoke(command, *, env, **kwargs):
+                    observations.append((env.get('MAVEN_SKIP_RC') == '1', env is not caller,
+                        all((key in env) == (key in identity) and
+                            (key not in identity or env[key] == identity[key]) for key in ('HOME', 'CODEX_HOME'))))
+                    return m.subprocess.CompletedProcess(command, 7)
+                with patch.object(m, 'os', SimpleNamespace(environ=ChainMap(
+                        {'APPGUARD_MAVEN_CMD': str(fake), 'APPGUARD_MAVEN_REPOSITORY': str(base/'cache')}, os.environ))), \
+                        patch.object(m.shutil, 'which', return_value=str(fake)), \
+                        patch.object(m.subprocess, 'run', side_effect=invoke):
+                    result = m.export_maven(source, base/'state', base/'reports', caller)
+                self.assertEqual(result['returncode'], 7)
+                self.assertTrue(caller == before, 'caller environment must remain unchanged')
+                self.assertEqual(len(observations), 1)
+                self.assertTrue(observations[0][0], 'Maven launcher rc loading must be disabled')
+                self.assertTrue(observations[0][1], 'Maven must receive a child-only environment copy')
+                self.assertTrue(observations[0][2], 'tool identity environment must be preserved')
+        self.assertTrue(all((key in os.environ) == (key in identity) and
+            (key not in identity or os.environ[key] == identity[key]) for key in ('HOME', 'CODEX_HOME')),
+            'actual process identity environment must remain unchanged')
+
+    def test_tool_environment_preserves_actual_home_and_isolates_settings(self):
+        m = self.module()
+        identity = {key: os.environ[key] for key in ('HOME', 'CODEX_HOME') if key in os.environ}
+        observations = []
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp).resolve()
+            source = base / 'candidate/source'
+            (source / 'sdk/spring-boot').mkdir(parents=True)
+            (source / 'sdk/spring-boot/pom.xml').write_text('<project/>')
+            (source.parent / 'manifest.json').write_text(json.dumps({'sha256': {
+                'source/sdk/spring-boot/pom.xml': hashlib.sha256(b'<project/>').hexdigest()}}))
+            fake = base / 'mvn'
+            fake.write_text('owned executable placeholder; subprocess intercepted')
+            inherited = ChainMap({'APPGUARD_MAVEN_CMD': str(fake),
+                'APPGUARD_MAVEN_REPOSITORY': str(base / 'owned-maven-cache'),
+                'PRIVATE_ACCOUNT_TOKEN': 'must-not-be-inherited',
+                'SYFT_CONFIG': 'must-not-be-read', 'TRIVY_CONFIG': 'must-not-be-read',
+                'MAVEN_OPTS': 'must-not-be-inherited'}, os.environ)
+
+            def invoke(command, *, env, cwd, stdout, stderr, timeout):
+                kind = 'maven' if command[0] == str(fake) else Path(command[0]).name
+                state = Path(cwd).parent if kind == 'maven' else Path(cwd)
+                preserved = all((key in env) == (key in identity) and
+                    (key not in identity or env[key] == identity[key]) for key in ('HOME', 'CODEX_HOME'))
+                isolated = all(Path(env[key]).is_relative_to(state) for key in
+                    ('XDG_CACHE_HOME', 'XDG_CONFIG_HOME', 'TRIVY_CACHE_DIR'))
+                filtered = not any(key in env for key in
+                    ('PRIVATE_ACCOUNT_TOKEN', 'SYFT_CONFIG', 'TRIVY_CONFIG', 'MAVEN_OPTS'))
+                if kind == 'maven':
+                    explicit = ('-Duser.home=' + str(state / 'home') in command and
+                        '-Dmaven.repo.local=' + str(base / 'owned-maven-cache') in command)
+                else:
+                    config = Path(command[command.index('--config') + 1])
+                    explicit = config.is_relative_to(state) and config.is_file()
+                    if kind == 'trivy':
+                        ignore = Path(command[command.index('--ignorefile') + 1])
+                        explicit = explicit and config.read_text() == '{}\n' and ignore.read_text() == ''
+                observations.append((kind, preserved, isolated, filtered, explicit))
+                return m.subprocess.CompletedProcess(command, 7)
+
+            with patch.object(m, 'os', SimpleNamespace(environ=inherited)), patch.object(
+                    m.shutil, 'which', return_value=str(fake)), patch.object(
+                    m, 'install_tool', side_effect=lambda name, state: state / name), patch.object(
+                    m.subprocess, 'run', side_effect=invoke):
+                self.assertEqual(m.run_scans(source.parent, base / 'reports'), 1)
+        self.assertTrue(all((key in os.environ) == (key in identity) and
+            (key not in identity or os.environ[key] == identity[key]) for key in ('HOME', 'CODEX_HOME')),
+            'actual process identity environment must remain unchanged')
+        self.assertEqual([row[0] for row in observations], ['maven', 'syft', 'trivy', 'trivy', 'trivy'])
+        self.assertTrue(all(row[1] for row in observations), 'tool identity environment must be preserved')
+        self.assertTrue(all(row[2] for row in observations), 'tool caches and config roots must be private')
+        self.assertTrue(all(row[3] for row in observations), 'unrelated tool settings and credentials must be filtered')
+        self.assertTrue(all(row[4] for row in observations), 'tools must receive explicit private settings')
+
     def test_raw_finding_directory_remains_owner_only_after_publication(self):
         m = self.module()
         with tempfile.TemporaryDirectory() as tmp:
@@ -152,7 +244,8 @@ class ScanTests(unittest.TestCase):
             (base / 'state').mkdir()
             (base / 'reports').mkdir()
             before = (source / 'sdk/spring-boot/pom.xml').read_bytes()
-            with patch.dict(m.os.environ, {'APPGUARD_MAVEN_CMD': '/missing/mvn'}):
+            with patch.object(m, 'os', SimpleNamespace(environ=ChainMap(
+                    {'APPGUARD_MAVEN_CMD': '/missing/mvn'}, os.environ))):
                 result = m.export_maven(source, base / 'state', base / 'reports', {'PATH': ''})
             self.assertEqual(result['returncode'], 127)
             self.assertEqual((source / 'sdk/spring-boot/pom.xml').read_bytes(), before)
@@ -173,8 +266,10 @@ class ScanTests(unittest.TestCase):
                      'pathlib.Path(args["outputDirectory"]).joinpath("library.jar").write_bytes(b"jar")\n'
                      'pathlib.Path(args["outputFile"]).write_text("example:library:jar:1:runtime")\n' if produce else ''))
                 fake.chmod(0o755)
-                with patch.dict(m.os.environ, {'APPGUARD_MAVEN_CMD': str(fake)}):
-                    result = m.export_maven(source, base / 'state', base / 'reports', {'PATH': ''})
+                with patch.object(m, 'os', SimpleNamespace(environ=ChainMap(
+                        {'APPGUARD_MAVEN_CMD': str(fake)}, os.environ))):
+                    env = {'PATH': '', **{key: os.environ[key] for key in ('HOME', 'CODEX_HOME') if key in os.environ}}
+                    result = m.export_maven(source, base / 'state', base / 'reports', env)
                 self.assertEqual(result['returncode'], 0 if produce else 65)
                 manifest = json.loads((base / 'reports/maven-runtime-manifest.json').read_text())
                 self.assertEqual(len(manifest['sha256']), 1 if produce else 0)

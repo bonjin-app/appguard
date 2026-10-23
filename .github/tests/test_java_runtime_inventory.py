@@ -7,13 +7,19 @@ import inspect
 import io
 import json
 import os
+from collections import ChainMap
 from pathlib import Path
 import sys
 import tempfile
 import unittest
+from types import SimpleNamespace
 from unittest.mock import patch
 
 SCRIPT = Path(__file__).resolve().parents[2] / 'scripts/qualification/inspect_java_runtime.py'
+
+
+def os_with_environment(values):
+    return SimpleNamespace(**{**vars(os), 'environ': ChainMap(values, os.environ)})
 
 
 def inventory(*, missing=False, java_exit=0, arch='amd64', symlink=None):
@@ -78,6 +84,34 @@ class RuntimeInventoryTests(unittest.TestCase):
         spec = importlib.util.spec_from_file_location('dependency_test_fixture', Path(__file__).with_name('test_java_runtime_dependencies.py'))
         module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
         return module.DependencyClosureTests().fixture()
+
+    def test_default_profile_preserves_actual_identity_with_private_docker_config(self):
+        caller = {key: (key in os.environ, os.environ.get(key)) for key in ('HOME', 'CODEX_HOME')}
+        observations = []
+        fake = self.fake(missing=False)
+        def call(command, **kwargs):
+            env = kwargs['env']; config = Path(env['DOCKER_CONFIG'])
+            preserved = all((key in env) == present and (not present or env[key] == value)
+                for key, (present, value) in caller.items())
+            private = (config.parent == kwargs['cwd'] and config.stat().st_mode & 0o777 == 0o700
+                and (config/'config.json').stat().st_mode & 0o777 == 0o600
+                and (config/'config.json').read_text() == '{}')
+            filtered = set(env) <= {'HOME', 'CODEX_HOME', 'PATH', 'SYSTEMROOT', 'DOCKER_CONFIG', 'DOCKER_CONTEXT'}
+            context = env['DOCKER_CONTEXT'] == 'default' and command[1:3] == ['--context', 'default']
+            observations.append((preserved, private, filtered, context))
+            return fake(command, **kwargs)
+        with tempfile.TemporaryDirectory() as directory, patch.object(self.m, 'os', os_with_environment(
+                {'JAVA_TOOL_OPTIONS': 'HOST_SECRET', 'DOCKER_CONFIG': 'HOST_SECRET', 'PRIVATE_ACCOUNT_TOKEN': 'HOST_SECRET'})), \
+                patch.object(self.m, 'bounded_command', side_effect=call):
+            result = self.m.inspect_runtime(self.image, 'linux/amd64', Path(directory).resolve()/'out')
+        self.assertTrue(result['inventory_complete']); self.assertTrue(result['cleanup']); self.assertTrue(fake.removed)
+        self.assertTrue(bool(observations), 'command observations must exist')
+        self.assertTrue(all(row[0] for row in observations), 'caller_home_environment_unverified')
+        self.assertTrue(all(row[1] for row in observations), 'private_docker_config_unverified')
+        self.assertTrue(all(row[2] for row in observations), 'host_options_not_filtered')
+        self.assertTrue(all(row[3] for row in observations), 'default_docker_context_unverified')
+        self.assertTrue(all((key in os.environ, os.environ.get(key)) == expected for key, expected in caller.items()),
+            'caller_home_environment_changed')
 
     def test_explicit_dependency_closure_reads_fixed_owned_files_and_binds_schema3(self):
         self.assertIn('dependency_closure', inspect.signature(self.m.inspect_runtime).parameters)
@@ -219,12 +253,13 @@ class RuntimeInventoryTests(unittest.TestCase):
             with tempfile.TemporaryDirectory() as directory:
                 fake = self.fake(missing=False)
                 def call(command, **kwargs):
-                    self.assertNotIn('HOST_SECRET', json.dumps(kwargs.get('env', {})))
-                    self.assertNotIn('HOST_SECRET', ' '.join(command))
+                    self.assertTrue(all(key not in kwargs['env'] for key in ('LANG', 'JAVA_TOOL_OPTIONS')),
+                        'host_options_not_filtered')
+                    self.assertTrue('HOST_SECRET' not in ' '.join(command), 'host_options_injected')
                     if command[3] == 'exec' and 'AppGuardRuntimeProbe' in command[-1]: return response
                     return fake(command, **kwargs)
-                with self.subTest(expected=expected), patch.dict(os.environ,
-                        {'LANG': 'HOST_SECRET', 'JAVA_TOOL_OPTIONS': 'HOST_SECRET'}), \
+                with self.subTest(expected=expected), patch.object(self.m, 'os', os_with_environment(
+                        {'LANG': 'HOST_SECRET', 'JAVA_TOOL_OPTIONS': 'HOST_SECRET'})), \
                         patch.object(self.m, 'bounded_command', side_effect=call), \
                         contextlib.redirect_stdout(io.StringIO()) as stdout:
                     code = self.m.main(['--image', self.image, '--platform', 'linux/amd64',
@@ -575,19 +610,34 @@ class RpmRuntimeTests(unittest.TestCase):
         self.assertEqual(len(result['files']),7)
 
     def test_rpm_complete_measurement_preserves_home_and_codex_values_and_raw_metadata(self):
-        fake,modes,commands,call=self.rpm_call()
+        fake,modes,commands,base_call=self.rpm_call()
+        private_configs=[]
+        def call(command,**kwargs):
+            config=Path(kwargs['env']['DOCKER_CONFIG'])
+            private_configs.append(config.parent==kwargs['cwd'] and config.stat().st_mode&0o777==0o700
+                and (config/'config.json').stat().st_mode&0o777==0o600 and (config/'config.json').read_text()=='{}')
+            return base_call(command,**kwargs)
+        caller={key:(key in os.environ,os.environ.get(key)) for key in ('HOME','CODEX_HOME')}
         with tempfile.TemporaryDirectory() as directory,patch.object(self.m,'bounded_command',side_effect=call), \
                 patch('platform.system',return_value='Linux'),patch('platform.machine',return_value='x86_64'), \
-                patch.dict(os.environ,{'HOME':'/owned/caller-home','CODEX_HOME':'/owned/caller-codex','JAVA_TOOL_OPTIONS':'HOST_SECRET'}):
+                patch.object(self.m,'os',os_with_environment({'JAVA_TOOL_OPTIONS':'HOST_SECRET',
+                    'DOCKER_CONFIG':'HOST_SECRET','PRIVATE_ACCOUNT_TOKEN':'HOST_SECRET'})):
             output=Path(directory).resolve()/'out'
             result=self.m.inspect_runtime(self.image,'linux/amd64',output,features=True,package_profile='rpm-ubi10-v1')
             self.assertTrue((output/'rpm-inventory.tsv').is_file())
             self.assertEqual((output/'rpm-inventory.tsv').stat().st_mode&0o777,0o600)
         self.assertTrue(result['measurement_complete']);self.assertTrue(result['native_checks_passed'])
+        self.assertTrue(bool(private_configs) and all(private_configs),'private_docker_config_unverified')
+        self.assertTrue(all((key in os.environ,os.environ.get(key))==expected for key,expected in caller.items()),
+            'caller_home_environment_changed')
         for command,kwargs in commands:
-            self.assertEqual(kwargs['env'].get('HOME'),'/owned/caller-home')
-            self.assertEqual(kwargs['env'].get('CODEX_HOME'),'/owned/caller-codex')
-            self.assertNotIn('HOST_SECRET',json.dumps(kwargs['env']))
+            self.assertTrue(all((key in kwargs['env'])==present and (not present or kwargs['env'][key]==value)
+                for key,(present,value) in caller.items()),'caller_home_environment_unverified')
+            env=kwargs['env']
+            self.assertTrue(set(env)<={'HOME','CODEX_HOME','PATH','SYSTEMROOT','DOCKER_CONFIG','DOCKER_CONTEXT'},
+                'host_java_environment_unverified')
+            self.assertTrue(env['DOCKER_CONTEXT']=='default' and command[1:3]==['--context','default'],
+                'default_docker_context_unverified')
             self.assertNotIn('HOME=', ' '.join(command));self.assertNotIn('CODEX_HOME=', ' '.join(command))
         self.assertNotIn('_rpm_raw',result)
 

@@ -406,14 +406,10 @@ def inspect_runtime(image, platform, output, docker_context='default', features=
     if is_rpm: report.update(rpm.initial_report(architecture), schema=4)
     with private_publication(output) as publication, tempfile.TemporaryDirectory(prefix='appguard-java-audit-') as temporary:
         state = Path(temporary).resolve(); state.chmod(0o700)
-        home = state/'home'; home.mkdir(mode=0o700)
         docker_config = state/'docker'; docker_config.mkdir(mode=0o700)
         (docker_config/'config.json').write_text('{}'); (docker_config/'config.json').chmod(0o600)
-        env = {key: os.environ[key] for key in ('PATH', 'SYSTEMROOT') if key in os.environ}
-        if is_rpm:
-            env.update({key: os.environ[key] for key in ('HOME','CODEX_HOME') if key in os.environ})
-            env.update(DOCKER_CONFIG=str(docker_config), DOCKER_CONTEXT='default')
-        else: env.update(HOME=str(home), DOCKER_CONFIG=str(docker_config), DOCKER_CONTEXT='default')
+        env = {key: os.environ[key] for key in ('HOME', 'CODEX_HOME', 'PATH', 'SYSTEMROOT') if key in os.environ}
+        env.update(DOCKER_CONFIG=str(docker_config), DOCKER_CONTEXT='default')
         executable = shutil.which('docker') or 'docker'
         deadline, created, identifier = time.monotonic() + 600, False, None
         def call(args, timeout=30):

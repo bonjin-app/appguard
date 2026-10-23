@@ -103,9 +103,11 @@ def export_maven(source, state, reports, env):
                '-DincludeScope=runtime', '-Dmdep.useRepositoryLayout=true',
                '-DoutputDirectory=' + str(artifacts),
                '-DoutputFile=' + str(reports / 'maven-runtime-dependencies.txt'), '-DappendOutput=false']
+    # The shell launcher reads rc files before the JVM applies -Duser.home.
+    child_env = dict(env, MAVEN_SKIP_RC='1')
     with (reports / 'maven-runtime.log').open('wb') as log:
         try:
-            result = subprocess.run(command, env=env, cwd=module, stdout=log, stderr=subprocess.STDOUT, timeout=600)
+            result = subprocess.run(command, env=child_env, cwd=module, stdout=log, stderr=subprocess.STDOUT, timeout=600)
             code = result.returncode
         except (OSError, subprocess.TimeoutExpired) as error:
             log.write((str(error) + '\n').encode())
@@ -203,9 +205,10 @@ def run_scans(candidate, output):
         write_syft_config(syft_config)
         ignore = state / 'empty.ignore'
         ignore.write_text('')
-        # Do not inherit scanner settings, account credentials, or user's caches.
-        env = {key: os.environ[key] for key in ('PATH', 'SYSTEMROOT', 'JAVA_HOME', 'SSL_CERT_FILE', 'SSL_CERT_DIR') if key in os.environ}
-        env.update(HOME=str(home), XDG_CACHE_HOME=str(state / 'cache'), XDG_CONFIG_HOME=str(home),
+        # Preserve process identity; explicit configs and cache paths isolate
+        # tools without inheriting scanner settings or account credentials.
+        env = {key: os.environ[key] for key in ('HOME', 'CODEX_HOME', 'PATH', 'SYSTEMROOT', 'JAVA_HOME', 'SSL_CERT_FILE', 'SSL_CERT_DIR') if key in os.environ}
+        env.update(XDG_CACHE_HOME=str(state / 'cache'), XDG_CONFIG_HOME=str(home),
                    SYFT_CHECK_FOR_APP_UPDATE='false', TRIVY_SKIP_VERSION_CHECK='true', TRIVY_DISABLE_TELEMETRY='true', TRIVY_CACHE_DIR=str(state / 'cache/trivy'))
         try:
             syft = install_tool('syft', state)
