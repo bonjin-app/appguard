@@ -516,4 +516,169 @@ class RuntimeInventoryTests(unittest.TestCase):
         return Fake()
 
 
+class RpmRuntimeTests(unittest.TestCase):
+    # Share owned fixture setup without repeating the legacy test methods.
+    setUpClass = classmethod(RuntimeInventoryTests.setUpClass.__func__)
+    image = RuntimeInventoryTests.image
+    record = RuntimeInventoryTests.record
+    fake = RuntimeInventoryTests.fake
+    parent_policy_fixture = RuntimeInventoryTests.parent_policy_fixture
+    def rpm_call(self, unavailable=(), feature_code=0, failed=(), mutate=None):
+        from test_java_runtime_rpm import envelope,feature
+        fake=self.fake(missing=False);modes=[];commands=[]
+        lines=inventory().splitlines();tree=[];inside=False
+        for line in lines:
+            if line.startswith('ELF_BEGIN\t'):inside=True;continue
+            if line.startswith('ELF_END\t'):inside=False;continue
+            if inside or line.startswith('PACKAGE\t'):continue
+            tree.append(line.replace('OS_ID\tubuntu','OS_ID\trhel').replace('OS_VERSION\t24.04','OS_VERSION\t10.1'))
+        header='7f454c4602010100000000000000000002003e00'
+        def call(command,**kwargs):
+            commands.append((command,kwargs));args=command[3:]
+            if args[:2]==['image','inspect']:
+                row=json.loads(fake(command,**kwargs));row[0]['Config']['Env']=['JAVA_HOME=/opt/java/openjdk','LANG=C.UTF-8']
+                if mutate:mutate(row[0])
+                return json.dumps(row)
+            if args[0]=='exec':
+                self.assertEqual(args[2],'/opt/java/openjdk/bin/java')
+                self.assertNotIn('/bin/sh',args);self.assertNotIn('/usr/bin/env',args)
+                index=args.index('AppGuardRuntimeInventory')+1;mode=args[index];modes.append(mode)
+                if mode in unavailable:return envelope(None,False,'tool_unavailable')
+                if mode=='identity':return envelope(dict(uids=[10001]*4,gids=[10001]*4,pid1_elf=header,self_elf=header,
+                    java_vendor='Eclipse Adoptium',java_version='17.0.20.1',java_runtime_version='17.0.20.1+1',os_arch='amd64'))
+                if mode=='features':return envelope(feature(code=feature_code,failed=failed))
+                if mode=='tree':return envelope('\n'.join(tree)+'\n')
+                if mode=='database-hashes':return envelope([dict(tag='usr-rpmdb.sqlite',sha256='a'*64,size=128)])
+                if mode=='rpm':return envelope(dict(rows='glibc\t0\t2.39\t58.el10\tx86_64\tglibc-2.39-58.el10.src.rpm\tLGPL\n',count=1))
+                if mode=='linkage':return envelope([dict(path=name,code=0,lines=['linux-vdso.so.1 (0x00000001)',
+                    'libc.so.6 => /usr/lib64/libc.so.6 (0x00000002)']) for name in args[index+1:]])
+                if mode=='providers':return envelope([dict(path=name,real=name,sha256='b'*64,
+                    owners='glibc\t0\t2.39\t58.el10\tx86_64\tglibc-2.39-58.el10.src.rpm\tLGPL\n') for name in args[index+1:]])
+                raise AssertionError('unrecognized fixed Java mode')
+            return fake(command,**kwargs)
+        return fake,modes,commands,call
+
+    def test_rpm_feature_first_preserves_real_results_without_shell_or_rpm_ldd_tools(self):
+        fake,modes,commands,call=self.rpm_call(unavailable=('rpm','linkage'))
+        with tempfile.TemporaryDirectory() as directory,patch.object(self.m,'bounded_command',side_effect=call), \
+                patch('platform.system',return_value='Linux'),patch('platform.machine',return_value='x86_64'):
+            result=self.m.inspect_runtime(self.image,'linux/amd64',Path(directory).resolve()/'out',features=True,package_profile='rpm-ubi10-v1')
+        self.assertEqual(modes[:4],['identity','features','tree','database-hashes'])
+        create=next(command for command,_ in commands if command[3]=='create')
+        self.assertEqual(create[create.index('--entrypoint')+1],'/opt/java/openjdk/bin/java')
+        self.assertNotIn('/bin/sh',create);self.assertNotIn('sleep',create)
+        self.assertEqual(result['schema'],4);self.assertTrue(result['features']['passed'])
+        self.assertTrue(result['stages']['jre_tree']['complete']);self.assertTrue(result['stages']['rpm_database_hashes']['complete'])
+        self.assertFalse(result['stages']['rpm_inventory']['complete']);self.assertFalse(result['inventory_complete'])
+        self.assertFalse(result['measurement_complete']);self.assertTrue(result['cleanup']);self.assertTrue(fake.removed)
+        self.assertEqual(len(result['files']),7)
+
+    def test_rpm_complete_measurement_preserves_home_and_codex_values_and_raw_metadata(self):
+        fake,modes,commands,call=self.rpm_call()
+        with tempfile.TemporaryDirectory() as directory,patch.object(self.m,'bounded_command',side_effect=call), \
+                patch('platform.system',return_value='Linux'),patch('platform.machine',return_value='x86_64'), \
+                patch.dict(os.environ,{'HOME':'/owned/caller-home','CODEX_HOME':'/owned/caller-codex','JAVA_TOOL_OPTIONS':'HOST_SECRET'}):
+            output=Path(directory).resolve()/'out'
+            result=self.m.inspect_runtime(self.image,'linux/amd64',output,features=True,package_profile='rpm-ubi10-v1')
+            self.assertTrue((output/'rpm-inventory.tsv').is_file())
+            self.assertEqual((output/'rpm-inventory.tsv').stat().st_mode&0o777,0o600)
+        self.assertTrue(result['measurement_complete']);self.assertTrue(result['native_checks_passed'])
+        for command,kwargs in commands:
+            self.assertEqual(kwargs['env'].get('HOME'),'/owned/caller-home')
+            self.assertEqual(kwargs['env'].get('CODEX_HOME'),'/owned/caller-codex')
+            self.assertNotIn('HOST_SECRET',json.dumps(kwargs['env']))
+            self.assertNotIn('HOME=', ' '.join(command));self.assertNotIn('CODEX_HOME=', ' '.join(command))
+        self.assertNotIn('_rpm_raw',result)
+
+    def test_rpm_configuration_rejects_unsafe_image_env_before_create(self):
+        for values in (['JAVA_TOOL_OPTIONS='],['LD_PRELOAD=SECRET'],['UNKNOWN=SECRET']):
+            fake,modes,commands,call=self.rpm_call(mutate=lambda row:row['Config'].update(Env=values))
+            with tempfile.TemporaryDirectory() as directory,patch.object(self.m,'bounded_command',side_effect=call), \
+                    patch('platform.system',return_value='Linux'),patch('platform.machine',return_value='x86_64'):
+                result=self.m.inspect_runtime(self.image,'linux/amd64',Path(directory).resolve()/'out',features=True,package_profile='rpm-ubi10-v1')
+            self.assertFalse(any(command[3]=='create' for command,_ in commands))
+            self.assertNotIn('SECRET',json.dumps(result));self.assertFalse(result['measurement_complete'])
+
+    def test_rpm_profile_requires_features_and_forbids_closure_before_any_docker(self):
+        for options in ({},{'features':True,'dependency_closure':True}):
+            with tempfile.TemporaryDirectory() as directory,patch.object(self.m,'bounded_command') as command,self.assertRaises(ValueError):
+                self.m.inspect_runtime(self.image,'linux/amd64',Path(directory).resolve()/'out',package_profile='rpm-ubi10-v1',**options)
+            command.assert_not_called()
+
+    def test_rpm_features_survive_result_two_late_timeout_cleanup_failure_and_overflow(self):
+        from spring_containers import CommandFailure
+        for failure in ('result_two','timeout','cleanup','overflow'):
+            fake,modes,commands,base=self.rpm_call(feature_code=2 if failure=='result_two' else 0)
+            def call(command,**kwargs):
+                if failure=='timeout' and command[-1]=='rpm':raise CommandFailure('timeout',None,b'SECRET')
+                if failure=='cleanup' and command[3]=='stop':raise ValueError('SECRET')
+                return base(command,**kwargs)
+            limit=1000 if failure=='overflow' else self.m.MAX_REPORT
+            with self.subTest(failure=failure),tempfile.TemporaryDirectory() as directory, \
+                    patch.object(self.m,'bounded_command',side_effect=call),patch.object(self.m,'MAX_REPORT',limit), \
+                    patch('platform.system',return_value='Linux'),patch('platform.machine',return_value='x86_64'):
+                if failure=='overflow':
+                    # A report cannot fit at this tiny test cap; the publication
+                    # must roll back rather than drop the feature observation.
+                    output=Path(directory).resolve()/'out'
+                    with self.assertRaises(ValueError):self.m.inspect_runtime(self.image,'linux/amd64',output,features=True,package_profile='rpm-ubi10-v1')
+                    self.assertFalse(output.exists());continue
+                result=self.m.inspect_runtime(self.image,'linux/amd64',Path(directory).resolve()/'out',features=True,package_profile='rpm-ubi10-v1')
+            self.assertTrue(result['features']['checks_passed']);self.assertFalse(result['measurement_complete'])
+            self.assertFalse(result['native_checks_passed']);self.assertNotIn('SECRET',json.dumps(result))
+            if failure=='result_two':
+                self.assertEqual(result['features']['result_code'],2);self.assertFalse(result['features']['passed'])
+                self.assertEqual(modes,['identity','features'])
+                self.assertEqual(result['stages']['features']['reason'],'resource_unverified')
+                self.assertFalse(result['stages']['features']['complete'])
+                self.assertFalse(result['final_identity_verified'])
+                self.assertFalse(result['inventory_complete'])
+                for name in ('jre_tree','rpm_database_hashes','rpm_inventory','native_linkage','native_providers'):
+                    self.assertFalse(result['stages'][name]['attempted'])
+                    self.assertEqual(result['stages'][name]['reason'],'not_attempted')
+                self.assertTrue(result['cleanup']);self.assertTrue(fake.removed)
+            else:self.assertTrue(result['features']['passed'])
+            if failure=='timeout':self.assertNotIn('linkage',modes)
+
+    def test_rpm_package_end_count_and_final_image_mutation_cannot_complete(self):
+        from test_java_runtime_rpm import envelope
+        for failure in ('count','image'):
+            fake,modes,commands,base=self.rpm_call();inspects=[]
+            def call(command,**kwargs):
+                if command[-1]=='rpm':return envelope(dict(rows='glibc\t0\t2.39\t58.el10\tx86_64\tglibc-2.39-58.el10.src.rpm\tLGPL\n',count=2 if failure=='count' else 1))
+                value=base(command,**kwargs)
+                if command[3:5]==['image','inspect']:
+                    inspects.append(True)
+                    if failure=='image' and len(inspects)>1:
+                        row=json.loads(value);row[0]['Config']['Env'].append('JAVA_TOOL_OPTIONS=SECRET');return json.dumps(row)
+                return value
+            with self.subTest(failure=failure),tempfile.TemporaryDirectory() as directory,patch.object(self.m,'bounded_command',side_effect=call), \
+                    patch('platform.system',return_value='Linux'),patch('platform.machine',return_value='x86_64'):
+                result=self.m.inspect_runtime(self.image,'linux/amd64',Path(directory).resolve()/'out',features=True,package_profile='rpm-ubi10-v1')
+            self.assertFalse(result['measurement_complete']);self.assertTrue(result['cleanup'])
+            self.assertTrue(result['features']['passed']);self.assertNotIn('SECRET',json.dumps(result))
+
+    def test_rpm_held_parent_policy_initial_denial_and_late_change_roll_back(self):
+        for policy in ('owner','mode'):
+            for phase in ('initial','before_publish','after_publish'):
+                fake,modes,commands,base=self.rpm_call()
+                with self.subTest(policy=policy,phase=phase),tempfile.TemporaryDirectory() as directory, \
+                        self.parent_policy_fixture(policy,deny=phase=='initial') as (publication,state), \
+                        patch('platform.system',return_value='Linux'),patch('platform.machine',return_value='x86_64'):
+                    target=Path(directory).resolve()/'out';original=publication.publish
+                    def publish(value):
+                        original(value)
+                        if phase=='after_publish':state['deny']=True
+                    def call(command,**kwargs):
+                        value=base(command,**kwargs)
+                        if phase=='before_publish' and command[3]=='ps':state['deny']=True
+                        return value
+                    with patch.object(publication,'publish',new=publish),patch.object(self.m,'bounded_command',side_effect=call), \
+                            contextlib.redirect_stdout(io.StringIO()) as stdout:
+                        code=self.m.main(['--image',self.image,'--platform','linux/amd64','--features',
+                            '--package-profile','rpm-ubi10-v1','--output',str(target)])
+                    self.assertEqual(code,2);self.assertFalse(target.exists())
+                    if phase=='initial':self.assertEqual(commands,[])
+                    else:self.assertTrue(fake.removed)
+
 if __name__ == '__main__': unittest.main()

@@ -10,6 +10,7 @@ import json
 import os
 from pathlib import Path
 import posixpath
+import platform as host_platform
 import re
 import secrets
 import shutil
@@ -21,6 +22,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 from spring_containers import bounded_command, cancellation_scope, validate_local_context
 from scan_container_images import _json, _path
 from java_runtime_dependencies import CLOSURE_SCRIPT, parse_closure, read_lock, private_publication, check_private_parent
+import java_runtime_rpm as rpm
 
 ROOT = '/opt/java/openjdk'
 SCOPE = 'java-runtime-inventory-v1'
@@ -120,10 +122,10 @@ def relative(value):
     return value
 
 
-def library_path(value):
+def library_path(value, extra_roots=()):
     require(type(value) is str and len(value) <= 512 and re.fullmatch(r'/[A-Za-z0-9._+@/:-]+', value))
     value = posixpath.normpath(value)
-    require(any(value.startswith(prefix + '/') for prefix in ('/lib', '/lib64', '/usr/lib', '/usr/local/lib', ROOT)))
+    require(any(value.startswith(prefix + '/') for prefix in ('/lib', '/lib64', '/usr/lib', '/usr/local/lib', ROOT, *extra_roots)))
     return value
 
 
@@ -159,7 +161,7 @@ def parse_features(raw):
         passed=value['passed'], exit_code=code)
 
 
-def parse_ldd(lines, code, files):
+def parse_ldd(lines, code, files, extra_roots=()):
     dependencies, missing, valid = [], [], code == 0 and any(line.strip() for line in lines)
     require(len(lines) <= 512)
     for line in lines:
@@ -180,7 +182,7 @@ def parse_ldd(lines, code, files):
         if not match:
             valid = False; continue
         try:
-            path = library_path(match[2]); soname = match[1] or posixpath.basename(path)
+            path = library_path(match[2], extra_roots); soname = match[1] or posixpath.basename(path)
             require(SONAME.fullmatch(soname))
             bundled = path.startswith(ROOT + '/')
             name = path[len(ROOT) + 1:] if bundled else None
@@ -193,7 +195,7 @@ def parse_ldd(lines, code, files):
     return dependencies, missing, valid
 
 
-def parse_inventory(raw, architecture):
+def parse_inventory(raw, architecture, *, tree_only=False):
     require(architecture in ('amd64', 'arm64'))
     rows = protocol(raw); require(rows[0] == 'JRI\t1')
     fields, files, links, packages, elfs, release, java = {}, {}, {}, {}, [], {}, {}
@@ -260,6 +262,11 @@ def parse_inventory(raw, architecture):
             require(len(parts) == 4 and all(value.isdigit() for value in parts[1:])); counts = tuple(map(int, parts[1:]))
         else: raise ValueError('java_runtime_inventory_unverified')
         require(len(files) + len(links) <= 4096 and len(elfs) <= 256 and len(paths) <= 256)
+    if tree_only:
+        require(not elfs and not packages)
+        elfs = [dict(path=name, sha256=file['sha256'], exit_code=None, dependencies=[], missing=[], loader_output_valid=False)
+            for name, file in files.items() if file['header'].startswith('7f454c46')]
+        require(len(elfs) <= 256)
     require(mode is None and counts == (len(files), len(links), len(elfs)) and seen_java and seen_release
         and set(fields) == {'OS_ID', 'OS_VERSION', 'ARCH', 'UID'} and len(elfs) > 0
         and sum(file['size'] for file in files.values()) <= 1024 * 1024 * 1024
@@ -285,8 +292,9 @@ def parse_inventory(raw, architecture):
         file = resolve_file(name)
         if file is not None: resolved_files[name] = file
     for elf in elfs:
-        dependencies, missing, valid = parse_ldd(elf.pop('_lines'), elf['exit_code'], resolved_files)
-        elf.update(dependencies=dependencies, missing=missing, loader_output_valid=valid)
+        if not tree_only:
+            dependencies, missing, valid = parse_ldd(elf.pop('_lines'), elf['exit_code'], resolved_files)
+            elf.update(dependencies=dependencies, missing=missing, loader_output_valid=valid)
     tree = [dict(path=name, kind='file', sha256=file['sha256'], size=file['size']) for name, file in files.items()]
     tree.extend(dict(path=name, kind='symlink', target=target) for name, target in links.items())
     tree.sort(key=lambda item: item['path'])
@@ -318,6 +326,7 @@ def parse_inventory(raw, architecture):
             target_sha256=digest(target), within_jre=targets[name].startswith(ROOT + '/')) for name, target in sorted(links.items())],
         packages=sorted(packages.values(), key=lambda item: item['name']), elfs=elfs)
     result.paths = paths
+    result.resolved_files = resolved_files
     return result
 
 
@@ -371,13 +380,19 @@ def validate_container(record, image, owner):
     return record['Id']
 
 
-def inspect_runtime(image, platform, output, docker_context='default', features=False, dependency_closure=False):
+def inspect_runtime(image, platform, output, docker_context='default', features=False, dependency_closure=False, package_profile='dpkg-v1'):
     require(type(image) is str and IMAGE.fullmatch(image) and platform in ('linux/amd64', 'linux/arm64') and docker_context == 'default')
     require(type(features) is bool and type(dependency_closure) is bool)
+    require(package_profile in ('dpkg-v1', rpm.PROFILE) and
+        (package_profile == 'dpkg-v1' or features and not dependency_closure))
+    is_rpm = package_profile == rpm.PROFILE
     output = _path(output, new=True)
     parent = output.parent.stat()
     require(parent.st_uid == os.getuid() and not parent.st_mode & 0o022)
     architecture = platform.split('/')[1]
+    if is_rpm:
+        require(host_platform.system() == 'Linux' and host_platform.machine() in
+            (('x86_64','amd64') if architecture == 'amd64' else ('aarch64','arm64')))
     owner = secrets.token_hex(16); name = 'appguard-java-audit-' + owner
     report = dict(schema=3 if dependency_closure else 2 if features else 1, evidence_class='owned_java_runtime_inventory', image_id=image, platform=platform,
         inventory_complete=False, native_checks_passed=False, cleanup=False, release_ready=False,
@@ -388,13 +403,17 @@ def inspect_runtime(image, platform, output, docker_context='default', features=
             'no external approval, production or physical-hardware evidence'])
     if features: report['features'] = None
     if dependency_closure: report['dependency_closure'] = None
+    if is_rpm: report.update(rpm.initial_report(architecture), schema=4)
     with private_publication(output) as publication, tempfile.TemporaryDirectory(prefix='appguard-java-audit-') as temporary:
         state = Path(temporary).resolve(); state.chmod(0o700)
         home = state/'home'; home.mkdir(mode=0o700)
         docker_config = state/'docker'; docker_config.mkdir(mode=0o700)
         (docker_config/'config.json').write_text('{}'); (docker_config/'config.json').chmod(0o600)
         env = {key: os.environ[key] for key in ('PATH', 'SYSTEMROOT') if key in os.environ}
-        env.update(HOME=str(home), DOCKER_CONFIG=str(docker_config), DOCKER_CONTEXT='default')
+        if is_rpm:
+            env.update({key: os.environ[key] for key in ('HOME','CODEX_HOME') if key in os.environ})
+            env.update(DOCKER_CONFIG=str(docker_config), DOCKER_CONTEXT='default')
+        else: env.update(HOME=str(home), DOCKER_CONFIG=str(docker_config), DOCKER_CONTEXT='default')
         executable = shutil.which('docker') or 'docker'
         deadline, created, identifier = time.monotonic() + 600, False, None
         def call(args, timeout=30):
@@ -422,44 +441,69 @@ def inspect_runtime(image, platform, output, docker_context='default', features=
             original_image = records(['image', 'inspect', image])
             require(original_image.get('Id') == image and original_image.get('Os') == 'linux'
                 and original_image.get('Architecture') == architecture and not original_image.get('Config', {}).get('Volumes'))
+            if is_rpm: rpm.validate_environment(original_image.get('Config', {}).get('Env'))
             created = True
             created_id = call(['create', '--label', 'io.appguard.owner=' + owner, '--label', 'io.appguard.scope=' + SCOPE,
                 '--name', name, '--pull', 'never', '--platform', platform, '--network', 'none', '--read-only',
                 '--user', '10001:10001', '--cap-drop', 'ALL', '--security-opt', 'no-new-privileges:true',
                 '--memory', '256m', '--memory-swap', '256m', '--cpus', '1', '--pids-limit', '64',
                 '--restart', 'no', '--log-driver', 'none', '--tmpfs', '/tmp:' + TMPFS,
-                '--entrypoint', '/bin/sh', image, '-c', 'exec sleep 600']).strip()
+                '--entrypoint', rpm.JAVA if is_rpm else '/bin/sh', image,
+                *(rpm.IDLE if is_rpm else ('-c', 'exec sleep 600'))]).strip()
             require(SHA.fullmatch(created_id)); identifier = created_id
             owned(validate=True)
             call(['start', identifier]); owned(validate=True)
             prefix = ['exec', identifier, '/usr/bin/env', '-i', 'PATH=/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin',
                 'HOME=/tmp', 'LC_ALL=C', 'JAVA_HOME=' + ROOT, '/bin/sh', '-c']
-            parsed = parse_inventory(call([*prefix, INVENTORY_SCRIPT], timeout=300), architecture)
-            report.update(parsed)
-            if parsed.paths:
-                providers = parse_providers(call([*prefix, PROVIDER_SCRIPT, 'jre-providers', *sorted(parsed.paths)], timeout=120), parsed.paths, parsed['packages'])
-            else: providers = {}
-            by_hash = {digest(path): row for path, row in providers.items()}
-            for elf in report['elfs']:
-                for dependency in elf['dependencies']:
-                    if dependency['resolution'] == 'os':
-                        row = by_hash[dependency['path_sha256']]
-                        dependency.update(sha256=row['sha256'], providers=row['providers'])
-            report['checks']['native_providers_verified'] = all(row['provider_verified'] for row in providers.values())
-            if dependency_closure:
-                report['dependency_closure'] = parse_closure(call([*prefix, CLOSURE_SCRIPT], timeout=30),
-                    read_lock(), architecture, report['packages'])
-                report['checks']['dependency_closure_verified'] = report['dependency_closure']['verified']
-            if features:
-                report['features'] = parse_features(call(['exec', identifier, '/bin/sh', '-c', FEATURE_SCRIPT], timeout=120))
-                # Retain strictly validated partial diagnostics, but an unverified
-                # JVM/resource outcome must never complete the inventory.
-                require(report['features']['exit_code'] in (0, 1))
-                report['checks']['runtime_features_passed'] = report['features']['passed']
+            if is_rpm:
+                def execute_rpm(command, timeout):
+                    if time.monotonic() >= deadline: raise rpm.StopCollection('budget_exhausted')
+                    try: owned(validate=True)
+                    except (Exception, KeyboardInterrupt): raise rpm.StopCollection('identity_unverified') from None
+                    return call(['exec', identifier, *command], timeout)
+                rpm.collect(report, execute_rpm, architecture, parse_inventory, parse_ldd)
+            else:
+                parsed = parse_inventory(call([*prefix, INVENTORY_SCRIPT], timeout=300), architecture)
+                report.update(parsed)
+                if parsed.paths:
+                    providers = parse_providers(call([*prefix, PROVIDER_SCRIPT, 'jre-providers', *sorted(parsed.paths)], timeout=120), parsed.paths, parsed['packages'])
+                else: providers = {}
+                by_hash = {digest(path): row for path, row in providers.items()}
+                for elf in report['elfs']:
+                    for dependency in elf['dependencies']:
+                        if dependency['resolution'] == 'os':
+                            row = by_hash[dependency['path_sha256']]
+                            dependency.update(sha256=row['sha256'], providers=row['providers'])
+                report['checks']['native_providers_verified'] = all(row['provider_verified'] for row in providers.values())
+                if dependency_closure:
+                    report['dependency_closure'] = parse_closure(call([*prefix, CLOSURE_SCRIPT], timeout=30),
+                        read_lock(), architecture, report['packages'])
+                    report['checks']['dependency_closure_verified'] = report['dependency_closure']['verified']
+                if features:
+                    report['features'] = parse_features(call(['exec', identifier, '/bin/sh', '-c', FEATURE_SCRIPT], timeout=120))
+                    # Retain strictly validated partial diagnostics, but an unverified
+                    # JVM/resource outcome must never complete the inventory.
+                    require(report['features']['exit_code'] in (0, 1))
+                    report['checks']['runtime_features_passed'] = report['features']['passed']
             owned(validate=True)
-            require(records(['image', 'inspect', image]).get('Id') == image)
-            report['native_checks_passed'] = all(report['checks'].values())
-            report['reason'] = 'native_requirements_met' if report['native_checks_passed'] else 'native_requirements_unmet'
+            final_image = records(['image', 'inspect', image])
+            require(final_image.get('Id') == image)
+            if is_rpm:
+                require(final_image == original_image)
+                final_identity = rpm.parse_envelope(call(['exec', identifier, rpm.JAVA, *rpm.FLAGS, 'identity']))
+                require(final_identity['complete'] and rpm.parse_identity(final_identity['data'], architecture) == report['platform_observation'])
+                final_daemon = _json(call(['info', '--format', '{{json .}}']).encode())
+                require(final_daemon.get('OSType') == daemon.get('OSType') and final_daemon.get('Architecture') == daemon.get('Architecture'))
+                require(host_platform.system() == 'Linux' and host_platform.machine() in
+                    (('x86_64','amd64') if architecture == 'amd64' else ('aarch64','arm64')))
+                owned(validate=True)
+                report['platform_observation'].update(host_os='linux',host_machine='x86_64' if architecture=='amd64' else 'aarch64',
+                    daemon_os='linux',daemon_architecture=architecture,verified=True)
+                report['final_identity_verified'] = True
+                rpm.finalize(report)
+            else:
+                report['native_checks_passed'] = all(report['checks'].values())
+                report['reason'] = 'native_requirements_met' if report['native_checks_passed'] else 'native_requirements_unmet'
         except (Exception, KeyboardInterrupt):
             report.update(inventory_complete=False, native_checks_passed=False, reason='inventory_unverified')
         finally:
@@ -475,14 +519,19 @@ def inspect_runtime(image, platform, output, docker_context='default', features=
                     '--filter', 'label=io.appguard.scope=' + SCOPE]).strip()
                 report['cleanup'] = not remaining
             except (Exception, KeyboardInterrupt): report['cleanup'] = False
+        if is_rpm: rpm.finalize(report)
         if not report['cleanup']: report.update(native_checks_passed=False, reason='cleanup_unverified')
+        rpm_raw = report.pop('_rpm_raw', None)
         raw = (json.dumps(report, indent=2, sort_keys=True, allow_nan=False) + '\n').encode()
         if len(raw) > MAX_REPORT:
-            for key in ('files', 'symlinks', 'packages', 'elfs'): report.pop(key, None)
-            report.update(inventory_complete=False, native_checks_passed=False, reason='output_limit')
+            if is_rpm: rpm.truncate(report)
+            else:
+                for key in ('files', 'symlinks', 'packages', 'elfs'): report.pop(key, None)
+                report.update(inventory_complete=False, native_checks_passed=False, reason='output_limit')
             raw = (json.dumps(report, indent=2, sort_keys=True, allow_nan=False) + '\n').encode()
         require(len(raw) <= MAX_REPORT)
         check_private_parent(publication)
+        if rpm_raw is not None: publication.write('rpm-inventory.tsv', rpm_raw)
         publication.write('java-runtime.json', raw); publication.publish()
         check_private_parent(publication)
     return report
@@ -500,12 +549,13 @@ def main(argv=None):
     parser.add_argument('--output', required=True)
     parser.add_argument('--features', action='store_true', help='Run baked-in Java feature probe in diagnostic images')
     parser.add_argument('--dependency-closure', action='store_true', help='Require fixed-snapshot dependency evidence in diagnostic image')
+    parser.add_argument('--package-profile', choices=('dpkg-v1', rpm.PROFILE), default='dpkg-v1')
     try:
         args = parser.parse_args(argv)
         with cancellation_scope(): result = inspect_runtime(args.image, args.platform, args.output, args.docker_context,
-            features=args.features, dependency_closure=args.dependency_closure)
+            features=args.features, dependency_closure=args.dependency_closure, package_profile=args.package_profile)
         print(json.dumps({key: result[key] for key in ('inventory_complete', 'native_checks_passed', 'cleanup', 'reason')}, sort_keys=True))
-        return 0 if result['native_checks_passed'] else 1 if result['inventory_complete'] and result['cleanup'] else 2
+        return 0 if result['native_checks_passed'] else 1 if result.get('measurement_complete', result['inventory_complete'] and result['cleanup']) else 2
     except (Exception, KeyboardInterrupt):
         print('{"inventory_complete":false,"native_checks_passed":false,"reason":"inventory_unverified"}')
         return 2

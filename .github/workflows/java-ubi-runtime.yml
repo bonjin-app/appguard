@@ -1,0 +1,175 @@
+name: UBI Java runtime diagnostic
+
+on:
+  push:
+    branches: [codex/ubi-runtime-evaluation]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: java-ubi-runtime-${{ github.ref }}-${{ github.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  compare:
+    name: Diagnose UBI ${{ matrix.arch }} on selected host
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 90
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - arch: amd64
+            runner: ubuntu-24.04
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Checkout exact diagnostic source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Test fixed diagnostic contracts
+        run: |
+          python3 -m unittest discover -s .github/tests -p 'test_java_runtime_rpm.py' -v
+          python3 -m unittest discover -s .github/tests -p 'test_java_runtime_inventory.py' -v
+          python3 -m unittest discover -s .github/tests -p 'test_java_ubi_evidence.py' -v
+          python3 -m unittest discover -s .github/tests -p 'test_java_ubi_workflow.py' -v
+      - name: Prepare private diagnostic state
+        id: state
+        env:
+          APPGUARD_ARCH: ${{ matrix.arch }}
+        run: |
+          case "$APPGUARD_ARCH:$(uname -s):$(uname -m)" in
+            amd64:Linux:x86_64|arm64:Linux:aarch64) ;; *) exit 2 ;;
+          esac
+          state="$RUNNER_TEMP/appguard-ubi-comparison"
+          mkdir -m 700 "$state"
+          mkdir -m 700 "$state/native"
+      - name: Build two fixed untouched-JRE diagnostics
+        id: images
+        timeout-minutes: 10
+        env:
+          APPGUARD_ARCH: ${{ matrix.arch }}
+        run: |
+          case "$APPGUARD_ARCH" in amd64|arm64) ;; *) exit 2 ;; esac
+          state="$RUNNER_TEMP/appguard-ubi-comparison"
+          owner="appguard-ubi-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT-$APPGUARD_ARCH"
+          python3 - <<'PY'
+          import sys
+          sys.path.insert(0, 'scripts/qualification')
+          from spring_containers import Docker
+          Docker('docker', 'default', {})  # local socket and local docker-driver builder
+          PY
+          # Private build logs are bounded and are never uploaded.
+          ulimit -f 8192
+          for runtime in noble ubi; do
+            target=baseline
+            if [[ "$runtime" == ubi ]]; then target=ubi10; fi
+            timeout 600 env -u DOCKER_HOST -u DOCKER_CONTEXT -u DOCKER_TLS_VERIFY -u DOCKER_CERT_PATH \
+              -u BUILDKIT_HOST -u BUILDX_BUILDER -u DOCKER_BUILDKIT \
+              docker --context default build --builder default --pull --platform "linux/$APPGUARD_ARCH" \
+              --file scripts/qualification/java-runtime-probe.Dockerfile --target "$target" \
+              --label "io.appguard.ubi-diagnostic=$owner" --tag "$owner-$runtime:owned" . \
+              > "$state/build-$runtime.log" 2>&1
+            timeout 10 docker --context default image inspect --format '{{.Id}}' "$owner-$runtime:owned" > "$state/$runtime-id"
+          done
+      - name: Collect independent feature and inventory observations
+        timeout-minutes: 23
+        if: always() && steps.images.outcome == 'success'
+        env:
+          APPGUARD_ARCH: ${{ matrix.arch }}
+        run: |
+          case "$APPGUARD_ARCH" in amd64|arm64) ;; *) exit 2 ;; esac
+          state="$RUNNER_TEMP/appguard-ubi-comparison"
+          failed=0
+          for runtime in noble ubi; do
+            set --
+            if [[ "$runtime" == ubi ]]; then set -- --package-profile rpm-ubi10-v1; fi
+            image="$(cat "$state/$runtime-id")"
+            set +e
+            timeout 670 python3 scripts/qualification/inspect_java_runtime.py \
+              --image "$image" --platform "linux/$APPGUARD_ARCH" --features "$@" \
+              --docker-context default --output "$state/native/$runtime"
+            result=$?
+            set -e
+            if (( result > 1 )); then failed=2; fi
+          done
+          exit "$failed"
+      - name: Scan same two IDs in one frozen database session
+        timeout-minutes: 47
+        if: always() && steps.images.outcome == 'success'
+        env:
+          APPGUARD_ARCH: ${{ matrix.arch }}
+        run: |
+          case "$APPGUARD_ARCH" in amd64|arm64) ;; *) exit 2 ;; esac
+          state="$RUNNER_TEMP/appguard-ubi-comparison"
+          noble="$(cat "$state/noble-id")"
+          ubi="$(cat "$state/ubi-id")"
+          set +e
+          python3 scripts/qualification/scan_diagnostic_images.py \
+            --image "$noble" --image "$ubi" --platform "linux/$APPGUARD_ARCH" \
+            --docker-context default --output "$state/scan"
+          result=$?
+          set -e
+          # Zero UBI findings remain feed-unverified (exit2), never a clean claim.
+          if (( result > 1 )); then exit "$result"; fi
+      - name: Bind originals without approving a production runtime
+        timeout-minutes: 2
+        if: always() && steps.images.outcome == 'success'
+        env:
+          APPGUARD_ARCH: ${{ matrix.arch }}
+        run: |
+          case "$APPGUARD_ARCH" in amd64|arm64) ;; *) exit 2 ;; esac
+          state="$RUNNER_TEMP/appguard-ubi-comparison"
+          noble="$(cat "$state/noble-id")"
+          ubi="$(cat "$state/ubi-id")"
+          python3 scripts/qualification/compare_java_ubi_evidence.py \
+            --input "$state" --output "$state/bound" --noble-image "$noble" --ubi-image "$ubi" \
+            --platform "linux/$APPGUARD_ARCH"
+      - name: Remove only images with this run ownership and exact ID
+        timeout-minutes: 2
+        if: always() && steps.state.outcome == 'success'
+        env:
+          APPGUARD_ARCH: ${{ matrix.arch }}
+        run: |
+          case "$APPGUARD_ARCH" in amd64|arm64) ;; *) exit 2 ;; esac
+          state="$RUNNER_TEMP/appguard-ubi-comparison"
+          owner="appguard-ubi-$GITHUB_RUN_ID-$GITHUB_RUN_ATTEMPT-$APPGUARD_ARCH"
+          failed=0
+          for runtime in noble ubi; do
+            if [[ -f "$state/$runtime-id" ]]; then
+              image="$(cat "$state/$runtime-id")"
+            else
+              # A build can finish just before its client fails. Discover only
+              # this run's exact tag, then require the same ownership label.
+              image="$(timeout 10 docker --context default image inspect --format '{{.Id}}' "$owner-$runtime:owned" 2>/dev/null)" || continue
+            fi
+            if [[ ! "$image" =~ ^sha256:[0-9a-f]{64}$ ]]; then failed=2; continue; fi
+            actual="$(timeout 10 docker --context default image inspect --format '{{index .Config.Labels "io.appguard.ubi-diagnostic"}}' "$image")" || { failed=2; continue; }
+            if [[ "$actual" != "$owner" ]]; then failed=2; continue; fi
+            timeout 15 docker --context default image rm "$image" > /dev/null || failed=2
+          done
+          remaining="$(timeout 10 docker --context default image ls --quiet --no-trunc --filter "label=io.appguard.ubi-diagnostic=$owner")" || failed=2
+          if [[ -n "$remaining" ]]; then failed=2; fi
+          exit "$failed"
+      - name: Retain original diagnostic observations only
+        timeout-minutes: 3
+        if: always() && steps.state.outcome == 'success'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: java-ubi-diagnostic-${{ matrix.arch }}-${{ github.sha }}-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            ${{ runner.temp }}/appguard-ubi-comparison/native/noble/java-runtime.json
+            ${{ runner.temp }}/appguard-ubi-comparison/native/ubi/java-runtime.json
+            ${{ runner.temp }}/appguard-ubi-comparison/native/ubi/rpm-inventory.tsv
+            ${{ runner.temp }}/appguard-ubi-comparison/scan/diagnostic.json
+            ${{ runner.temp }}/appguard-ubi-comparison/scan/trivy-image-*.json
+            ${{ runner.temp }}/appguard-ubi-comparison/scan/trivy-calibration.json
+            ${{ runner.temp }}/appguard-ubi-comparison/bound/comparison.json
+          if-no-files-found: error
+          retention-days: 7

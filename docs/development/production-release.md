@@ -434,3 +434,20 @@ unverified calibration and every unsuppressed target finding remain visible.
 Release, complete dependency/native coverage, legal approval and external audit
 flags remain false. Actual Linux installation, native behavior and scan results
 must be checked from the exact candidate's retained CI artifacts.
+
+## UBI10 diagnostic boundary
+
+The optional manual `java-ubi-runtime.yml` evaluates the pinned official
+Temurin17 UBI10 minimal image using an explicit `rpm-ubi10-v1` schema4 collector.
+It attempts the existing ten Java features before independent JRE/RPM/linkage
+inventory, preserves partial observations, and scans the same two immutable
+Noble/UBI image IDs in one unchanged pinned-tool/database session. This is
+diagnostic tooling; actual native CI results must be read independently.
+
+UBI10 amd64 requires x86-64-v3 and is not approved to replace Noble's current
+CPU scope. Zero UBI findings remain feed-unverified: the Debian13 control does
+not establish Red Hat10 coverage. No package/JRE/notice/DB removal or install,
+production runtime substitution, native closure, legal/external approval or
+release approval follows from these reports. See the
+[approved specification](../superpowers/specs/2026-10-23-ubi-runtime-diagnostics.md)
+and [implementation plan](../superpowers/plans/2026-10-23-ubi-runtime-diagnostics.md).

@@ -69,6 +69,7 @@ public final class AppGuardRuntimeProbe {
     private static final Object PROCESS_LOCK = new Object();
     private static final List<Process> OWNED_PROCESSES = new ArrayList<>();
     private static boolean processesStopping;
+    private static boolean preserveHomes;
     private static final String[] NAMES = {"crypto_p256", "aes_gcm", "pkcs12_roundtrip", "jsse_default_trust",
         "mtls_loopback", "utf8_io", "locale_data", "timezone_data", "localhost_nss", "headless_font"};
     private static final int IO_TIMEOUT_MS = 2000;
@@ -79,32 +80,61 @@ public final class AppGuardRuntimeProbe {
 
     private AppGuardRuntimeProbe() {}
 
-    public static void main(String[] args) {
+    record ProbeResult(Map<String, Boolean> checks, Map<String, Boolean> entered, int code) {
+        ProbeResult { checks = java.util.Collections.unmodifiableMap(new LinkedHashMap<>(checks));
+            entered = java.util.Collections.unmodifiableMap(new LinkedHashMap<>(entered)); }
+    }
+
+    static List<String> names() { return List.of(NAMES); }
+
+    static ProbeResult evaluate() { return evaluate(false); }
+
+    static ProbeResult evaluate(boolean preserveHomeEnvironment) {
+        preserveHomes = preserveHomeEnvironment;
         Map<String, Boolean> checks = new LinkedHashMap<>();
+        Map<String, Boolean> entered = new LinkedHashMap<>();
         for (String name : NAMES) checks.put(name, false);
+        for (String name : NAMES) entered.put(name, false);
         int exit = 2;
-        if (args.length == 0) {
-            Check[] actions = {AppGuardRuntimeProbe::cryptoP256, AppGuardRuntimeProbe::aesGcm,
-                AppGuardRuntimeProbe::pkcs12Roundtrip, AppGuardRuntimeProbe::defaultTrust,
-                AppGuardRuntimeProbe::mtlsLoopback, AppGuardRuntimeProbe::utf8Io,
-                AppGuardRuntimeProbe::localeData, AppGuardRuntimeProbe::timezoneData,
-                AppGuardRuntimeProbe::localhostNss, AppGuardRuntimeProbe::headlessFont};
-            try {
-                for (int i = 0; i < NAMES.length; i++) checks.put(NAMES[i], attempt(actions[i], i == 4 ? 40 : 5));
-            } catch (Throwable fatal) { UNVERIFIED.set(true); }
-            finally { stopOwnedProcesses(); }
-            exit = UNVERIFIED.get() ? 2 : checks.values().stream().allMatch(Boolean::booleanValue) ? 0 : 1;
-        }
+        Check[] actions = {AppGuardRuntimeProbe::cryptoP256, AppGuardRuntimeProbe::aesGcm,
+            AppGuardRuntimeProbe::pkcs12Roundtrip, AppGuardRuntimeProbe::defaultTrust,
+            AppGuardRuntimeProbe::mtlsLoopback, AppGuardRuntimeProbe::utf8Io,
+            AppGuardRuntimeProbe::localeData, AppGuardRuntimeProbe::timezoneData,
+            AppGuardRuntimeProbe::localhostNss, AppGuardRuntimeProbe::headlessFont};
+        try {
+            for (int i = 0; i < NAMES.length; i++) {
+                entered.put(NAMES[i], true);
+                checks.put(NAMES[i], attempt(actions[i], i == 4 ? 40 : 5));
+            }
+        } catch (Throwable fatal) { UNVERIFIED.set(true); }
+        finally { stopOwnedProcesses(); }
+        exit = UNVERIFIED.get() ? 2 : checks.values().stream().allMatch(Boolean::booleanValue) ? 0 : 1;
+        return new ProbeResult(checks, entered, exit);
+    }
+
+    static String legacyJson(ProbeResult result) {
+        Map<String, Boolean> checks = result.checks();
         boolean passed = checks.values().stream().allMatch(Boolean::booleanValue);
         StringBuilder output = new StringBuilder("{\"schema\":1,\"checks\":{");
         for (int i = 0; i < NAMES.length; i++) {
             if (i != 0) output.append(',');
             output.append('"').append(NAMES[i]).append("\":").append(checks.get(NAMES[i]));
         }
-        System.out.println(output.append("},\"passed\":").append(passed).append('}'));
+        return output.append("},\"passed\":").append(passed).append('}').toString();
+    }
+
+    public static void main(String[] args) {
+        ProbeResult result;
+        if (args.length == 0) result = evaluate();
+        else {
+            Map<String, Boolean> checks = new LinkedHashMap<>();
+            for (String name : NAMES) checks.put(name, false);
+            result = new ProbeResult(checks, checks, 2);
+        }
+        System.out.println(legacyJson(result));
         // Daemon workers cannot make a failed native call hold the process open.
         // An unconfirmed worker/resource cleanup is exit2, never measured success.
-        System.exit(exit);
+        System.exit(result.code());
     }
 
     private static ExecutorService worker(String name) {
@@ -280,7 +310,7 @@ public final class AppGuardRuntimeProbe {
         Path store = directory.resolve(alias + ".p12");
         List<String> command = new ArrayList<>(List.of(home.resolve("bin/keytool").toString(),
             "-J-Xms8m", "-J-Xmx64m", "-J-XX:ActiveProcessorCount=1", "-J-XX:-UsePerfData",
-            "-J-Duser.home=" + directory, "-J-Djava.io.tmpdir=" + directory,
+            "-J-Duser.home=" + (preserveHomes ? "/tmp" : directory), "-J-Djava.io.tmpdir=" + directory,
             "-genkeypair", "-alias", alias, "-keyalg", "EC", "-groupname", "secp256r1",
             "-sigalg", "SHA256withECDSA", "-dname", "CN=localhost", "-validity", "1",
             "-ext", "KU=digitalSignature", "-ext", "EKU=" + (server ? "serverAuth" : "clientAuth"),
@@ -288,10 +318,12 @@ public final class AppGuardRuntimeProbe {
         if (server) command.addAll(List.of("-ext", "SAN=IP:127.0.0.1,DNS:localhost"));
         ProcessBuilder builder = new ProcessBuilder(command);
         Map<String, String> environment = builder.environment(); environment.clear();
-        for (String name : List.of("LANG", "LANGUAGE", "LC_ALL", "LC_CTYPE", "TZ")) {
+        for (String name : preserveHomes ? List.of("LANG", "LANGUAGE", "LC_ALL", "LC_CTYPE", "TZ", "HOME", "CODEX_HOME")
+                : List.of("LANG", "LANGUAGE", "LC_ALL", "LC_CTYPE", "TZ")) {
             if (System.getenv(name) != null) environment.put(name, System.getenv(name));
         }
-        environment.put("HOME", directory.toString()); environment.put("TMPDIR", directory.toString());
+        if (!preserveHomes) environment.put("HOME", directory.toString());
+        environment.put("TMPDIR", directory.toString());
         environment.put("XDG_CACHE_HOME", directory.toString());
         environment.put("JAVA_HOME", home.toString()); environment.put("APPGUARD_PROBE_PASSWORD", new String(password));
         builder.redirectOutput(ProcessBuilder.Redirect.DISCARD).redirectError(ProcessBuilder.Redirect.DISCARD);
