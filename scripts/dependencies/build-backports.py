@@ -126,6 +126,8 @@ def validate_record(record):
     for entry in replacements:
         keys(entry, 'path input')
         path_name(entry['path'], 'package')
+        # The full original license is immutable, including after replacements.
+        require(entry['path'] != 'package/LICENSE')
         require(entry['path'] not in names and entry['input'] in inputs)
         names.add(entry['path'])
     require('package/package.json' in names)

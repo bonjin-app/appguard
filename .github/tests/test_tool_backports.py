@@ -211,6 +211,37 @@ class BackportTests(unittest.TestCase):
                 with self.assertRaises(b.BackportError):
                     b.assemble_package(self.root, record)
 
+    def test_license_replacement_with_consistent_hashes_is_rejected(self):
+        # Ordinary metadata/payload mistake: all expected hashes match the changed
+        # archive, so only the immutable-license policy can reject this fixture.
+        for index in range(2):
+            self.manifest = copy.deepcopy(self.original_manifest)
+            record = self.manifest['packages'][index]
+            ident = record['id']
+            source_input = ident + '/replacements/source/index.js'
+            source_bytes = (self.root / source_input).read_bytes()
+            record['replacements'].append({'path': 'package/LICENSE', 'input': source_input})
+            record['result_files']['package/LICENSE'] = info(source_bytes)
+            files = b.upstream_files((self.root / record['upstream']['path']).read_bytes())
+            original_license = files['package/LICENSE']
+            for replacement in record['replacements']:
+                files[replacement['path']] = (self.root / replacement['input']).read_bytes()
+            changed_archive = reference_gzip(reference_tar(files))
+            record['archive'].update(info(changed_archive), integrity=sri(changed_archive))
+            target = self.root / record['archive']['path']
+            original_archive = target.read_bytes()
+            target.write_bytes(changed_archive)
+            try:
+                self.assertEqual(record['result_files'], {name: info(data) for name, data in files.items()})
+                self.assertEqual(record['archive']['integrity'], sri(target.read_bytes()))
+                self.assertEqual((self.root / (ident + '/LICENSE')).read_bytes(), original_license)
+                self.assertNotEqual(files['package/LICENSE'], original_license)
+                with self.subTest(package=ident):
+                    with self.assertRaisesRegex(b.BackportError, '^backport verification failed$'):
+                        b.check_archives(self.root, self.manifest)
+            finally:
+                target.write_bytes(original_archive)
+
     def test_provenance_metadata_changes_are_required(self):
         record = self.manifest['packages'][0]
         path = record['provenance']
