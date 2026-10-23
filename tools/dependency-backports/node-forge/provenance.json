@@ -1,0 +1,120 @@
+{
+  "advisory_closure_verified": false,
+  "canonical_patch_sha256": "37b89ad5884509ccd246b120bf6ad185eaf8963da91769b7781de111c4a4bb92",
+  "compilation_reproduction_verified": false,
+  "consumer_adoption_verified": false,
+  "external_audit_approved": false,
+  "legal_approved": false,
+  "license": "(BSD-3-Clause OR GPL-2.0)",
+  "limitations": [
+    "Maintained derivative, not an upstream fixed release.",
+    "Original licenses and copyrights remain; no relicensing.",
+    "Packaging does not establish full dependency graph or browser/mobile runtime coverage.",
+    "Upstream ancestry findings remain unsuppressed.",
+    "Public producer recipe, full lock/config, tool pins and independent six-JS/three-map rebuild remain required before production adoption.",
+    "Deterministic archive assembly does not reproduce compilation.",
+    "Three warnings per prior main minified compilation and four pending unit cases remain retained limitations.",
+    "Lenient-parser interoperability and browser/mobile/DOM scope remain unverified.",
+    "Original Flash assets are retained as published payload; no Flash execution or support claim."
+  ],
+  "metadata_changes": {
+    "devDependencies": {
+      "after": null,
+      "before": {
+        "browserify": "^16.5.2",
+        "commander": "^2.20.0",
+        "cross-env": "^5.2.1",
+        "eslint": "^7.27.0",
+        "eslint-config-digitalbazaar": "^2.8.0",
+        "express": "^4.16.2",
+        "karma": "^4.4.1",
+        "karma-browserify": "^7.0.0",
+        "karma-chrome-launcher": "^3.1.0",
+        "karma-edge-launcher": "^0.4.2",
+        "karma-firefox-launcher": "^1.3.0",
+        "karma-ie-launcher": "^1.0.0",
+        "karma-mocha": "^1.3.0",
+        "karma-mocha-reporter": "^2.2.5",
+        "karma-safari-launcher": "^1.0.0",
+        "karma-sauce-launcher": "^2.0.2",
+        "karma-sourcemap-loader": "^0.3.8",
+        "karma-tap-reporter": "0.0.6",
+        "karma-webpack": "^4.0.2",
+        "mocha": "^5.2.0",
+        "mocha-lcov-reporter": "^1.2.0",
+        "nodejs-websocket": "^1.7.1",
+        "nyc": "^15.1.0",
+        "opts": "^1.2.7",
+        "webpack": "^4.44.1",
+        "webpack-cli": "^3.3.12",
+        "worker-loader": "^2.0.0"
+      }
+    },
+    "engines": {
+      "after": {
+        "node": ">=22.13.0"
+      },
+      "before": {
+        "node": ">= 6.13.0"
+      }
+    },
+    "name": {
+      "after": "@appguard/node-forge",
+      "before": "node-forge"
+    },
+    "private": {
+      "after": true,
+      "before": null
+    },
+    "scripts": {
+      "after": null,
+      "before": {
+        "build": "webpack",
+        "coverage": "rm -rf coverage && nyc --reporter=lcov --reporter=text-summary npm test",
+        "coverage-ci": "rm -rf coverage && nyc --reporter=lcovonly npm test",
+        "coverage-report": "nyc report",
+        "lint": "eslint *.js lib/*.js tests/*.js tests/**/*.js examples/*.js flash/*.js",
+        "prepublish": "npm run build",
+        "test": "npm run test-node",
+        "test-build": "webpack --config webpack-tests.config.js",
+        "test-karma": "karma start",
+        "test-karma-sauce": "karma start karma-sauce.conf",
+        "test-node": "cross-env NODE_ENV=test mocha -t 30000 -R ${REPORTER:-spec} tests/unit/index.js",
+        "test-server": "node tests/server.js",
+        "test-server-webid": "node tests/websockets/server-webid.js",
+        "test-server-ws": "node tests/websockets/server-ws.js"
+      }
+    },
+    "version": {
+      "after": "1.4.0-appguard.1",
+      "before": "1.4.0"
+    }
+  },
+  "prior_normal_test_receipt": {
+    "built_entrypoint_commands": 12,
+    "built_entrypoint_outcomes": 380,
+    "expected_baseline_false": 32,
+    "expected_true": 348,
+    "receipt_index_sha256": "c51848bf11bdacd5b99b8bbf118b6d7192690545968fef40cb07258e78cec5d9",
+    "scope": "Prior private results, not executed here; no universal cryptography claim.",
+    "unexpected": 0,
+    "unit_passed": 828,
+    "unit_pending": 4
+  },
+  "producer_closure_verified": false,
+  "release_ready": false,
+  "schema": 1,
+  "scope": "Deterministic packaging only; retained code is not executed by this builder.",
+  "source_gate_passed": false,
+  "source_review_reference": {
+    "head": "db05494352dd3c9a5a07c5270333dcc78866cad2",
+    "pull_request": 1159,
+    "repository": "https://github.com/digitalbazaar/forge"
+  },
+  "upstream": {
+    "name": "node-forge",
+    "version": "1.4.0"
+  },
+  "upstream_integrity": "sha512-LarFH0+6VfriEhqMMcLX2F7SwSXeWwnEAJEsYm5QKWchiVYVvJyV9v7UDvUv+w5HO23ZpQTXDv/GxdDdMyOuoQ==",
+  "upstream_registry_url": "https://registry.npmjs.org/node-forge/-/node-forge-1.4.0.tgz"
+}

@@ -1,0 +1,44 @@
+{
+  "compilation_reproduction_verified": false,
+  "outputs": {
+    "dist/forge.all.js": {
+      "sha256": "10de696dad31d6549b4c3a7c137769b669249bff881cd665e20f25b542434e66",
+      "size": 989544
+    },
+    "dist/forge.all.min.js": {
+      "sha256": "faa549f650a5515cfcdfbae4fde7905c37b14cb147bd11bd44b19444e02f7cbf",
+      "size": 304792
+    },
+    "dist/forge.all.min.js.map": {
+      "sha256": "3f645f54db8efe29ed3018ddad138b5476a6cbcb39ae61bd61ef19d3d6988681",
+      "size": 1362789
+    },
+    "dist/forge.js": {
+      "sha256": "e36b46a7bb2a14b27a68406d8997bddbd1c1188750d185f68822d9e8a89ad5c8",
+      "size": 903743
+    },
+    "dist/forge.min.js": {
+      "sha256": "dbf3da77a28b8755efbf197ce803a7464a8c485a1e4a3f2b93de427fccc3f240",
+      "size": 283243
+    },
+    "dist/forge.min.js.map": {
+      "sha256": "07206f91fb2bcb76afd8306b62075e0fa5022476beed4c74648d6e5fd0a42efc",
+      "size": 1248932
+    },
+    "dist/prime.worker.js": {
+      "sha256": "8a7899ff13703d4098f22c288cf02540cdf3dd0a212f703736654a727961a154",
+      "size": 46606
+    },
+    "dist/prime.worker.min.js": {
+      "sha256": "067f3b94bb7fca9c62bdc960fc5da01b7a22dfaafd972b6c369c078964859102",
+      "size": 20642
+    },
+    "dist/prime.worker.min.js.map": {
+      "sha256": "bb2d57a0e0b5490be2e0e40de9fbe838cf6ac33a07272b5b55217494225129fc",
+      "size": 77109
+    }
+  },
+  "private_original_record_sha256": "24f38e2e49350673b3b9a9d9ea8809fec019109f065cff9713423075aa346b02",
+  "producer_closure_verified": false,
+  "schema": 1
+}

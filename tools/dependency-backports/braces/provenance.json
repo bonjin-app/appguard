@@ -1,0 +1,78 @@
+{
+  "advisory_closure_verified": false,
+  "canonical_patch_sha256": "d472faf192fdc57bf4e2108df4587a3eb42d33d7f1f8e8b409c7defa3cf2d01c",
+  "compilation_reproduction_verified": false,
+  "consumer_adoption_verified": false,
+  "external_audit_approved": false,
+  "legal_approved": false,
+  "license": "MIT",
+  "limitations": [
+    "Maintained derivative, not an upstream fixed release.",
+    "Original licenses and copyrights remain; no relicensing.",
+    "Packaging does not establish full dependency graph or browser/mobile runtime coverage.",
+    "Upstream ancestry findings remain unsuppressed.",
+    "Depth/parent-chain changes do not establish a general work budget or all malformed-object behavior.",
+    "Separate resolver bundled copy is unchanged and unresolved.",
+    "Original parser quote/comma semantics are retained."
+  ],
+  "metadata_changes": {
+    "devDependencies": {
+      "after": null,
+      "before": {
+        "ansi-colors": "^3.2.4",
+        "bash-path": "^2.0.1",
+        "gulp-format-md": "^2.0.0",
+        "mocha": "^6.1.1"
+      }
+    },
+    "engines": {
+      "after": {
+        "node": ">=22.13.0"
+      },
+      "before": {
+        "node": ">=8"
+      }
+    },
+    "name": {
+      "after": "@appguard/braces",
+      "before": "braces"
+    },
+    "private": {
+      "after": true,
+      "before": null
+    },
+    "scripts": {
+      "after": null,
+      "before": {
+        "benchmark": "node benchmark",
+        "test": "mocha"
+      }
+    },
+    "version": {
+      "after": "3.0.3-appguard.1",
+      "before": "3.0.3"
+    }
+  },
+  "prior_normal_test_receipt": {
+    "child_attempts": 0,
+    "passed": 764,
+    "pending": 0,
+    "receipt_summary_sha256": "e262d116c3f1981db4a0a4bc3f9372a4b4e516ccb024990c0b921eff1ad30b96",
+    "scope": "Prior private normal release tests; not rerun here or public reproduction."
+  },
+  "producer_closure_verified": false,
+  "release_ready": false,
+  "schema": 1,
+  "scope": "Deterministic packaging only; retained code is not executed by this builder.",
+  "source_gate_passed": false,
+  "source_review_reference": {
+    "candidate_report_sha256": "6505c74aec1a2b44cd34470c7a994912e1cb8feaf5fac3349631747b35f0ad9f",
+    "source_patch_sha256": "d472faf192fdc57bf4e2108df4587a3eb42d33d7f1f8e8b409c7defa3cf2d01c"
+  },
+  "upstream": {
+    "name": "braces",
+    "version": "3.0.3"
+  },
+  "upstream_integrity": "sha512-yQbXgO/OSZVD2IsiLlro+7Hf6Q18EJrKSEsdoMzKePKXct3gvD8oLcOQdIzGupr5Fj+EDe8gO/lxc1BzfMpxvA==",
+  "upstream_registry_url": "https://registry.npmjs.org/braces/-/braces-3.0.3.tgz"
+}
