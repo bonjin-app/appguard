@@ -1,6 +1,7 @@
 # Maintained tool backports implementation plan
 
-> For a later authorized implementer: use superpowers:executing-plans task by task. No execution, install or adoption is authorized by this plan.
+> Execute within the authorized isolated project task using reviewed task boundaries. Root controls actual installs, CI and integration.
+> This plan grants no registry publication, production adoption, legal approval or external acceptance.
 
 **Goal:** Install reviewed maintained tool derivatives while preserving affected upstream ancestry and an honest failing source gate.
 **Architecture:** Tracked deterministic local archives, consumer-root overrides and a dedicated hash-bound backport SBOM; resolver follows as a separate review.
@@ -54,14 +55,21 @@ Static archive parsing, safe paths and strict type/size/member limits remain req
 
 ### Task 4: Proposed source-based resolver derivative, separately accepted
 
+- [ ] Extend exactly three ordered logical IDs, with the resolver's fixed physical prefix `resolver/`, per the spec's resolver-unit contract.
+  Preserve all existing braces/Forge retained input and archive bytes. Keep strict per-package metadata/license exceptions narrow.
 - [ ] Retain official2.0.1 archive/SRI/license/declarations and four publisher TS files under `tools/dependency-backports/resolver/` with exact hashes.
   Add `build-resolver.cjs` compile flags/producer pins and exact existing js-yaml4.3.2/micromatch4.0.8 dependency/integrity review; do not revive ncc/Bun.
+- [ ] Preserve original LICENSE.md and add only an identical LICENSE; reject changed original/retained/final legal bytes.
+  Retain main/types; set only the resolver's files=[build] and exact two runtime dependencies beyond the common fork metadata edits.
+  Bind all nine final payload files, the compiler script/inputs, unchanged TS and exact original declarations.
 - [ ] RED→GREEN ordinary temp-workspace fixtures in `.github/tests/test_resolver_backport.py`: all four exports, sync/async agreement, npm/Yarn/pnpm
   forms, nested/absent workspace, option defaults/precedence and normal read/parse failures. Match controlled published API behavior and exact declarations.
 - [ ] Verify TypeScript consumer compatibility and deterministic four-output builds; package the unbundled derivative with explicit external dependencies.
   Keep physical outputs in `resolver/compiled/`, with manifest mappings to logical `package/build/*`; add no candidate allowlist exception.
   Check every real/test consumer root routes micromatch's braces to the reviewed archive; embedded old bundle must be absent from installed payload.
 - [ ] Extend manifest/catalog ancestry and Expo lock/consumer tests; until this stage is complete, report the separate bundled braces path unresolved.
+  Keep original upstream bundled lineage after installed bundle removal, without a rename-only source-gate pass.
+  Freeze and review source/compiler/normal-fixture evidence before parent-controlled actual lock/install qualification.
 
 ### Task 5: Review and evidence boundary
 
@@ -72,4 +80,4 @@ Static archive parsing, safe paths and strict type/size/member limits remain req
 - [ ] Freeze product/source/archive/lock/tool/fixture hashes, actual counters and unresolved limitations; obtain independent review before adoption/CI.
   Maintainers own future upstream monitoring, rebuilds and replacement/removal when a supported fixed release is independently verified.
 - [ ] Review actual consumer and unsuppressed source/ancestry scan results separately from source-byte checks; keep failure reports and all other gates false.
-  Root controls commits, pushes, CI and integration. This design-only task creates just this plan and its linked spec.
+  Root controls commits, pushes, CI and integration. Local task verification never substitutes for same-commit remote CI or release approval.

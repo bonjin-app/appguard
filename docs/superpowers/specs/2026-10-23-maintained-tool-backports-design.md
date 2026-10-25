@@ -1,7 +1,8 @@
 # Maintained tool backports design
 
-Design proposal only, based on393a524. Replace affected installed tool bytes through reviewed local derivatives;
-renaming packages must never clear source findings. Product adoption, new execution and publication are not authorized here.
+Implementation contract based on393a524. Replace affected installed tool bytes through reviewed local derivatives;
+renaming packages must never clear source findings. Controlled implementation and verification follow the project task's authorization.
+Production adoption and publication require their separate evidence and approval; this document grants neither.
 
 ## Choice and staged scope
 
@@ -77,6 +78,46 @@ four separate JS outputs and original declarations; this is a controlled new bui
 Declare current Expo-lock js-yaml4.3.2/micromatch4.0.8 runtime dependencies after exact integrity/license/advisory review;
 they differ from historical Bun pins. Preserve four exports, defaults, pnpm precedence, sync/async errors and matching semantics.
 Require normal filesystem/export/type-consumer comparisons before adoption; types/package routing and semantic equivalence remain unverified.
+
+### Resolver unit: exact extension of the first-unit contract
+
+The resolver unit extends the two-package first-unit schema to exactly three ordered IDs:
+`braces`, `node-forge`, `resolve-workspace-root`. Its logical ID stays the upstream package name;
+only its fixed physical input prefix is `resolver/`. Use a fixed identity/prefix mapping, not arbitrary package roots.
+The existing two records, retained inputs and deterministic archives remain byte-identical.
+
+The published resolver manifest is1572 bytes/SHA2562a4dd519ada0fb79a87f4de720961be61cd906ee3c91dbf17dcc82bd31236ade.
+It exposes `main: build/index.js`, `types: build/index.d.ts`, and lists only those two files; its bundled dependencies
+are historical devDependencies. Preserve main/types and every other original metadata field except the common fork edits
+and these exact resolver-only changes: `files: ["build"]`, plus runtime dependencies
+`{"js-yaml":"4.3.2","micromatch":"4.0.8"}`. Declare all changes in provenance and validate them against the original manifest.
+This narrow exception must not relax metadata equality for braces or Forge. The files list must include the separate utils modules.
+
+The original archive contains `package/LICENSE.md`,1142 bytes/SHA2560cff14eaf2736ff712a34ef8d61f4144082e61387fff1ee3bef9da003d96a4ce.
+Retain it unchanged and add an identical `package/LICENSE` from `resolver/LICENSE` for the shared package layout.
+Permit only this exact resolver license addition; require equality among original LICENSE.md, retained LICENSE,
+final LICENSE.md and final LICENSE. Braces/Forge final LICENSE replacement remains forbidden.
+Ordinary hash-consistent mutations of either resolver license must fail, including a changed retained license.
+
+Replace the opaque original `package/build/index.js` with the controlled output and add
+`package/build/utils/{dirs,files,workspaces}.js`; retain the original declaration, README and LICENSE.md bytes.
+Together with the additional identical LICENSE and fork manifest this is exactly nine resolver payload files.
+Four unchanged publisher TS sources, readable recipe, compiler pins and source/output joins stay under `resolver/`;
+physical JS outputs stay under `resolver/compiled/`. No old bundle, ncc or Bun graph is used to generate the derivative.
+Use the fixed TypeScript6.0.3/CommonJS/ES2020/esModuleInterop recipe above, bind the public compiler script and compiler inputs,
+and compare independent output bytes. Controlled transpilation, type-consumer checks and publisher-build reproduction remain distinct evidence.
+
+Keep original resolver bundled-braces ancestry and its unknown embedded version explicit in the catalog even when the installed
+derivative contains no bundle. Distinguish upstream retained-bundle lineage from installed-runtime coverage; do not drop original
+affected purls, advisory IDs or required unsuppressed scans. No full-graph/source/compiler/legal/external/release approval follows.
+Current selected-version metadata/license and named advisory-range checks are bounded evidence, not an exhaustive vulnerability inventory.
+
+Every actual/test consumer root declares its own logical braces policy; a copied fixture dependency closure proves semantics only,
+not npm installation. Preserve reviewed dependency bytes/origins and use normal filesystem/export/type fixtures without NODE_PATH bypasses.
+Root controls actual lock resolution and fresh/relocated installs after the source freeze and independent review.
+Do not modify earlier qualified consumer roots, caches or frozen evidence. Preserve actual HOME/CODEX_HOME in every child.
+For controlled nested npm checks, use separately owned persistent `update-notifier=false` and `offline=true` configuration;
+an intentionally online locked install must override offline explicitly. Never modify actual/global configuration.
 
 ## Consumer and honest source scanning
 
