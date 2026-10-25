@@ -9,8 +9,10 @@ const {createHash} = require('node:crypto');
 const {verifyConsumer} = require('../verify-backports.cjs');
 const sha = data => createHash('sha256').update(data).digest('hex');
 const sri = data => 'sha512-' + createHash('sha512').update(data).digest('base64');
+const repository = path.resolve(__dirname,'../../..');
 function fixture() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'appguard-installed-fixture-'));
+  try {
   const consumer = path.join(root, 'sdk/expo');
   const backports = path.join(root, 'tools/dependency-backports');
   const write = (file, data) => {fs.mkdirSync(path.dirname(file), {recursive:true}); fs.writeFileSync(file, data);};
@@ -43,19 +45,42 @@ function fixture() {
     overrides[id] = '$'+id;
     packages['node_modules/'+id] = {...fork,resolved:rootDev[id],integrity:sri(archiveBytes),dev:true};
   }
+  const retained = path.join(repository,'tools/dependency-backports');
+  const resolver = JSON.parse(fs.readFileSync(path.join(retained,'manifest.json'))).packages[2];
+  records.push(resolver);
+  for (const name of [...Object.keys(resolver.inputs),resolver.upstream.path,resolver.archive.path]) {
+    write(path.join(backports,name),fs.readFileSync(path.join(retained,name)));
+  }
+  write(path.join(root,'scripts/dependencies/build-resolver.cjs'),fs.readFileSync(path.join(repository,'scripts/dependencies/build-resolver.cjs')));
+  const resolverPayload = {'package.json':'resolver/replacements/package.json','README.md':'resolver/original-readme.md',
+    LICENSE:'resolver/LICENSE','LICENSE.md':'resolver/LICENSE','build/index.d.ts':'resolver/original-index.d.ts'};
+  for (const name of ['index','utils/dirs','utils/files','utils/workspaces']) resolverPayload['build/'+name+'.js']='resolver/compiled/'+name+'.js';
+  for (const [name,input] of Object.entries(resolverPayload)) write(path.join(consumer,'node_modules/resolve-workspace-root',name),fs.readFileSync(path.join(retained,input)));
+  rootDev[resolver.id]='file:../../tools/dependency-backports/'+resolver.archive.path;
+  overrides[resolver.id]='$'+resolver.id;
+  packages['node_modules/'+resolver.id]={...resolver.fork,resolved:rootDev[resolver.id],integrity:resolver.archive.integrity,dev:true,dependencies:{'js-yaml':'4.3.2',micromatch:'4.0.8'}};
   for (const [location, name, dependencies] of [
     ['node_modules/expo','expo',{'@expo/cli':'1.0.0'}],
     ['node_modules/expo/node_modules/@expo/cli','@expo/cli',{'node-forge':'1.4.0','@expo/code-signing-certificates':'1.0.0'}],
     ['node_modules/@expo/code-signing-certificates','@expo/code-signing-certificates',{'node-forge':'1.4.0'}],
-    ['node_modules/micromatch','micromatch',{braces:'3.0.3'}]]) {
+    ['node_modules/@expo/config','@expo/config',{'resolve-workspace-root':'^2.0.0'}],
+    ['node_modules/@expo/package-manager','@expo/package-manager',{'resolve-workspace-root':'^2.0.0'}]]) {
     packages[location] = {version:'1.0.0',dependencies,dev:true};
     json(path.join(consumer,location,'package.json'), {name,version:'1.0.0',dependencies,main:'index.js'});
     write(path.join(consumer,location,'index.js'), '// never executed\n');
   }
+  const review=JSON.parse(fs.readFileSync(path.join(retained,'resolver/dependency-metadata-readback.json')));
+  for (const name of ['js-yaml','micromatch']) {
+    packages['node_modules/'+name]=review.dependencies[name].lock;
+    for (const file of ['package.json','LICENSE']) write(path.join(consumer,'node_modules',name,file),fs.readFileSync(path.join(repository,'sdk/expo/node_modules',name,file)));
+    const metadata=JSON.parse(fs.readFileSync(path.join(consumer,'node_modules',name,'package.json')));
+    write(path.join(consumer,'node_modules',name,metadata.main || 'index.js'),'// ordinary origin fixture, never executed\n');
+  }
   for (const name of ['expo/bin/cli',
     'expo/node_modules/@expo/cli/build/src/utils/codesigning.js',
     'expo/node_modules/@expo/cli/build/src/run/ios/codeSigning/Security.js',
-    '@expo/code-signing-certificates/build/main.js']) {
+    '@expo/code-signing-certificates/build/main.js','@expo/config/build/paths/paths.js',
+    '@expo/package-manager/build/ios/gemfile.js','@expo/package-manager/build/utils/nodeManagers.js']) {
     write(path.join(consumer,'node_modules',name),'// ordinary import-origin fixture, never executed\n');
   }
   const manifest = {schema:1,packages:records};
@@ -68,10 +93,11 @@ function fixture() {
   const saveLock = () => json(path.join(consumer,'package-lock.json'),lock);
   saveLock();
   return {root,consumer,backports,manifest,lock,pkg,write,json,saveLock,savePackage,manifestHash};
+  } catch (error) {fs.rmSync(root,{recursive:true,force:true}); throw error;}
 }
 function runFixture(action) {const f=fixture(); try {action(f);} finally {fs.rmSync(f.root,{recursive:true,force:true});}}
 test('accepts complete ordinary payloads and logical consumer origins without executing them', () => runFixture(f => {
-  assert.deepEqual(verifyConsumer(f.root,f.manifestHash()), {schema:1,packages:2,installedFiles:6,consumerBindings:5,verified:true});
+  assert.deepEqual(verifyConsumer(f.root,f.manifestHash()), {schema:1,packages:3,installedFiles:15,consumerBindings:10,verified:true});
 }));
 for (const mutation of ['manifest','archive','source','sri','payload','missing-file','extra-file','lock-path','lock-name','lock-version','lock-location','missing-dependency','consumer-origin','installed-identity','license']) {
   test('rejects ordinary '+mutation+' drift', () => runFixture(f => {
@@ -119,6 +145,7 @@ test('ordinary fixture remains bound after relocation with identical lock bytes'
   fs.mkdirSync(relocated);
   fs.cpSync(path.join(f.root,'sdk'),path.join(relocated,'sdk'),{recursive:true});
   fs.cpSync(path.join(f.root,'tools'),path.join(relocated,'tools'),{recursive:true});
+  fs.cpSync(path.join(f.root,'scripts'),path.join(relocated,'scripts'),{recursive:true});
   const before=fs.readFileSync(path.join(relocated,'sdk/expo/package-lock.json'));
   assert.equal(verifyConsumer(relocated,pin).verified,true);
   assert.deepEqual(fs.readFileSync(path.join(relocated,'sdk/expo/package-lock.json')),before);
@@ -136,7 +163,7 @@ test('rejects former raw archive override policy even with matching direct dev t
   f.savePackage();
   assert.throws(() => verifyConsumer(f.root,f.manifestHash()), {message:'installed backport verification failed'});
 }));
-for (const id of ['braces','node-forge']) {
+for (const id of ['braces','node-forge','resolve-workspace-root']) {
   for (const mutation of ['missing-dev','wrong-dev-file','nonstr-dev','missing-ref','wrong-ref','nonstr-ref','missing-lock-dev','wrong-lock-dev']) {
     test('rejects '+id+' root policy '+mutation, () => runFixture(f => {
       if (mutation==='missing-dev') delete f.pkg.devDependencies[id];
@@ -156,3 +183,24 @@ test('rejects an absent root devDependencies object', () => runFixture(f => {
   delete f.pkg.devDependencies; f.savePackage();
   assert.throws(() => verifyConsumer(f.root,f.manifestHash()), {message:'installed backport verification failed'});
 }));
+
+for (const source of ['@expo/config/build/paths/paths.js','@expo/package-manager/build/ios/gemfile.js','@expo/package-manager/build/utils/nodeManagers.js']) {
+  test('requires actual resolver import origin '+source, () => runFixture(f => {
+    fs.unlinkSync(path.join(f.consumer,'node_modules',source));
+    assert.throws(() => verifyConsumer(f.root,f.manifestHash()), {message:'installed backport verification failed'});
+  }));
+}
+for (const mutation of ['resolver-shadow','resolver-edge','yaml-version','yaml-sri','yaml-license','compiler-script','resolver-original-license','resolver-added-license']) {
+  test('rejects resolver origin/metadata drift '+mutation, () => runFixture(f => {
+    if (mutation==='resolver-shadow') fs.cpSync(path.join(f.consumer,'node_modules/resolve-workspace-root'),path.join(f.consumer,'node_modules/@expo/package-manager/node_modules/resolve-workspace-root'),{recursive:true});
+    if (mutation==='resolver-edge') f.lock.packages['node_modules/@expo/config'].dependencies['resolve-workspace-root']='^1.0.0';
+    if (mutation==='yaml-version') f.lock.packages['node_modules/js-yaml'].version='4.3.1';
+    if (mutation==='yaml-sri') f.lock.packages['node_modules/js-yaml'].integrity='sha512-'+Buffer.alloc(64).toString('base64');
+    if (mutation==='yaml-license') f.write(path.join(f.consumer,'node_modules/js-yaml/LICENSE'),'changed');
+    if (mutation==='compiler-script') f.write(path.join(f.root,'scripts/dependencies/build-resolver.cjs'),'changed');
+    if (mutation==='resolver-original-license') f.write(path.join(f.consumer,'node_modules/resolve-workspace-root/LICENSE.md'),'changed');
+    if (mutation==='resolver-added-license') f.write(path.join(f.consumer,'node_modules/resolve-workspace-root/LICENSE'),'changed');
+    f.saveLock();
+    assert.throws(() => verifyConsumer(f.root,f.manifestHash()), {message:'installed backport verification failed'});
+  }));
+}

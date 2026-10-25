@@ -1,0 +1,95 @@
+--- a/package.json
++++ b/package.json
+@@ -1,22 +1,27 @@
+ {
+-  "name": "resolve-workspace-root",
+-  "version": "2.0.1",
++  "author": "Cedric van Putten <me@cedric.dev>",
++  "bugs": {
++    "url": "https://github.com/byCedric/resolve-workspace-root/issues"
++  },
++  "dependencies": {
++    "js-yaml": "4.3.2",
++    "micromatch": "4.0.8"
++  },
+   "description": "Resolve the workspace root using bun, npm, pnpm, or yarn",
+-  "main": "build/index.js",
+-  "types": "build/index.d.ts",
++  "engines": {
++    "node": ">=22.13.0"
++  },
++  "eslintConfig": {
++    "extends": "universe/node",
++    "ignorePatterns": [
++      "build",
++      "node_modules"
++    ]
++  },
+   "files": [
+-    "build/index.js",
+-    "build/index.d.ts"
++    "build"
+   ],
+-  "scripts": {
+-    "build": "ncc build src/index.ts --out build --minify --no-cache --no-source-map-register && tsc --declaration --emitDeclarationOnly",
+-    "lint": "eslint . --ext ts",
+-    "test": "bun test"
+-  },
+-  "repository": {
+-    "type": "git",
+-    "url": "git+https://github.com/byCedric/resolve-workspace-root.git"
+-  },
++  "homepage": "https://github.com/byCedric/resolve-workspace-root#readme",
+   "keywords": [
+     "monorepo",
+     "workspace",
+@@ -25,38 +30,20 @@
+     "pnpm",
+     "yarn"
+   ],
+-  "author": "Cedric van Putten <me@cedric.dev>",
+   "license": "MIT",
+-  "bugs": {
+-    "url": "https://github.com/byCedric/resolve-workspace-root/issues"
+-  },
+-  "homepage": "https://github.com/byCedric/resolve-workspace-root#readme",
+-  "devDependencies": {
+-    "@tsconfig/node20": "^20.1.4",
+-    "@types/bun": "^1.1.6",
+-    "@types/js-yaml": "^4.0.9",
+-    "@types/micromatch": "^4.0.9",
+-    "@types/node": "^22.5.0",
+-    "@vercel/ncc": "^0.38.1",
+-    "eslint": "^8.57.0",
+-    "eslint-config-universe": "^13.0.0",
+-    "js-yaml": "^4.1.0",
+-    "memfs": "^4.11.1",
+-    "micromatch": "^4.0.7",
+-    "prettier": "^3.3.3",
+-    "typescript": "^5.5.4"
+-  },
+-  "eslintConfig": {
+-    "extends": "universe/node",
+-    "ignorePatterns": [
+-      "build",
+-      "node_modules"
+-    ]
+-  },
++  "main": "build/index.js",
++  "name": "@appguard/resolve-workspace-root",
+   "prettier": {
+     "printWidth": 100,
++    "singleQuote": true,
+     "tabWidth": 2,
+-    "singleQuote": true,
+     "trailingComma": "es5"
+-  }
++  },
++  "private": true,
++  "repository": {
++    "type": "git",
++    "url": "git+https://github.com/byCedric/resolve-workspace-root.git"
++  },
++  "types": "build/index.d.ts",
++  "version": "2.0.1-appguard.1"
+ }

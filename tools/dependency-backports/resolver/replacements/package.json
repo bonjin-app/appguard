@@ -1,0 +1,49 @@
+{
+  "author": "Cedric van Putten <me@cedric.dev>",
+  "bugs": {
+    "url": "https://github.com/byCedric/resolve-workspace-root/issues"
+  },
+  "dependencies": {
+    "js-yaml": "4.3.2",
+    "micromatch": "4.0.8"
+  },
+  "description": "Resolve the workspace root using bun, npm, pnpm, or yarn",
+  "engines": {
+    "node": ">=22.13.0"
+  },
+  "eslintConfig": {
+    "extends": "universe/node",
+    "ignorePatterns": [
+      "build",
+      "node_modules"
+    ]
+  },
+  "files": [
+    "build"
+  ],
+  "homepage": "https://github.com/byCedric/resolve-workspace-root#readme",
+  "keywords": [
+    "monorepo",
+    "workspace",
+    "bun",
+    "npm",
+    "pnpm",
+    "yarn"
+  ],
+  "license": "MIT",
+  "main": "build/index.js",
+  "name": "@appguard/resolve-workspace-root",
+  "prettier": {
+    "printWidth": 100,
+    "singleQuote": true,
+    "tabWidth": 2,
+    "trailingComma": "es5"
+  },
+  "private": true,
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/byCedric/resolve-workspace-root.git"
+  },
+  "types": "build/index.d.ts",
+  "version": "2.0.1-appguard.1"
+}

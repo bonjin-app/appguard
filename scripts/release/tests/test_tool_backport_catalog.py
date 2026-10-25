@@ -15,6 +15,9 @@ def fixture(base, local=False):
     source, reports = base / 'source', base / 'reports'
     source.mkdir(); reports.mkdir()
     shutil.copytree(ROOT / 'tools/dependency-backports', source / 'tools/dependency-backports')
+    script = source / 'scripts/dependencies/build-resolver.cjs'
+    script.parent.mkdir(parents=True)
+    shutil.copyfile(ROOT / 'scripts/dependencies/build-resolver.cjs', script)
     manifest = json.loads((source / 'tools/dependency-backports/manifest.json').read_text())
     lock = source / 'sdk/expo/package-lock.json'
     lock.parent.mkdir(parents=True)
@@ -56,19 +59,22 @@ class BackportCatalogTests(unittest.TestCase):
             self.assertEqual(result, validate_tool_backport_catalog(source, reports))
             self.assertEqual(preserved, {name: (reports / name).read_bytes() for name in preserved})
             document = json.loads((reports / 'sbom-tool-backports.cdx.json').read_text())
-            for purl in ('pkg:npm/braces@3.0.3', 'pkg:npm/node-forge@1.4.0'):
+            for purl in ('pkg:npm/braces@3.0.3', 'pkg:npm/node-forge@1.4.0', 'pkg:npm/resolve-workspace-root@2.0.1'):
                 component = next(c for c in document['components'] if c['purl'] == purl)
                 self.assertEqual(component['type'], 'library')
                 self.assertEqual(component['scope'], 'required')
                 self.assertIn({'name': 'appguard:tool-backports:classification',
                     'value': 'upstream-ancestry-not-installed-runtime'}, component['properties'])
-            self.assertEqual(len(result['packages']), 2)
+            self.assertEqual(len(result['packages']), 3)
             self.assertFalse(result['advisory_closure_verified'])
             self.assertFalse(result['producer_closure_verified'])
             self.assertFalse(result['compilation_reproduction_verified'])
             self.assertEqual(result['unresolved_bundled_lineage'][0]['bundled_package'], 'braces')
             self.assertEqual(result['unresolved_bundled_lineage'][0]['status'], 'unresolved')
             self.assertEqual(result['affected_advisories'], ['GHSA-vfj7-8cjw-p6xm', 'GHSA-86w9-cpqp-85rv'])
+            self.assertEqual(result['original_bundled_lineage'][0]['classification'], 'original-upstream-bundle-not-installed')
+            self.assertIsNone(result['original_bundled_lineage'][0]['bundled_version'])
+            self.assertFalse(result['original_bundled_lineage'][0]['installed_runtime_verified'])
 
     def test_changed_source_manifest_sri_or_provenance_fails_reconstruction(self):
         from tool_backport_catalog import prepare_tool_backport_catalog, validate_tool_backport_catalog
@@ -133,8 +139,12 @@ class BackportCatalogTests(unittest.TestCase):
                     self.fail('A fully reconstructed local archive binding must supplement source coverage')
                 self.assertTrue(coverage['all_recorded_npm_packages_cataloged'])
                 local = [r for r in coverage['locks'][0]['records'] if r['name'].startswith('@appguard/')]
-                self.assertEqual(len(local), 2)
+                self.assertEqual(len(local), 3)
                 self.assertTrue(all(r['cataloged'] for r in local))
+                provenance = json.loads((reports / 'tool-backport-provenance.json').read_bytes())
+                self.assertEqual(provenance['unresolved_bundled_lineage'], [])
+                self.assertEqual(len(provenance['original_bundled_lineage']), 1)
+                self.assertFalse(provenance['original_bundled_lineage'][0]['maintained_payload_contains_original_bundle'])
                 self.assertEqual(before, {p.name: p.read_bytes() for p in reports.iterdir()})
 
     def test_candidate_builder_code_is_never_loaded(self):
@@ -142,7 +152,7 @@ class BackportCatalogTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temp:
             source, reports, manifest = fixture(Path(temp).resolve())
             script = source / 'scripts/dependencies/build-backports.py'
-            script.parent.mkdir(parents=True)
+            script.parent.mkdir(parents=True, exist_ok=True)
             script.write_text('raise RuntimeError("candidate code must not execute")\n')
             self.assertTrue(prepare_tool_backport_catalog(source, reports)['packages'])
 

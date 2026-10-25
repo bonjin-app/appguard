@@ -4,9 +4,11 @@ const fs = require('node:fs');
 const path = require('node:path');
 const {createHash} = require('node:crypto');
 const {createRequire} = require('node:module');
-const MANIFEST_SHA256 = 'fbc0a7150a52b18c6090b750fa07e333667f7f8e49d5e3e5520059e778599b22';
+const MANIFEST_SHA256 = '2935551bccd667c45c577541e1cf7b5c56c4b094d77945fe859e8eeab1402e1d';
 const ERROR = 'installed backport verification failed';
-const VERSIONS = {braces:'3.0.3', 'node-forge':'1.4.0'};
+const VERSIONS = {braces:'3.0.3', 'node-forge':'1.4.0', 'resolve-workspace-root':'2.0.1'};
+const PREFIXES = {braces:'braces', 'node-forge':'node-forge', 'resolve-workspace-root':'resolver'};
+const RESOLVER_LICENSE = {sha256:'0cff14eaf2736ff712a34ef8d61f4144082e61387fff1ee3bef9da003d96a4ce',size:1142};
 const MAX_BYTES = 32 * 1024 * 1024;
 function check(condition) { if (!condition) throw new Error(ERROR); }
 function object(value) { return value !== null && typeof value === 'object' && !Array.isArray(value); }
@@ -46,16 +48,16 @@ function pinned(root, name, pin, withSRI=false) {
 function json(root,name) {return JSON.parse(read(root,name,2*1024*1024));}
 function validateRecord(record) {
   keys(record,'id upstream fork inputs replacements result_files archive provenance');
-  const id = record.id; const version = VERSIONS[id]; check(version);
+  const id = record.id; const version = VERSIONS[id]; const prefix = PREFIXES[id]; check(version && prefix);
   keys(record.fork,'name version');
   check(record.fork.name === '@appguard/'+id && record.fork.version === version+'-appguard.1');
   keys(record.archive,'path sha256 integrity size');
   check(record.archive.path === `archives/appguard-${id}-${version}-appguard.1.tgz` && record.archive.size <= 16*1024*1024);
   keys(record.upstream,'name version url path sha256 integrity size');
   check(record.upstream.name === id && record.upstream.version === version);
-  check(record.upstream.path === id+'/upstream.tgz' && record.upstream.url === `https://registry.npmjs.org/${id}/-/${id}-${version}.tgz`);
+  check(record.upstream.path === prefix+'/upstream.tgz' && record.upstream.url === `https://registry.npmjs.org/${id}/-/${id}-${version}.tgz`);
   check(record.upstream.size <= 16*1024*1024);
-  for (const [inventory,prefix] of [[record.inputs,id],[record.result_files,'package']]) {
+  for (const [inventory,prefix] of [[record.inputs,PREFIXES[id]],[record.result_files,'package']]) {
     check(object(inventory) && Object.keys(inventory).length >= 1 && Object.keys(inventory).length <= 512);
     let size = 0;
     for (const [name,pin] of Object.entries(inventory)) {
@@ -65,18 +67,32 @@ function validateRecord(record) {
     }
     check(size <= MAX_BYTES);
   }
-  for (const name of ['LICENSE','original-package.json','source.patch','replacements/package.json','provenance.json']) check(Object.hasOwn(record.inputs,id+'/'+name));
-  check(record.provenance === id+'/provenance.json');
+  for (const name of ['LICENSE','original-package.json','source.patch','replacements/package.json','provenance.json']) check(Object.hasOwn(record.inputs,prefix+'/'+name));
+  check(record.provenance === prefix+'/provenance.json');
   check(Array.isArray(record.replacements) && record.replacements.length >= 1 && record.replacements.length <= 512);
   const seen = new Set();
   for (const replacement of record.replacements) {
     keys(replacement,'path input'); relative(replacement.path,'package');
-    check(replacement.path !== 'package/LICENSE' && !seen.has(replacement.path)); seen.add(replacement.path);
+    check((replacement.path !== 'package/LICENSE' || (id === 'resolve-workspace-root' && replacement.input === 'resolver/LICENSE')) && !seen.has(replacement.path)); seen.add(replacement.path);
     check(Object.hasOwn(record.inputs,replacement.input) && Object.hasOwn(record.result_files,replacement.path));
     check(JSON.stringify(record.inputs[replacement.input]) === JSON.stringify(record.result_files[replacement.path]));
   }
   check(seen.has('package/package.json'));
-  for (const key of ['sha256','size']) check(record.inputs[id+'/LICENSE'][key] === record.result_files['package/LICENSE'][key]);
+  for (const key of ['sha256','size']) check(record.inputs[prefix+'/LICENSE'][key] === record.result_files['package/LICENSE'][key]);
+  if (id === 'resolve-workspace-root') {
+    check(record.upstream.sha256 === '161fd5f13b2fc116b4332c25bb1d4983a2f983b15e01d647d5ac1209fd309694' && record.upstream.size === 31755);
+    for (const name of ['resolver/LICENSE','package/LICENSE','package/LICENSE.md']) {
+      const pin = name.startsWith('resolver/') ? record.inputs[name] : record.result_files[name];
+      for (const key of ['sha256','size']) check(pin?.[key] === RESOLVER_LICENSE[key]);
+    }
+    check(record.result_files['package/build/index.d.ts']?.sha256 === '4e5e42c6632ef9e9859a8d22b4c71572c2a19f8088a84ccaeab7f2f0a30a623e');
+    const replacements = {'package/LICENSE':'resolver/LICENSE','package/package.json':'resolver/replacements/package.json'};
+    for (const name of ['index','utils/dirs','utils/files','utils/workspaces']) replacements['package/build/'+name+'.js']='resolver/compiled/'+name+'.js';
+    const replacementPaths=Object.keys(replacements).sort();
+    check(record.replacements.length === replacementPaths.length && record.replacements.every((entry,index)=>
+      entry.path === replacementPaths[index] && entry.input === replacements[entry.path]));
+    check(Object.keys(record.result_files).length === 9);
+  }
 }
 function inventory(root) {
   const files = []; let entries = 0;
@@ -99,8 +115,8 @@ function verify(root, expectedManifestHash) {
   const manifestBytes = read(backports,'manifest.json',2*1024*1024);
   check(hash(manifestBytes) === expectedManifestHash);
   const manifest = JSON.parse(manifestBytes); keys(manifest,'schema packages');
-  check(manifest.schema === 1 && Array.isArray(manifest.packages) && manifest.packages.length === 2);
-  check(manifest.packages.map(p=>p.id).join('|') === 'braces|node-forge');
+  check(manifest.schema === 1 && Array.isArray(manifest.packages) && manifest.packages.length === 3);
+  check(manifest.packages.map(p=>p.id).join('|') === 'braces|node-forge|resolve-workspace-root');
   const pkg = json(consumer,'package.json'); const lock = json(consumer,'package-lock.json');
   check(pkg.name === '@appguard/expo' && lock.name === pkg.name && lock.version === pkg.version && lock.lockfileVersion === 3);
   check(object(lock.packages) && lock.packages[''].name === pkg.name && lock.packages[''].version === pkg.version);
@@ -128,6 +144,19 @@ function verify(root, expectedManifestHash) {
     for (const name of expected) {pinned(directory,name,record.result_files['package/'+name]); installedFiles++;}
     const metadata = json(directory,'package.json');
     check(metadata.name === record.fork.name && metadata.version === record.fork.version && metadata.private === true);
+    if (record.id === 'resolve-workspace-root') {
+      check(metadata.main === 'build/index.js' && metadata.types === 'build/index.d.ts');
+      check(JSON.stringify(metadata.files) === '["build"]');
+      keys(metadata.dependencies,'js-yaml micromatch');
+      check(metadata.dependencies['js-yaml'] === '4.3.2' && metadata.dependencies.micromatch === '4.0.8');
+      const recipe = json(backports,'resolver/recipe.json');
+      check(recipe.script.path === 'scripts/dependencies/build-resolver.cjs');
+      pinned(root,recipe.script.path,recipe.script);
+      for (const [input,output] of Object.entries(recipe.mapping)) {
+        check(JSON.stringify(recipe.sources[input]) === JSON.stringify(record.inputs[input]));
+        check(JSON.stringify(recipe.outputs[output]) === JSON.stringify(record.inputs[output]));
+      }
+    }
   }
   function consumerPackage(name, location) {
     const matches = Object.keys(lock.packages).filter(key=>key === 'node_modules/'+name || key.endsWith('/node_modules/'+name));
@@ -166,7 +195,34 @@ function verify(root, expectedManifestHash) {
     check(Object.hasOwn(manifest.packages.find(p=>p.id===id).result_files,'package/'+name));
     consumerBindings++;
   }
-  return {schema:1,packages:2,installedFiles,consumerBindings,verified:true};
+  const resolverRecord = manifest.packages[2];
+  const config = consumerPackage('@expo/config','node_modules/@expo/config');
+  const manager = consumerPackage('@expo/package-manager','node_modules/@expo/package-manager');
+  for (const [from,source] of [[config,'build/paths/paths.js'],[manager,'build/ios/gemfile.js'],[manager,'build/utils/nodeManagers.js']]) {
+    check(from.metadata.dependencies?.['resolve-workspace-root'] === '^2.0.0' && from.locked.dependencies?.['resolve-workspace-root'] === '^2.0.0');
+    const req = origin(from,source);
+    check(req.resolve('resolve-workspace-root/package.json') === path.join(installed['resolve-workspace-root'],'package.json'));
+    check(req.resolve('resolve-workspace-root') === path.join(installed['resolve-workspace-root'],'build/index.js'));
+    consumerBindings++;
+  }
+  const resolverOrigin = createRequire(path.join(installed['resolve-workspace-root'],'build/utils/workspaces.js'));
+  const dependencyReview = json(backports,'resolver/dependency-metadata-readback.json');
+  const resolverLocked = lock.packages['node_modules/resolve-workspace-root'];
+  keys(resolverLocked.dependencies,'js-yaml micromatch');
+  for (const name of ['js-yaml','micromatch']) {
+    const expected = dependencyReview.dependencies[name];
+    const dependency = consumerPackage(name,'node_modules/'+name);
+    check(resolverLocked.dependencies[name] === expected.version && dependency.metadata.version === expected.version);
+    check(dependency.locked.integrity === expected.lock.integrity && dependency.locked.resolved === expected.lock.resolved);
+    check(resolverOrigin.resolve(name+'/package.json') === path.join(dependency.directory,'package.json'));
+    const entry = resolverOrigin.resolve(name);
+    check(entry === path.join(dependency.directory,dependency.metadata.main || 'index.js'));
+    pinned(dependency.directory,'package.json',{sha256:expected.installed_package_json_sha256,size:read(dependency.directory,'package.json').length});
+    pinned(dependency.directory,expected.license_file,{sha256:expected.license_sha256,size:expected.license_size});
+    consumerBindings++;
+  }
+  check(resolverRecord.result_files['package/build/utils/workspaces.js']);
+  return {schema:1,packages:3,installedFiles,consumerBindings,verified:true};
 }
 // Explicit roots/pins are for owned fixture tests; CLI always uses fixed repository paths and reviewed pin.
 function verifyConsumer(root, expectedManifestHash=MANIFEST_SHA256) {

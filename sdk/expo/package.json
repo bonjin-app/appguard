@@ -46,7 +46,8 @@
     "typescript": "6.0.3",
     "@types/react": "19.3.0",
     "braces": "file:../../tools/dependency-backports/archives/appguard-braces-3.0.3-appguard.1.tgz",
-    "node-forge": "file:../../tools/dependency-backports/archives/appguard-node-forge-1.4.0-appguard.1.tgz"
+    "node-forge": "file:../../tools/dependency-backports/archives/appguard-node-forge-1.4.0-appguard.1.tgz",
+    "resolve-workspace-root": "file:../../tools/dependency-backports/archives/appguard-resolve-workspace-root-2.0.1-appguard.1.tgz"
   },
   "engines": {
     "node": ">=22.13.0"
@@ -54,6 +55,7 @@
   "private": true,
   "overrides": {
     "braces": "$braces",
-    "node-forge": "$node-forge"
+    "node-forge": "$node-forge",
+    "resolve-workspace-root": "$resolve-workspace-root"
   }
 }

@@ -1,0 +1,408 @@
+{
+  "braces_archive": "archives/appguard-braces-3.0.3-appguard.1.tgz",
+  "npm_installation_verified": false,
+  "packages": {
+    "argparse": {
+      "files": {
+        "CHANGELOG.md": {
+          "sha256": "c3f89be070b29b2db49d6ecee73e5e2a50dd32e8b68dc9a8ca1a959fc14fe451",
+          "size": 5966
+        },
+        "LICENSE": {
+          "sha256": "de4d1f2d2ad5ad0cfd1657a106476b31cb5db5ef9d1ff842b237c0c81f0c8a23",
+          "size": 12775
+        },
+        "README.md": {
+          "sha256": "44161d4e4baf71c745a327a5d05ee4a762c3004db5453aca221e3d0a3fa52ba6",
+          "size": 2768
+        },
+        "argparse.js": {
+          "sha256": "2e73e7a3167ba840dbcf41feeafc3544a3e2b39220b5e997133c519861febf16",
+          "size": 129714
+        },
+        "lib/sub.js": {
+          "sha256": "2bc4ef9e87c47f1a4e0cfcb3706d886e0d73edce88149e300d2364066f396ed6",
+          "size": 2252
+        },
+        "lib/textwrap.js": {
+          "sha256": "2550466c9a0425fa583a70e25bb93e190fe09b61f7de4861ea8ec54b7b899db0",
+          "size": 17391
+        },
+        "package.json": {
+          "sha256": "688bace28e14392b3a1c4137eb56bc48b684dbf5cb56278ed7056cd2ece07990",
+          "size": 682
+        }
+      },
+      "lock": {
+        "dev": true,
+        "integrity": "sha512-8+9WqebbFzpX9OR+Wa6O29asIogeRMzcGtAINdpMHHyAg10f05aSFVBbcEqGf/PXw1EjAZ+q2/bEBg3DvurK3Q==",
+        "license": "Python-2.0",
+        "resolved": "https://registry.npmjs.org/argparse/-/argparse-2.0.1.tgz",
+        "version": "2.0.1"
+      },
+      "version": "2.0.1"
+    },
+    "fill-range": {
+      "files": {
+        "LICENSE": {
+          "sha256": "35bdd8a44339719441900fb50fbefc5e2dca1ca662cbaed7a687de842c8b70f2",
+          "size": 1091
+        },
+        "README.md": {
+          "sha256": "e78ddba4ae383a98df6b4a644571c1fe8a0f8e1d25b0ddb389e4b35602194c60",
+          "size": 7486
+        },
+        "index.js": {
+          "sha256": "ca6199f79a117e4d68be02c6bcd974e2f18f358e711a0aba497bffaf1ccadd4e",
+          "size": 6406
+        },
+        "package.json": {
+          "sha256": "87f5c78f9b47d21f9ca62b60cff1d250a3b468eab320dd13c3f3ab2464a02735",
+          "size": 1760
+        }
+      },
+      "lock": {
+        "dependencies": {
+          "to-regex-range": "^5.0.1"
+        },
+        "dev": true,
+        "engines": {
+          "node": ">=8"
+        },
+        "integrity": "sha512-YsGpe3WHLK8ZYi4tWDg2Jy3ebRz2rXowDxnld4bkQB00cc/1Zw9AWnC0i9ztDJitivtQvaI9KaLyKrc+hBW0yg==",
+        "license": "MIT",
+        "resolved": "https://registry.npmjs.org/fill-range/-/fill-range-7.1.1.tgz",
+        "version": "7.1.1"
+      },
+      "version": "7.1.1"
+    },
+    "is-number": {
+      "files": {
+        "LICENSE": {
+          "sha256": "35bdd8a44339719441900fb50fbefc5e2dca1ca662cbaed7a687de842c8b70f2",
+          "size": 1091
+        },
+        "README.md": {
+          "sha256": "8e676a0587ba350889df0a5fb883aeab26609ee36432e29441f55af3a0cb16ba",
+          "size": 6514
+        },
+        "index.js": {
+          "sha256": "04255e482e181687823a95b207802ddd32e746c65dce4c95a5176fc192735960",
+          "size": 411
+        },
+        "package.json": {
+          "sha256": "51c133f4e41df982aef69027249ff9d7262645029f437d079adc7c83328fb620",
+          "size": 1599
+        }
+      },
+      "lock": {
+        "dev": true,
+        "engines": {
+          "node": ">=0.12.0"
+        },
+        "integrity": "sha512-41Cifkg6e8TylSpdtTpeLVMqvSBEVzTttHvERD741+pnZ8ANv0004MRL43QKPDlK9cGvNp6NZWZUBlbGXYxxng==",
+        "license": "MIT",
+        "resolved": "https://registry.npmjs.org/is-number/-/is-number-7.0.0.tgz",
+        "version": "7.0.0"
+      },
+      "version": "7.0.0"
+    },
+    "js-yaml": {
+      "files": {
+        "LICENSE": {
+          "sha256": "a07bc24468b9654ce76a547d47a2db282d07733b715db4c73a98bd63961f9550",
+          "size": 1084
+        },
+        "README.md": {
+          "sha256": "aa65504ff91c42c9f5159b66e4f4e398fe6b0df07740ef37e61984220cc7a7c4",
+          "size": 8008
+        },
+        "bin/js-yaml.js": {
+          "sha256": "b3e6a451bd8bc5cba3a12851396d15fc109faf0a5a018d96b5535fe1fcfedb54",
+          "size": 2658
+        },
+        "dist/js-yaml.js": {
+          "sha256": "d4370eaa1b657d25595f0b426de5372de8f001661415ceac8ba043c1c06de7d2",
+          "size": 131632
+        },
+        "dist/js-yaml.js.map": {
+          "sha256": "4128eeb7f1b68e6ec8c8a2016d548c0a5157547b338f70ce9fca00b474653ca8",
+          "size": 191323
+        },
+        "dist/js-yaml.min.js": {
+          "sha256": "32391560601990bb6e0daabd8106a35a6a539de088532413931a70a4cb4f4769",
+          "size": 43644
+        },
+        "dist/js-yaml.min.js.map": {
+          "sha256": "8d0c35eaff494d5b5883d3900f35b56b52aabf158d02a66255811e43a6d88aa2",
+          "size": 179668
+        },
+        "dist/js-yaml.mjs": {
+          "sha256": "cea276c7e15f409a1adbe5d177aba7824398a474f7cf702bd57962c7d570636f",
+          "size": 104118
+        },
+        "dist/js-yaml.mjs.map": {
+          "sha256": "42dc84e905d9164e1dc81a33282a13fd0a1fb751ddde5ad69bbc523fc822c363",
+          "size": 183595
+        },
+        "index.js": {
+          "sha256": "e85d524fcd45466669dfc37618284e0c53ccaaf3f4bef1e23cd25ec6c43120bc",
+          "size": 1585
+        },
+        "lib/common.js": {
+          "sha256": "72216ccee36a52ece3f21f2d58a679c14c1483201ef6cbbfc4a1aa9cb6d34c9c",
+          "size": 1094
+        },
+        "lib/dumper.js": {
+          "sha256": "695c80b3c310ef3f6fbd232bbcd3f82464917a008c24f1e05b560f35c20116a0",
+          "size": 30967
+        },
+        "lib/exception.js": {
+          "sha256": "9ef16628112beacc7497c3f3d0ab001c66c2db501f9e21fad4c30e7cd21d1d10",
+          "size": 1285
+        },
+        "lib/index_vite_proxy.tmp.mjs": {
+          "sha256": "a846cc31e1d31c304edaf94c48624568b699803a79ae2ee88d6e5c66e49552f7",
+          "size": 434
+        },
+        "lib/loader.js": {
+          "sha256": "88a97ccd655f8eb9d81af9b51ab9ddafbab9dc545337e772ba922ab062f8b72d",
+          "size": 50952
+        },
+        "lib/schema.js": {
+          "sha256": "dd26a9e56d934099eb53e04f242ed1962660e4e64697c300ff5c4bc1a83165da",
+          "size": 3257
+        },
+        "lib/schema/core.js": {
+          "sha256": "201ffb119aad04c9397df088452e00910becab9a43a3b3a392370878646c06ad",
+          "size": 284
+        },
+        "lib/schema/default.js": {
+          "sha256": "1c4c9573b4c05ce47391c6bcba10401385d8d6a4d596c1c0fd1d6ea664f97ea2",
+          "size": 534
+        },
+        "lib/schema/failsafe.js": {
+          "sha256": "8e109fccabab5c066b66113f5d68bb74372f48bf589de39e44ed26432a98a27a",
+          "size": 274
+        },
+        "lib/schema/json.js": {
+          "sha256": "b08f46efd2c45c46c6d3eaf9b05489356d80391c5f7d5094fb8ec7713e796281",
+          "size": 519
+        },
+        "lib/snippet.js": {
+          "sha256": "c9180c66091356e16a750c07cbc21ee477d6d07e7c39b6a8622e5882cf85326d",
+          "size": 3063
+        },
+        "lib/type.js": {
+          "sha256": "a595092ee9fb6901769201ff7e5a485ee5f501bd1519d209af93b37dd2314a32",
+          "size": 1736
+        },
+        "lib/type/binary.js": {
+          "sha256": "9dd6a70eb318a123fdc11a36d613419d79535b6ecf105bd865de3a5cbbb60e7c",
+          "size": 2853
+        },
+        "lib/type/bool.js": {
+          "sha256": "cc0d255ac6c55064421c19bbea312dcb9e22aee49fa9f8461723d9fbf7a0f8b3",
+          "size": 967
+        },
+        "lib/type/float.js": {
+          "sha256": "42b4d238e5d00267fe126996b912f34506d273c39725524d662626bb9e2d4e7e",
+          "size": 2485
+        },
+        "lib/type/int.js": {
+          "sha256": "9d428a6e6de891a52b2b5ebd2bf09f9d1f9506514aaf35c6428f0111ecf86fdb",
+          "size": 3318
+        },
+        "lib/type/map.js": {
+          "sha256": "6dd30a02cabaccf71c230464537bda5785093da80cd3319ed3a6481206e2ec7d",
+          "size": 188
+        },
+        "lib/type/merge.js": {
+          "sha256": "4cd0343e63f3c3d7cea620cf122e3dd8f8d1c4c4105d384e8d82d35ae154d1e2",
+          "size": 229
+        },
+        "lib/type/null.js": {
+          "sha256": "5eea804da258ba10fa736199ed0cef9d89dbb01eac1c1bd3609a79a132d1885e",
+          "size": 791
+        },
+        "lib/type/omap.js": {
+          "sha256": "8a865841abeb5f12a30f39f095967b6ac05ef6240e78872573fb23e8c9b5c47f",
+          "size": 1036
+        },
+        "lib/type/pairs.js": {
+          "sha256": "f9eb5d2dc3cdbf7dd802e0a62b5aa2d09eedeb0509b71a247ebdad223315d6a5",
+          "size": 1031
+        },
+        "lib/type/seq.js": {
+          "sha256": "3a38b7f3242737c2e21462c42a8da1682325686cb2b30dc3630e515cf9c45522",
+          "size": 189
+        },
+        "lib/type/set.js": {
+          "sha256": "fa5b815c6334def52dae5b58193d3798f8e53558f6c7f48a643898e996333dd7",
+          "size": 547
+        },
+        "lib/type/str.js": {
+          "sha256": "1f8725eac2dc7bed4b91610f21796ed3c057cee44b81a1ae8cc9beb9cd6c63ff",
+          "size": 187
+        },
+        "lib/type/timestamp.js": {
+          "sha256": "54e2070e0319d7fa3becd426dd5bfdb822b9602bd4a3c366976cbaa2278bdb5c",
+          "size": 2364
+        },
+        "package.json": {
+          "sha256": "3eeb05aa0ceb4c3686e44c9b5d9b88f914b099ba9a7426b36947e65c6373d9a5",
+          "size": 2281
+        }
+      },
+      "lock": {
+        "bin": {
+          "js-yaml": "bin/js-yaml.js"
+        },
+        "dependencies": {
+          "argparse": "^2.0.1"
+        },
+        "dev": true,
+        "funding": [
+          {
+            "type": "github",
+            "url": "https://github.com/sponsors/puzrin"
+          },
+          {
+            "type": "github",
+            "url": "https://github.com/sponsors/nodeca"
+          }
+        ],
+        "integrity": "sha512-SFNOvSJ+Dgf/9An904Yx+CgSlIPCkIpao4qo51lpee25TIRejdH3rhR4EZMGoNx3/TP3O+wzWuiTFl4sqbltzA==",
+        "license": "MIT",
+        "resolved": "https://registry.npmjs.org/js-yaml/-/js-yaml-4.3.2.tgz",
+        "version": "4.3.2"
+      },
+      "version": "4.3.2"
+    },
+    "micromatch": {
+      "files": {
+        "LICENSE": {
+          "sha256": "35bdd8a44339719441900fb50fbefc5e2dca1ca662cbaed7a687de842c8b70f2",
+          "size": 1091
+        },
+        "README.md": {
+          "sha256": "d687a4b9ff64755f2a6e2f735cbcc804570a60a72fce20ed24f49a6b8915692f",
+          "size": 38962
+        },
+        "index.js": {
+          "sha256": "6a56366fcf3ae8e678e574900a0acb2ea6f118ea030d09bcc1b1053ccab916bb",
+          "size": 13898
+        },
+        "package.json": {
+          "sha256": "94dbc881c0329813f2481f35fcfa725a2285d45926d33e9b9b8b80b28487752b",
+          "size": 2648
+        }
+      },
+      "lock": {
+        "dependencies": {
+          "braces": "^3.0.3",
+          "picomatch": "^2.3.1"
+        },
+        "dev": true,
+        "engines": {
+          "node": ">=8.6"
+        },
+        "integrity": "sha512-PXwfBhYu0hBCPw8Dn0E+WDYb7af3dSLVWKi3HGv84IdF4TyFoC0ysxFd0Goxw7nSv4T/PzEJQxsYsEiFCKo2BA==",
+        "license": "MIT",
+        "resolved": "https://registry.npmjs.org/micromatch/-/micromatch-4.0.8.tgz",
+        "version": "4.0.8"
+      },
+      "version": "4.0.8"
+    },
+    "picomatch": {
+      "files": {
+        "LICENSE": {
+          "sha256": "d0cd141b0c322fded5dfad1d4645bb2fedfc05b7321fe1009469638190d59ef9",
+          "size": 1091
+        },
+        "README.md": {
+          "sha256": "f4653b68a1883a32f852083c1b93381ce87f44c6855ce1f01854d39d0563c98c",
+          "size": 27999
+        },
+        "index.js": {
+          "sha256": "5695ff5dfcd5a338a40630bd506056f2950bcb08fe1cc068519cbbfe60add480",
+          "size": 60
+        },
+        "lib/constants.js": {
+          "sha256": "980225ab847a88a784f6d315557b8434f7742b2551ce20e354455c61b938c0a5",
+          "size": 4563
+        },
+        "lib/parse.js": {
+          "sha256": "3a91656f440069aa8f8e15c9d695b9f6b2209df1eab2be8127c72cbcca45ff5f",
+          "size": 33950
+        },
+        "lib/picomatch.js": {
+          "sha256": "2cb169cbe17d356036c5f62a377318b85e30817877e59797842aec9d8b15f54b",
+          "size": 9956
+        },
+        "lib/scan.js": {
+          "sha256": "227fcc994a477ea95c5a0435d32783566334c6bd0dcc4a103029735ad8c9c535",
+          "size": 9189
+        },
+        "lib/utils.js": {
+          "sha256": "809fc29cf35ab0aa76b99cad29182f62c0ae598902481d10f9868eaef71981ee",
+          "size": 1885
+        },
+        "package.json": {
+          "sha256": "63264d817e856a4bff57d4304f2b38d2964a4f6df520eb169e7bcdb619f13e9a",
+          "size": 1912
+        }
+      },
+      "lock": {
+        "dev": true,
+        "engines": {
+          "node": ">=8.6"
+        },
+        "funding": {
+          "url": "https://github.com/sponsors/jonschlinkert"
+        },
+        "integrity": "sha512-V7+vQEJ06Z+c5tSye8S+nHUfI51xoXIXjHQ99cQtKUkQqqO1kO/KCJUfZXuB47h/YBlDhah2H3hdUGXn8ie0oA==",
+        "license": "MIT",
+        "resolved": "https://registry.npmjs.org/picomatch/-/picomatch-2.3.2.tgz",
+        "version": "2.3.2"
+      },
+      "version": "2.3.2"
+    },
+    "to-regex-range": {
+      "files": {
+        "LICENSE": {
+          "sha256": "e7d1fee7347ffddccc5fd03327ffdb50f8c112be0d5016d62388a92c4ae6e7a9",
+          "size": 1091
+        },
+        "README.md": {
+          "sha256": "abab275498571b39763f746da015c0d702ae6b965255b30bca3724bdc6d3812e",
+          "size": 13585
+        },
+        "index.js": {
+          "sha256": "e32199271f92372a2deb70a3a57f7c0f7f558d04152a905eb97104867870c404",
+          "size": 6481
+        },
+        "package.json": {
+          "sha256": "766fc1bb34fffcd503c89f4194188ce059795c52fd0dc6753cd4b7dcfc3fe1ec",
+          "size": 1782
+        }
+      },
+      "lock": {
+        "dependencies": {
+          "is-number": "^7.0.0"
+        },
+        "dev": true,
+        "engines": {
+          "node": ">=8.0"
+        },
+        "integrity": "sha512-65P7iz6X5yEr1cwcgvQxbbIw7Uk3gOy5dIdtZ4rDveLqhrdJP+Li/Hx6tyK0NEb+2GCyneCMJiGqrADCSNk8sQ==",
+        "license": "MIT",
+        "resolved": "https://registry.npmjs.org/to-regex-range/-/to-regex-range-5.0.1.tgz",
+        "version": "5.0.1"
+      },
+      "version": "5.0.1"
+    }
+  },
+  "schema": 1,
+  "scope": "Exact installed nonaffected closure copied into owned semantic fixtures, not npm installation evidence. Braces is supplied only by the reviewed tracked archive."
+}

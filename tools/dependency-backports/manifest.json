@@ -517,6 +517,187 @@
         "url": "https://registry.npmjs.org/node-forge/-/node-forge-1.4.0.tgz",
         "version": "1.4.0"
       }
+    },
+    {
+      "archive": {
+        "integrity": "sha512-+zECEPXqE2gOZnhBy+jeMsaMwYV3A9p+SSaLRGr1Xv3zG4PZ31NSDZmipNvH58ruQeNGGvcgU01JOLuYeM03bQ==",
+        "path": "archives/appguard-resolve-workspace-root-2.0.1-appguard.1.tgz",
+        "sha256": "6b437dd7b90c99e2c2831acd1318d33a12a57a21d52840e58543434a5f807f10",
+        "size": 30743
+      },
+      "fork": {
+        "name": "@appguard/resolve-workspace-root",
+        "version": "2.0.1-appguard.1"
+      },
+      "id": "resolve-workspace-root",
+      "inputs": {
+        "resolver/LICENSE": {
+          "sha256": "0cff14eaf2736ff712a34ef8d61f4144082e61387fff1ee3bef9da003d96a4ce",
+          "size": 1142
+        },
+        "resolver/bounded-advisory-readback.json": {
+          "sha256": "0631ca690d97672f4082a57ddc636998203a225f6660f20583a20334d88490ed",
+          "size": 1940
+        },
+        "resolver/compiled/index.js": {
+          "sha256": "1a0e171d5e48f7744027b5c563e92ebcd8a9bad952addcfd63310a06a1af8ead",
+          "size": 6687
+        },
+        "resolver/compiled/utils/dirs.js": {
+          "sha256": "2564bf0e4220ea2864059e687082e7043a6cdc5a609b4a3b3564a3ef6bf0172f",
+          "size": 1456
+        },
+        "resolver/compiled/utils/files.js": {
+          "sha256": "b951177cd202ee333836ef6f8b73a149d6ef2603cc17aec263deeb4208e97413",
+          "size": 1120
+        },
+        "resolver/compiled/utils/workspaces.js": {
+          "sha256": "bf9c5dcdca4e7c444414dc2378659a3acf0e7cfc2f227f99d5754b0045149721",
+          "size": 1525
+        },
+        "resolver/compiler/LICENSE.txt": {
+          "sha256": "a7d00bfd54525bc694b6e32f64c7ebcf5e6b7ae3657be5cc12767bce74654a47",
+          "size": 9197
+        },
+        "resolver/compiler/lock-record.json": {
+          "sha256": "53270cce8de85c575fc784157d04c1441d1b5977fc39c6ca939ca0cb2393580b",
+          "size": 370
+        },
+        "resolver/compiler/package.json": {
+          "sha256": "9332e97c30d3e53ed54910b89207ed657fb444066484df6e5b6965bf130865e9",
+          "size": 3527
+        },
+        "resolver/dependency-metadata-readback.json": {
+          "sha256": "3e39e0ebb3adda498e14d93b88612eff0c77d6b72b70a501adefef21fe2982c8",
+          "size": 1954
+        },
+        "resolver/original-index.d.ts": {
+          "sha256": "4e5e42c6632ef9e9859a8d22b4c71572c2a19f8088a84ccaeab7f2f0a30a623e",
+          "size": 2773
+        },
+        "resolver/original-package.json": {
+          "sha256": "2a4dd519ada0fb79a87f4de720961be61cd906ee3c91dbf17dcc82bd31236ade",
+          "size": 1572
+        },
+        "resolver/original-readme.md": {
+          "sha256": "c5674c21ebb3356a01758bb95f5557f0f6bdc24b21a639e73f3a39780da822aa",
+          "size": 1985
+        },
+        "resolver/provenance.json": {
+          "sha256": "2dd0cda254eb12305a14eb4aae4b469ac64111863be6c54d4a84ebafddacb4bc",
+          "size": 3376
+        },
+        "resolver/recipe.json": {
+          "sha256": "a03d36ed7fb96367bb293407b1f57d1fcd6f700e6335ec61f9d080ee38a4c539",
+          "size": 2712
+        },
+        "resolver/replacements/package.json": {
+          "sha256": "56dc6e16085519cdab569ea40d43b3a4a7e7727d961310d6ce5e54f78eddd908",
+          "size": 1069
+        },
+        "resolver/runtime-dependencies.json": {
+          "sha256": "4ce08fe5577cb8a7604b81eb5597f92924b9db185561fa9a2970b6a63b248d78",
+          "size": 14143
+        },
+        "resolver/source.patch": {
+          "sha256": "9ee25d3e6158201ba38d897eaf9df88d52003e473c2f57668e3ef7fb268da2f4",
+          "size": 2483
+        },
+        "resolver/src/index.ts": {
+          "sha256": "2f8cf6bf8b4dac2720a2834b56400ba28973c0c5dec3123879cf2c9764a0f640",
+          "size": 5864
+        },
+        "resolver/src/utils/dirs.ts": {
+          "sha256": "4fc2cc6c11006d5c4b6f30582294efd64126ab1695c5cba9bd52738ed16cef5b",
+          "size": 1074
+        },
+        "resolver/src/utils/files.ts": {
+          "sha256": "1727f0d92eebd7fa4ffa4f2dc2970ea3838f15304924f12201ba1a3da2fdcca8",
+          "size": 814
+        },
+        "resolver/src/utils/workspaces.ts": {
+          "sha256": "d063b82b49eefdf60fa1a305031b65c87508691f1ba859203ffcc3ccf14c07f9",
+          "size": 1102
+        },
+        "resolver/upstream-capture.json": {
+          "sha256": "c19fef727c73457519670006974f634be0b67e0d959c2cf73ad3aa1760b90db4",
+          "size": 1358
+        }
+      },
+      "provenance": "resolver/provenance.json",
+      "replacements": [
+        {
+          "input": "resolver/LICENSE",
+          "path": "package/LICENSE"
+        },
+        {
+          "input": "resolver/compiled/index.js",
+          "path": "package/build/index.js"
+        },
+        {
+          "input": "resolver/compiled/utils/dirs.js",
+          "path": "package/build/utils/dirs.js"
+        },
+        {
+          "input": "resolver/compiled/utils/files.js",
+          "path": "package/build/utils/files.js"
+        },
+        {
+          "input": "resolver/compiled/utils/workspaces.js",
+          "path": "package/build/utils/workspaces.js"
+        },
+        {
+          "input": "resolver/replacements/package.json",
+          "path": "package/package.json"
+        }
+      ],
+      "result_files": {
+        "package/LICENSE": {
+          "sha256": "0cff14eaf2736ff712a34ef8d61f4144082e61387fff1ee3bef9da003d96a4ce",
+          "size": 1142
+        },
+        "package/LICENSE.md": {
+          "sha256": "0cff14eaf2736ff712a34ef8d61f4144082e61387fff1ee3bef9da003d96a4ce",
+          "size": 1142
+        },
+        "package/README.md": {
+          "sha256": "c5674c21ebb3356a01758bb95f5557f0f6bdc24b21a639e73f3a39780da822aa",
+          "size": 1985
+        },
+        "package/build/index.d.ts": {
+          "sha256": "4e5e42c6632ef9e9859a8d22b4c71572c2a19f8088a84ccaeab7f2f0a30a623e",
+          "size": 2773
+        },
+        "package/build/index.js": {
+          "sha256": "1a0e171d5e48f7744027b5c563e92ebcd8a9bad952addcfd63310a06a1af8ead",
+          "size": 6687
+        },
+        "package/build/utils/dirs.js": {
+          "sha256": "2564bf0e4220ea2864059e687082e7043a6cdc5a609b4a3b3564a3ef6bf0172f",
+          "size": 1456
+        },
+        "package/build/utils/files.js": {
+          "sha256": "b951177cd202ee333836ef6f8b73a149d6ef2603cc17aec263deeb4208e97413",
+          "size": 1120
+        },
+        "package/build/utils/workspaces.js": {
+          "sha256": "bf9c5dcdca4e7c444414dc2378659a3acf0e7cfc2f227f99d5754b0045149721",
+          "size": 1525
+        },
+        "package/package.json": {
+          "sha256": "56dc6e16085519cdab569ea40d43b3a4a7e7727d961310d6ce5e54f78eddd908",
+          "size": 1069
+        }
+      },
+      "upstream": {
+        "integrity": "sha512-nR23LHAvaI6aHtMg6RWoaHpdR4D881Nydkzi2CixINyg9T00KgaJdJI6Vwty+Ps8WLxZHuxsS0BseWjxSA4C+w==",
+        "name": "resolve-workspace-root",
+        "path": "resolver/upstream.tgz",
+        "sha256": "161fd5f13b2fc116b4332c25bb1d4983a2f983b15e01d647d5ac1209fd309694",
+        "size": 31755,
+        "url": "https://registry.npmjs.org/resolve-workspace-root/-/resolve-workspace-root-2.0.1.tgz",
+        "version": "2.0.1"
+      }
     }
   ],
   "schema": 1

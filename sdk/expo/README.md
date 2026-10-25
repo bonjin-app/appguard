@@ -15,15 +15,17 @@ From this repository's `sdk/expo` directory:
 ```sh
 python3 -I -B ../../scripts/dependencies/build-backports.py --check
 npm ci --ignore-scripts
+node ../../scripts/dependencies/build-resolver.cjs --check
+python3 -I -B ../../.github/tests/test_resolver_backport.py
 npm run verify:backports
 npm test
 npm run typecheck
 npm run verify:pack
 ```
 
-The checkout root declares logical `braces` and `node-forge` as direct
+The checkout root declares logical `braces`, `node-forge`, and `resolve-workspace-root` as direct
 `devDependencies` targeting the reviewed archives under
-`tools/dependency-backports/archives/`, with exact `$braces` and `$node-forge`
+`tools/dependency-backports/archives/`, with exact `$braces`, `$node-forge`, and `$resolve-workspace-root`
 override references to those direct specs. Keep both parts together: the root
 direct archive edge avoids the importer-relative archive lookup observed with
 raw relative overrides on the pinned npm toolchain. The owned metadata fixture
@@ -38,8 +40,11 @@ application root.
 `verify:backports` requires both direct-dev archive targets and exact `$` override
 references, then binds the reviewed manifest, archive SHA-256/SHA-512 SRI, exact
 lock locations and identities, every installed payload file (including Forge
-CommonJS, browser, worker, maps and original LICENSE), and logical resolution from
-Expo CLI, code-signing and micromatch consumers. It resolves entrypoints without
+CommonJS, browser, worker, maps and original LICENSE; resolver's four JS modules,
+original declarations, LICENSE.md and identical LICENSE), and resolution from
+Expo CLI, code-signing, micromatch, all three actual Expo resolver import files,
+and resolver's external js-yaml/micromatch import file. The public producer script,
+selected dependency lock versions/SRI and legal bytes are also bound. It resolves entrypoints without
 executing the derivative exports. It fails if a dependency is absent. The separate
 Python `--check` command reconstructs the complete archives from retained inputs;
 JavaScript installed-file checks do not reproduce compilation or archive assembly.
@@ -51,8 +56,16 @@ guarded prepack staging/build once, then pack with `--ignore-scripts` to avoid
 repeating lifecycle work. A bare `npm pack --ignore-scripts` skips preparation and
 is not a supported verification route.
 
-These checks do not clear original upstream ancestry findings, the unresolved
-bundled resolver lineage, or the source scan gate. They do not establish Forge
+The resolver is an unbundled, controlled TypeScript 6.0.3/CommonJS/ES2020 derivative
+with exact js-yaml 4.3.2/micromatch 4.0.8 runtime edges. Its normal filesystem and
+type fixtures copy a pinned installed dependency closure and reviewed tracked braces
+archive into new roots with explicit override/payload/origin checks. Copied fixtures
+prove source semantics and declaration compatibility, not npm installation or adoption.
+The source-alpha change intentionally stages package metadata before the separately
+reviewed lock/install update; a frozen install is not qualified at that intermediate stage.
+
+These checks do not clear original upstream ancestry findings, original bundled
+resolver lineage, or the source scan gate. They do not establish Forge
 compiler reproduction, fresh/relocated actual consumer adoption, registry
 publication or release approval; those require separate reviewed evidence.
 

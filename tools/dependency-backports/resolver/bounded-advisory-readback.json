@@ -1,0 +1,51 @@
+{
+  "schema": 1,
+  "checked_on_client_date": "2026-10-23",
+  "scope": "Read-only future Task4 selected-version review of four named primary GitHub Reviewed advisories, metadata and installed LICENSE hashes. No payload copied or executed.",
+  "records": [
+    {
+      "package": "js-yaml",
+      "selected_version": "4.3.2",
+      "advisory": "GHSA-2883-xcg3-v3hh",
+      "url": "https://github.com/advisories/GHSA-2883-xcg3-v3hh",
+      "affected_4x": ">=4.0.0,<4.3.2",
+      "patched_4x": "4.3.2",
+      "selected_outside_listed_range": true
+    },
+    {
+      "package": "js-yaml",
+      "selected_version": "4.3.2",
+      "advisory": "GHSA-5p4m-2wfm-xmqj",
+      "url": "https://github.com/advisories/GHSA-5p4m-2wfm-xmqj",
+      "affected_4x": ">=4.0.0,<4.3.1",
+      "patched_4x": "4.3.1",
+      "selected_outside_listed_range": true
+    },
+    {
+      "package": "js-yaml",
+      "selected_version": "4.3.2",
+      "advisory": "GHSA-52cp-r559-cp3m",
+      "url": "https://github.com/advisories/GHSA-52cp-r559-cp3m",
+      "affected_4x": ">=4.0.0,<4.3.0",
+      "patched_4x": "4.3.0",
+      "selected_outside_listed_range": true
+    },
+    {
+      "package": "micromatch",
+      "selected_version": "4.0.8",
+      "advisory": "GHSA-952p-6rrq-rcjv",
+      "url": "https://github.com/advisories/GHSA-952p-6rrq-rcjv",
+      "affected": "<4.0.8",
+      "patched": "4.0.8",
+      "selected_outside_listed_range": true
+    }
+  ],
+  "exhaustive_advisory_inventory_verified": false,
+  "github_version_filtered_api_queries_accessible_via_web_tool": false,
+  "api_limitation": "Both exact package@version API reads returned inaccessible; primary advisory pages were read instead. This does not establish a complete or zero-finding vulnerability list.",
+  "fresh_source_ancestry_scanner_still_required": true,
+  "braces_transitive_override_still_required": true,
+  "task4_started": false,
+  "source_gate_passed": false,
+  "release_ready": false
+}

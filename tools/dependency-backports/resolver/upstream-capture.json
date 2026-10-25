@@ -1,0 +1,37 @@
+{
+  "schema": 1,
+  "observed_at": "2026-10-23T04:25:41.287223+00:00",
+  "url": "https://registry.npmjs.org/resolve-workspace-root/-/resolve-workspace-root-2.0.1.tgz",
+  "archive_sha256": "161fd5f13b2fc116b4332c25bb1d4983a2f983b15e01d647d5ac1209fd309694",
+  "archive_size": 31755,
+  "registry_SRI_verified": true,
+  "registry_sha1_verified": true,
+  "registry_metadata_sha256": "b5fd274bc7b39919fcaa6891e7ca74c5a124e52b4fc1890cdb046315e9086fd1",
+  "git_head": "72f675ae9ea952e832c63f1138346406b0d8630b",
+  "members": {
+    "package/build/index.js": {
+      "size": 95984,
+      "sha256": "ee3be37ce5bce6f0de05ee538653d13f8cbf6a7ec8c8f4ed24466025e5e34f2e"
+    },
+    "package/package.json": {
+      "size": 1572,
+      "sha256": "2a4dd519ada0fb79a87f4de720961be61cd906ee3c91dbf17dcc82bd31236ade"
+    },
+    "package/LICENSE.md": {
+      "size": 1142,
+      "sha256": "0cff14eaf2736ff712a34ef8d61f4144082e61387fff1ee3bef9da003d96a4ce"
+    },
+    "package/README.md": {
+      "size": 1985,
+      "sha256": "c5674c21ebb3356a01758bb95f5557f0f6bdc24b21a639e73f3a39780da822aa"
+    },
+    "package/build/index.d.ts": {
+      "size": 2773,
+      "sha256": "4e5e42c6632ef9e9859a8d22b4c71572c2a19f8088a84ccaeab7f2f0a30a623e"
+    }
+  },
+  "affected_bundle_executed": false,
+  "publisher_build_reproduced": false,
+  "source_gate_passed": false,
+  "release_ready": false
+}

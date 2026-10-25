@@ -7,6 +7,7 @@ import importlib.util
 import io
 import json
 from pathlib import Path
+import shutil
 import struct
 import tarfile
 import tempfile
@@ -50,8 +51,8 @@ class BackportTests(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp.cleanup)
-        self.root = Path(self.temp.name) / 'backports'
-        self.root.mkdir()
+        self.root = Path(self.temp.name) / 'tools/dependency-backports'
+        self.root.mkdir(parents=True)
         self.manifest = {'schema': 1, 'packages': []}
         for ident, version, license_name in [('braces', '3.0.3', 'MIT'), ('node-forge', '1.4.0', '(BSD-3-Clause OR GPL-2.0)')]:
             original = {'name': ident, 'version': version, 'main': 'index.js', 'license': license_name,
@@ -101,6 +102,16 @@ class BackportTests(unittest.TestCase):
                 'fork': {'name': fork['name'], 'version': fork['version']}, 'inputs': inputs,
                 'replacements': replacements, 'result_files': {name: info(data) for name, data in result.items()},
                 'archive': {'path': archive_path, 'integrity': sri(archive), **info(archive)}, 'provenance': ident + '/provenance.json'})
+        # The fixed resolver extension uses genuine retained source/legal bytes;
+        # the first two ordinary fixtures keep their original independent policy coverage.
+        real = SCRIPT.parents[2] / 'tools/dependency-backports'
+        resolver = json.loads((real / 'manifest.json').read_bytes())['packages'][2]
+        shutil.copytree(real / 'resolver', self.root / 'resolver')
+        shutil.copyfile(real / resolver['archive']['path'], self.root / resolver['archive']['path'])
+        script = Path(self.temp.name) / 'scripts/dependencies/build-resolver.cjs'
+        script.parent.mkdir(parents=True)
+        shutil.copyfile(SCRIPT.with_name('build-resolver.cjs'), script)
+        self.manifest['packages'].append(resolver)
         self.save()
         self.original_manifest = copy.deepcopy(self.manifest)
 
@@ -176,7 +187,7 @@ class BackportTests(unittest.TestCase):
         summary = b.write_archives(self.root, self.manifest, out)
         self.assertTrue(summary['verified'])
         self.assertEqual(out.stat().st_mode & 0o777, 0o700)
-        self.assertEqual(len(list(out.iterdir())), 2)
+        self.assertEqual(len(list(out.iterdir())), 3)
         with self.assertRaises(b.BackportError):
             b.write_archives(self.root, self.manifest, out)
         target = self.root / self.manifest['packages'][0]['archive']['path']
@@ -293,7 +304,7 @@ class BackportTests(unittest.TestCase):
                     self.assertEqual(content, result[name])
             for name, physical in replacements.items():
                 self.assertEqual(result[name], (root / physical).read_bytes())
-            self.assertEqual(result['package/LICENSE'], original['package/LICENSE'])
+            self.assertEqual(result['package/LICENSE'], original['package/LICENSE.md' if record['id'] == 'resolve-workspace-root' else 'package/LICENSE'])
             if record['id'] == 'node-forge':
                 distributions = [entry for entry in record['replacements'] if entry['path'].startswith('package/dist/')]
                 self.assertEqual(len(distributions), 9)

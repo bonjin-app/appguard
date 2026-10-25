@@ -247,8 +247,10 @@ jobs:
       - name: Expo frozen install, tests, types and relocated package
         run: |
           python3 -I -B scripts/dependencies/build-backports.py --check
-          node --test scripts/dependencies/tests/installed-backports.test.cjs
           npm --prefix sdk/expo ci --ignore-scripts
+          node scripts/dependencies/build-resolver.cjs --check
+          node --test scripts/dependencies/tests/installed-backports.test.cjs
+          python3 -I -B .github/tests/test_resolver_backport.py
           npm --prefix sdk/expo run verify:backports
           npm --prefix sdk/expo test
           npm --prefix sdk/expo run typecheck

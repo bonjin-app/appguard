@@ -1,0 +1,104 @@
+{
+  "advisory_closure_verified": false,
+  "bounded_advisory_review": "resolver/bounded-advisory-readback.json",
+  "canonical_patch_sha256": "9ee25d3e6158201ba38d897eaf9df88d52003e473c2f57668e3ef7fb268da2f4",
+  "compilation_reproduction_verified": false,
+  "complete_resolved_graph": false,
+  "consumer_adoption_verified": false,
+  "dependency_review": "resolver/dependency-metadata-readback.json",
+  "deployment_approved": false,
+  "external_audit_approved": false,
+  "legal_approved": false,
+  "license": "MIT",
+  "limitations": [
+    "Maintained derivative, not an upstream fixed release.",
+    "Four named advisory range checks are not an exhaustive advisory inventory.",
+    "Copied semantic fixtures do not prove actual npm installation or consumer adoption.",
+    "Original affected upstream ancestry and both required advisory findings remain unsuppressed.",
+    "Controlled transpilation is distinct from type compatibility and upstream producer reproduction."
+  ],
+  "metadata_changes": {
+    "dependencies": {
+      "after": {
+        "js-yaml": "4.3.2",
+        "micromatch": "4.0.8"
+      },
+      "before": null
+    },
+    "devDependencies": {
+      "after": null,
+      "before": {
+        "@tsconfig/node20": "^20.1.4",
+        "@types/bun": "^1.1.6",
+        "@types/js-yaml": "^4.0.9",
+        "@types/micromatch": "^4.0.9",
+        "@types/node": "^22.5.0",
+        "@vercel/ncc": "^0.38.1",
+        "eslint": "^8.57.0",
+        "eslint-config-universe": "^13.0.0",
+        "js-yaml": "^4.1.0",
+        "memfs": "^4.11.1",
+        "micromatch": "^4.0.7",
+        "prettier": "^3.3.3",
+        "typescript": "^5.5.4"
+      }
+    },
+    "engines": {
+      "after": {
+        "node": ">=22.13.0"
+      },
+      "before": null
+    },
+    "files": {
+      "after": [
+        "build"
+      ],
+      "before": [
+        "build/index.js",
+        "build/index.d.ts"
+      ]
+    },
+    "name": {
+      "after": "@appguard/resolve-workspace-root",
+      "before": "resolve-workspace-root"
+    },
+    "private": {
+      "after": true,
+      "before": null
+    },
+    "scripts": {
+      "after": null,
+      "before": {
+        "build": "ncc build src/index.ts --out build --minify --no-cache --no-source-map-register && tsc --declaration --emitDeclarationOnly",
+        "lint": "eslint . --ext ts",
+        "test": "bun test"
+      }
+    },
+    "version": {
+      "after": "2.0.1-appguard.1",
+      "before": "2.0.1"
+    }
+  },
+  "native_coverage_verified": false,
+  "original_bundled_lineage": {
+    "bundled_version_verified": false,
+    "classification": "original-upstream-bundle-not-installed",
+    "installed_runtime_verified": false,
+    "maintained_payload_contains_original_bundle": false,
+    "old_bundle_sha256": "ee3be37ce5bce6f0de05ee538653d13f8cbf6a7ec8c8f4ed24466025e5e34f2e",
+    "package": "braces",
+    "version": null
+  },
+  "producer_closure_verified": false,
+  "provider_approved": false,
+  "publisher_git_head": "72f675ae9ea952e832c63f1138346406b0d8630b",
+  "recipe": "resolver/recipe.json",
+  "release_ready": false,
+  "schema": 1,
+  "scope": "Controlled CommonJS transpilation of four unchanged publisher TypeScript files; deterministic data-only package assembly. No publisher bundle execution or upstream ncc/Bun reproduction.",
+  "source_gate_passed": false,
+  "upstream": {
+    "name": "resolve-workspace-root",
+    "version": "2.0.1"
+  }
+}

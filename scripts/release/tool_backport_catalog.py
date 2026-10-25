@@ -17,7 +17,7 @@ PROVENANCE = 'tool-backport-provenance.json'
 _ROOT = 'tools/dependency-backports'
 _CLASS = 'upstream-ancestry-not-installed-runtime'
 _ERROR = 'Invalid tool backport catalog evidence'
-_VERSIONS = {'braces': '3.0.3', 'node-forge': '1.4.0'}
+_VERSIONS = {'braces': '3.0.3', 'node-forge': '1.4.0', 'resolve-workspace-root': '2.0.1'}
 _ADVISORIES = ['GHSA-vfj7-8cjw-p6xm', 'GHSA-86w9-cpqp-85rv']
 _SCOPE = ('Maintained archive identities and affected upstream ancestry; ancestry '
           'is not installed-runtime evidence and all findings remain unsuppressed')
@@ -65,7 +65,7 @@ def _component(name, version, classification, binding, license_expression=None):
 def _assemble(source):
     source = _path(source, directory=True)
     root = source / _ROOT
-    snapshots, inputs, packages, components, local, unresolved = [], {}, [], [], [], []
+    snapshots, inputs, packages, components, local, unresolved, original_bundles = [], {}, [], [], [], [], []
     names = _lock_names(source)
     root_present = root.exists() or root.is_symlink()
     manifest = {'packages': []}
@@ -82,6 +82,8 @@ def _assemble(source):
         for record in manifest['packages']:
             for name in sorted(set(record['inputs']) | {record['upstream']['path'], record['archive']['path']}):
                 capture(root / name)
+        # The reviewed source producer is data here. Never import/evaluate candidate JS.
+        capture(source / 'scripts/dependencies/build-resolver.cjs')
         _BUILDER.check_archives(root, manifest)
         for record in manifest['packages']:
             up, fork, archive = record['upstream'], record['fork'], record['archive']
@@ -93,6 +95,21 @@ def _assemble(source):
                        'appguard:tool-backports:upstream-sha256': up['sha256'],
                        'appguard:tool-backports:upstream-integrity': up['integrity'],
                        'appguard:tool-backports:provenance-sha256': inputs[_ROOT + '/' + record['provenance']]}
+            if record['id'] == 'resolve-workspace-root':
+                lineage = proof['original_bundled_lineage']
+                _require(lineage == {'package': 'braces', 'version': None, 'bundled_version_verified': False,
+                    'classification': 'original-upstream-bundle-not-installed',
+                    'old_bundle_sha256': 'ee3be37ce5bce6f0de05ee538653d13f8cbf6a7ec8c8f4ed24466025e5e34f2e',
+                    'maintained_payload_contains_original_bundle': False, 'installed_runtime_verified': False})
+                original_bundles.append({'upstream': up, 'bundled_package': 'braces',
+                    'bundled_version': None, 'bundled_version_verified': False,
+                    'classification': 'original-upstream-bundle-not-installed',
+                    'scope': 'Retained upstream ancestry; absent from maintained archive payload. Actual installation is separate.',
+                    'maintained_payload_contains_original_bundle': False,
+                    'installed_runtime_verified': False, 'old_bundle_sha256': lineage['old_bundle_sha256']})
+                binding.update({'appguard:tool-backports:original-bundle-classification': 'original-upstream-bundle-not-installed',
+                    'appguard:tool-backports:original-bundled-braces-version-verified': 'false',
+                    'appguard:tool-backports:maintained-payload-contains-original-bundle': 'false'})
             components.extend([_component(fork['name'], fork['version'], 'maintained-derivative-not-upstream-fixed', binding, proof['license']),
                                _component(up['name'], up['version'], _CLASS, binding, proof['license'])])
             packages.append({'id': record['id'], 'upstream': up, 'fork': fork, 'archive': archive,
@@ -153,6 +170,7 @@ def _assemble(source):
     document = {'bomFormat': 'CycloneDX', 'specVersion': '1.6', 'version': 1, 'components': components}
     proof = {'schema': 1, 'scope': _SCOPE, 'packages': packages, 'input_sha256': inputs,
              'local_lock_records': local, 'unresolved_bundled_lineage': unresolved,
+             'original_bundled_lineage': original_bundles,
              'affected_advisories': _ADVISORIES if packages else [], 'ancestry_classification': _CLASS,
              'sbom_sha256': hashlib.sha256(_encoded(document)).hexdigest(),
              'preserves_all_raw_source_and_python_components': True,

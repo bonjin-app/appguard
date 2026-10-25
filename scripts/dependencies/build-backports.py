@@ -16,7 +16,26 @@ import zlib
 MAX_ARCHIVE = 16 * 1024 * 1024
 MAX_EXPANDED = 32 * 1024 * 1024
 MAX_FILES = 512
-IDENTITIES = {'braces': ('3.0.3', 'MIT'), 'node-forge': ('1.4.0', '(BSD-3-Clause OR GPL-2.0)')}
+IDENTITIES = {'braces': ('3.0.3', 'MIT'), 'node-forge': ('1.4.0', '(BSD-3-Clause OR GPL-2.0)'),
+              'resolve-workspace-root': ('2.0.1', 'MIT')}
+PREFIXES = {'braces': 'braces', 'node-forge': 'node-forge', 'resolve-workspace-root': 'resolver'}
+RESOLVER_LICENSE = {'sha256': '0cff14eaf2736ff712a34ef8d61f4144082e61387fff1ee3bef9da003d96a4ce', 'size': 1142}
+RESOLVER_SOURCES = {
+    'resolver/src/index.ts': {'sha256': '2f8cf6bf8b4dac2720a2834b56400ba28973c0c5dec3123879cf2c9764a0f640', 'size': 5864},
+    'resolver/src/utils/dirs.ts': {'sha256': '4fc2cc6c11006d5c4b6f30582294efd64126ab1695c5cba9bd52738ed16cef5b', 'size': 1074},
+    'resolver/src/utils/files.ts': {'sha256': '1727f0d92eebd7fa4ffa4f2dc2970ea3838f15304924f12201ba1a3da2fdcca8', 'size': 814},
+    'resolver/src/utils/workspaces.ts': {'sha256': 'd063b82b49eefdf60fa1a305031b65c87508691f1ba859203ffcc3ccf14c07f9', 'size': 1102},
+}
+RESOLVER_MAPPING = {name: name.replace('/src/', '/compiled/').replace('.ts', '.js') for name in RESOLVER_SOURCES}
+RESOLVER_OUTPUTS = {
+    'resolver/compiled/index.js': {'sha256': '1a0e171d5e48f7744027b5c563e92ebcd8a9bad952addcfd63310a06a1af8ead', 'size': 6687},
+    'resolver/compiled/utils/dirs.js': {'sha256': '2564bf0e4220ea2864059e687082e7043a6cdc5a609b4a3b3564a3ef6bf0172f', 'size': 1456},
+    'resolver/compiled/utils/files.js': {'sha256': 'b951177cd202ee333836ef6f8b73a149d6ef2603cc17aec263deeb4208e97413', 'size': 1120},
+    'resolver/compiled/utils/workspaces.js': {'sha256': 'bf9c5dcdca4e7c444414dc2378659a3acf0e7cfc2f227f99d5754b0045149721', 'size': 1525},
+}
+RESOLVER_SCRIPT = {'path': 'scripts/dependencies/build-resolver.cjs',
+                   'sha256': '808757bfb498cb848ca7b45d1307ad567ce4cb6c6c810fcfec5f4604fe9bd3e7', 'size': 5389}
+RESOLVER_DEPENDENCIES = {'js-yaml': '4.3.2', 'micromatch': '4.0.8'}
 ERROR = 'backport verification failed'
 
 
@@ -94,12 +113,13 @@ def validate_record(record):
     keys(record, 'id upstream fork inputs replacements result_files archive provenance')
     ident = record['id']
     require(type(ident) is str and ident in IDENTITIES)
+    prefix = PREFIXES[ident]
     version = IDENTITIES[ident][0]
     up = record['upstream']
     keys(up, 'name version url path sha256 integrity size')
     require(up['name'] == ident and up['version'] == version)
     require(up['url'] == f'https://registry.npmjs.org/{ident}/-/{ident}-{version}.tgz')
-    require(up['path'] == f'{ident}/upstream.tgz')
+    require(up['path'] == f'{prefix}/upstream.tgz')
     hash_record(up, True)
     require(up['size'] <= MAX_ARCHIVE)
     keys(record['fork'], 'name version')
@@ -112,14 +132,14 @@ def validate_record(record):
     inputs = record['inputs']
     require(type(inputs) is dict and 1 <= len(inputs) <= MAX_FILES)
     for name, value in inputs.items():
-        path_name(name, ident)
+        path_name(name, prefix)
         require(not any(part in {'build', 'dist', 'vendor', 'artifacts'} for part in PurePosixPath(name).parts))
         keys(value, 'sha256 size')
         hash_record(value)
     require(sum(value['size'] for value in inputs.values()) <= MAX_EXPANDED)
-    require(record['provenance'] == ident + '/provenance.json' and record['provenance'] in inputs)
+    require(record['provenance'] == prefix + '/provenance.json' and record['provenance'] in inputs)
     for required in ('original-package.json', 'LICENSE', 'source.patch', 'replacements/package.json'):
-        require(ident + '/' + required in inputs)
+        require(prefix + '/' + required in inputs)
     replacements = record['replacements']
     require(type(replacements) is list and 1 <= len(replacements) <= MAX_FILES)
     names = set()
@@ -127,7 +147,8 @@ def validate_record(record):
         keys(entry, 'path input')
         path_name(entry['path'], 'package')
         # The full original license is immutable, including after replacements.
-        require(entry['path'] != 'package/LICENSE')
+        require(entry['path'] != 'package/LICENSE' or
+                (ident == 'resolve-workspace-root' and entry['input'] == 'resolver/LICENSE'))
         require(entry['path'] not in names and entry['input'] in inputs)
         names.add(entry['path'])
     require('package/package.json' in names)
@@ -138,12 +159,31 @@ def validate_record(record):
         keys(value, 'sha256 size')
         hash_record(value)
     require(sum(value['size'] for value in results.values()) <= MAX_EXPANDED)
+    if ident == 'resolve-workspace-root':
+        require(set(inputs) == set(RESOLVER_SOURCES) | set(RESOLVER_OUTPUTS) | {
+            'resolver/' + name for name in ('LICENSE', 'original-package.json', 'original-index.d.ts',
+                'original-readme.md', 'upstream-capture.json', 'provenance.json', 'source.patch',
+                'replacements/package.json', 'recipe.json', 'runtime-dependencies.json',
+                'dependency-metadata-readback.json', 'bounded-advisory-readback.json',
+                'compiler/package.json', 'compiler/LICENSE.txt', 'compiler/lock-record.json')})
+        require({key: up[key] for key in ('sha256', 'size')} == {
+            'sha256': '161fd5f13b2fc116b4332c25bb1d4983a2f983b15e01d647d5ac1209fd309694', 'size': 31755})
+        for name, pin in {**RESOLVER_SOURCES, **RESOLVER_OUTPUTS, 'resolver/LICENSE': RESOLVER_LICENSE,
+            'resolver/original-package.json': {'sha256': '2a4dd519ada0fb79a87f4de720961be61cd906ee3c91dbf17dcc82bd31236ade', 'size': 1572},
+            'resolver/original-index.d.ts': {'sha256': '4e5e42c6632ef9e9859a8d22b4c71572c2a19f8088a84ccaeab7f2f0a30a623e', 'size': 2773}}.items():
+            require(inputs.get(name) == pin)
+        expected = {'package/package.json': 'resolver/replacements/package.json', 'package/LICENSE': 'resolver/LICENSE',
+                    **{'package/build/' + output.removeprefix('resolver/compiled/'): output for output in RESOLVER_MAPPING.values()}}
+        require(record['replacements'] == [{'path': name, 'input': value} for name, value in sorted(expected.items())])
+        require(set(results) == {'package/package.json', 'package/LICENSE', 'package/LICENSE.md', 'package/README.md',
+            'package/build/index.d.ts', *[name for name in expected if name.startswith('package/build/')]})
+        require(results['package/LICENSE'] == results['package/LICENSE.md'] == RESOLVER_LICENSE)
 
 
 def validate_manifest(manifest):
     keys(manifest, 'schema packages')
     require(type(manifest['schema']) is int and manifest['schema'] == 1)
-    require(type(manifest['packages']) is list and len(manifest['packages']) == 2)
+    require(type(manifest['packages']) is list and len(manifest['packages']) == 3)
     require([p.get('id') if type(p) is dict else None for p in manifest['packages']] == list(IDENTITIES))
     for record in manifest['packages']:
         validate_record(record)
@@ -196,22 +236,27 @@ def upstream_files(data):
 
 def validate_metadata(record, files, inputs):
     ident = record['id']
-    original_bytes = inputs[ident + '/original-package.json']
+    prefix = PREFIXES[ident]
+    original_bytes = inputs[prefix + '/original-package.json']
     original = json_data(original_bytes)
     require(original_bytes == files['package/package.json'])
     require(original['name'] == ident and original['version'] == record['upstream']['version'])
-    require(inputs[ident + '/LICENSE'] == files['package/LICENSE'])
-    modified = json_data(inputs[ident + '/replacements/package.json'])
+    license_name = 'package/LICENSE.md' if ident == 'resolve-workspace-root' else 'package/LICENSE'
+    require(inputs[prefix + '/LICENSE'] == files[license_name])
+    modified = json_data(inputs[prefix + '/replacements/package.json'])
     expected = dict(original)
     expected.update(record['fork'])
     expected['private'] = True
     expected.pop('scripts', None)
     expected.pop('devDependencies', None)
     expected['engines'] = dict(original.get('engines', {}), node='>=22.13.0')
+    if ident == 'resolve-workspace-root':
+        expected['files'] = ['build']
+        expected['dependencies'] = RESOLVER_DEPENDENCIES
     require(type(modified) is dict and modified.get('private') is True)
     require(json.dumps(modified, sort_keys=True) == json.dumps(expected, sort_keys=True))
     replacement = [entry for entry in record['replacements'] if entry['path'] == 'package/package.json']
-    require(replacement == [{'path': 'package/package.json', 'input': ident + '/replacements/package.json'}])
+    require(replacement == [{'path': 'package/package.json', 'input': prefix + '/replacements/package.json'}])
     provenance = json_data(inputs[record['provenance']])
     require(type(provenance) is dict)
     require(provenance.get('upstream') == {'name': ident, 'version': record['upstream']['version']})
@@ -222,6 +267,41 @@ def validate_metadata(record, files, inputs):
     if ident == 'node-forge':
         require(provenance.get('compilation_reproduction_verified') is False)
         require(provenance.get('producer_closure_verified') is False)
+    if ident == 'resolve-workspace-root':
+        require(inputs['resolver/original-index.d.ts'] == files['package/build/index.d.ts'])
+        require(inputs['resolver/original-readme.md'] == files['package/README.md'])
+        require(provenance.get('publisher_git_head') == '72f675ae9ea952e832c63f1138346406b0d8630b')
+        require(provenance.get('canonical_patch_sha256') == digest(inputs['resolver/source.patch'])['sha256'])
+        for flag in ('compilation_reproduction_verified', 'producer_closure_verified', 'source_gate_passed', 'release_ready'):
+            require(provenance.get(flag) is False)
+
+
+def validate_resolver_recipe(root, record, inputs):
+    recipe = json_data(inputs['resolver/recipe.json'])
+    keys(recipe, 'schema script compiler options sources outputs mapping producer_observation')
+    require(recipe['schema'] == 1 and recipe['sources'] == RESOLVER_SOURCES and recipe['mapping'] == RESOLVER_MAPPING)
+    require(recipe['options'] == {'module': 'CommonJS', 'target': 'ES2020', 'esModuleInterop': True})
+    keys(recipe['script'], 'path sha256 size')
+    require(recipe['script'] == RESOLVER_SCRIPT)
+    hash_record(recipe['script'])
+    checked_read(root.parents[1], recipe['script']['path'], recipe['script'])
+    require(recipe['outputs'] == RESOLVER_OUTPUTS)
+    for name, pin in recipe['outputs'].items():
+        require(record['inputs'].get(name) == pin)
+        require(record['result_files'].get('package/build/' + name.removeprefix('resolver/compiled/')) == pin)
+    compiler = recipe['compiler']
+    keys(compiler, 'name version integrity files')
+    require(compiler['name'] == 'typescript' and compiler['version'] == '6.0.3')
+    require(compiler['integrity'] == 'sha512-y2TvuxSZPDyQakkFRPZHKFm+KKVqIisdg9/CZwm9ftvKXLP8NRWj38/ODjNbr43SsoXqNuAisEf1GdCxqWcdBw==')
+    require(compiler['files'] == {
+        'package.json': {'sha256': '9332e97c30d3e53ed54910b89207ed657fb444066484df6e5b6965bf130865e9', 'size': 3527},
+        'lib/typescript.js': {'sha256': '569177652966bd528c319171c7dd22860dbf72bde116cbc4f644f1d02bb12e39', 'size': 9144216},
+        'LICENSE.txt': {'sha256': 'a7d00bfd54525bc694b6e32f64c7ebcf5e6b7ae3657be5cc12767bce74654a47', 'size': 9197}})
+    for name in ('package.json', 'LICENSE.txt'):
+        require(digest(inputs['resolver/compiler/' + name]) == compiler['files'][name])
+    locked = json_data(inputs['resolver/compiler/lock-record.json'])
+    require(locked['version'] == compiler['version'] and locked['integrity'] == compiler['integrity'])
+    require(locked['resolved'] == 'https://registry.npmjs.org/typescript/-/typescript-6.0.3.tgz')
 
 
 def stored_gzip(data):
@@ -245,8 +325,12 @@ def assemble_package(root: Path, record: dict) -> bytes:
     files = upstream_files(upstream)
     inputs = {name: checked_read(root, name, expected) for name, expected in record['inputs'].items()}
     validate_metadata(record, files, inputs)
+    if record['id'] == 'resolve-workspace-root':
+        validate_resolver_recipe(root, record, inputs)
     for replacement in record['replacements']:
         files[replacement['path']] = inputs[replacement['input']]
+    if record['id'] == 'resolve-workspace-root':
+        require(files['package/LICENSE'] == files['package/LICENSE.md'] == inputs['resolver/LICENSE'])
     require({name: digest(content) for name, content in files.items()} == record['result_files'])
     stream = io.BytesIO()
     with tarfile.open(fileobj=stream, mode='w', format=tarfile.USTAR_FORMAT) as archive:

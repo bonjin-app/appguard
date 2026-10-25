@@ -1,0 +1,61 @@
+{
+  "schema": 1,
+  "data_only": true,
+  "dependencies": {
+    "js-yaml": {
+      "version": "4.3.2",
+      "license": "MIT",
+      "license_file": "LICENSE",
+      "license_sha256": "a07bc24468b9654ce76a547d47a2db282d07733b715db4c73a98bd63961f9550",
+      "license_size": 1084,
+      "installed_package_json_sha256": "3eeb05aa0ceb4c3686e44c9b5d9b88f914b099ba9a7426b36947e65c6373d9a5",
+      "lock": {
+        "version": "4.3.2",
+        "resolved": "https://registry.npmjs.org/js-yaml/-/js-yaml-4.3.2.tgz",
+        "integrity": "sha512-SFNOvSJ+Dgf/9An904Yx+CgSlIPCkIpao4qo51lpee25TIRejdH3rhR4EZMGoNx3/TP3O+wzWuiTFl4sqbltzA==",
+        "dev": true,
+        "funding": [
+          {
+            "type": "github",
+            "url": "https://github.com/sponsors/puzrin"
+          },
+          {
+            "type": "github",
+            "url": "https://github.com/sponsors/nodeca"
+          }
+        ],
+        "license": "MIT",
+        "dependencies": {
+          "argparse": "^2.0.1"
+        },
+        "bin": {
+          "js-yaml": "bin/js-yaml.js"
+        }
+      }
+    },
+    "micromatch": {
+      "version": "4.0.8",
+      "license": "MIT",
+      "license_file": "LICENSE",
+      "license_sha256": "35bdd8a44339719441900fb50fbefc5e2dca1ca662cbaed7a687de842c8b70f2",
+      "license_size": 1091,
+      "installed_package_json_sha256": "94dbc881c0329813f2481f35fcfa725a2285d45926d33e9b9b8b80b28487752b",
+      "lock": {
+        "version": "4.0.8",
+        "resolved": "https://registry.npmjs.org/micromatch/-/micromatch-4.0.8.tgz",
+        "integrity": "sha512-PXwfBhYu0hBCPw8Dn0E+WDYb7af3dSLVWKi3HGv84IdF4TyFoC0ysxFd0Goxw7nSv4T/PzEJQxsYsEiFCKo2BA==",
+        "dev": true,
+        "license": "MIT",
+        "dependencies": {
+          "braces": "^3.0.3",
+          "picomatch": "^2.3.1"
+        },
+        "engines": {
+          "node": ">=8.6"
+        }
+      }
+    }
+  },
+  "complete_advisory_closure_verified": false,
+  "source_gate_passed": false
+}

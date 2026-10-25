@@ -1,0 +1,79 @@
+{
+  "schema": 1,
+  "script": {
+    "path": "scripts/dependencies/build-resolver.cjs",
+    "sha256": "808757bfb498cb848ca7b45d1307ad567ce4cb6c6c810fcfec5f4604fe9bd3e7",
+    "size": 5389
+  },
+  "compiler": {
+    "name": "typescript",
+    "version": "6.0.3",
+    "integrity": "sha512-y2TvuxSZPDyQakkFRPZHKFm+KKVqIisdg9/CZwm9ftvKXLP8NRWj38/ODjNbr43SsoXqNuAisEf1GdCxqWcdBw==",
+    "files": {
+      "package.json": {
+        "sha256": "9332e97c30d3e53ed54910b89207ed657fb444066484df6e5b6965bf130865e9",
+        "size": 3527
+      },
+      "lib/typescript.js": {
+        "sha256": "569177652966bd528c319171c7dd22860dbf72bde116cbc4f644f1d02bb12e39",
+        "size": 9144216
+      },
+      "LICENSE.txt": {
+        "sha256": "a7d00bfd54525bc694b6e32f64c7ebcf5e6b7ae3657be5cc12767bce74654a47",
+        "size": 9197
+      }
+    }
+  },
+  "options": {
+    "module": "CommonJS",
+    "target": "ES2020",
+    "esModuleInterop": true
+  },
+  "sources": {
+    "resolver/src/index.ts": {
+      "sha256": "2f8cf6bf8b4dac2720a2834b56400ba28973c0c5dec3123879cf2c9764a0f640",
+      "size": 5864
+    },
+    "resolver/src/utils/dirs.ts": {
+      "sha256": "4fc2cc6c11006d5c4b6f30582294efd64126ab1695c5cba9bd52738ed16cef5b",
+      "size": 1074
+    },
+    "resolver/src/utils/files.ts": {
+      "sha256": "1727f0d92eebd7fa4ffa4f2dc2970ea3838f15304924f12201ba1a3da2fdcca8",
+      "size": 814
+    },
+    "resolver/src/utils/workspaces.ts": {
+      "sha256": "d063b82b49eefdf60fa1a305031b65c87508691f1ba859203ffcc3ccf14c07f9",
+      "size": 1102
+    }
+  },
+  "mapping": {
+    "resolver/src/index.ts": "resolver/compiled/index.js",
+    "resolver/src/utils/dirs.ts": "resolver/compiled/utils/dirs.js",
+    "resolver/src/utils/files.ts": "resolver/compiled/utils/files.js",
+    "resolver/src/utils/workspaces.ts": "resolver/compiled/utils/workspaces.js"
+  },
+  "outputs": {
+    "resolver/compiled/index.js": {
+      "sha256": "1a0e171d5e48f7744027b5c563e92ebcd8a9bad952addcfd63310a06a1af8ead",
+      "size": 6687
+    },
+    "resolver/compiled/utils/dirs.js": {
+      "sha256": "2564bf0e4220ea2864059e687082e7043a6cdc5a609b4a3b3564a3ef6bf0172f",
+      "size": 1456
+    },
+    "resolver/compiled/utils/files.js": {
+      "sha256": "b951177cd202ee333836ef6f8b73a149d6ef2603cc17aec263deeb4208e97413",
+      "size": 1120
+    },
+    "resolver/compiled/utils/workspaces.js": {
+      "sha256": "bf9c5dcdca4e7c444414dc2378659a3acf0e7cfc2f227f99d5754b0045149721",
+      "size": 1525
+    }
+  },
+  "producer_observation": {
+    "node_version": "22.23.2",
+    "node_sha256": "18e387c90ab8a8400183e8bdd396376e1e875b91b4c874b894dcade7b35bf572",
+    "scope": "Current pinned local producer observation, not a portable binary pin or full producer closure."
+  }
+}
