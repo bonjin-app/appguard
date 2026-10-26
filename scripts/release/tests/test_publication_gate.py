@@ -9,6 +9,7 @@ import sys
 import tempfile
 import unittest
 from unittest.mock import patch
+from urllib.parse import quote
 
 SCRIPT = Path(__file__).resolve().parents[1] / 'publication_gate.py'
 sys.path.insert(0, str(SCRIPT.parent))
@@ -30,9 +31,24 @@ class PublicationTests(unittest.TestCase):
         for name in ('dependency-coverage.json', 'licenses.json'):
             (candidate / name).write_text('{}')
         (candidate / 'source/package-lock.json').write_text(json.dumps({'lockfileVersion': 3, 'packages': {'': {}}}))
+        raw_components = []
         if backports:
             shutil.copytree(SCRIPT.parents[2] / 'tools/dependency-backports',
                             candidate / 'source/tools/dependency-backports')
+            for name in ('build-resolver.cjs', 'build-forge.py'):
+                target = candidate / 'source/scripts/dependencies' / name
+                target.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copyfile(SCRIPT.parents[2] / 'scripts/dependencies' / name, target)
+            # Keep the complete retained compiler lock in ordinary source coverage.
+            producer_lock = 'tools/dependency-backports/node-forge/producer/package-lock.json'
+            producer = json.loads((candidate / 'source' / producer_lock).read_bytes())
+            for location, row in producer['packages'].items():
+                if not location:
+                    continue
+                name = location.rsplit('node_modules/', 1)[-1]
+                raw_components.append({'type': 'library', 'name': name, 'version': row['version'],
+                    'purl': 'pkg:npm/' + quote(name, safe='/') + '@' + row['version'],
+                    'properties': [{'name': 'syft:location:0:path', 'value': '/' + producer_lock}]})
         if build_pin:
             (candidate / 'source/pyproject.toml').write_text('[build-system]\nrequires=["builder>=1"]\n'
                 '[tool.uv]\nrequire-build-hashes=true\nbuild-constraint-dependencies=['
@@ -54,7 +70,7 @@ class PublicationTests(unittest.TestCase):
             report = {'SchemaVersion': 2, 'Results': [{'Target': MARKER, 'Secrets': [{'Match': MARKER}] if count else []}]}
             (scans / (name + '.json')).write_text(json.dumps(report))
         raw = scans / 'sbom-source.raw.cdx.json'
-        raw.write_text(json.dumps({'bomFormat':'CycloneDX', 'specVersion': '1.6', 'components': [], 'unsafe_metadata': MARKER}))
+        raw.write_text(json.dumps({'bomFormat':'CycloneDX', 'specVersion': '1.6', 'components': raw_components, 'unsafe_metadata': MARKER}))
         (scans / 'trivy-secrets.log').write_text(MARKER)
         from python_build_catalog import prepare_python_build_catalog
         prepare_python_build_catalog(candidate / 'source', raw, scans)
@@ -191,6 +207,30 @@ class PublicationTests(unittest.TestCase):
             self.assertTrue((output / 'scans/sbom.cdx.json').exists())
             self.assertFalse((output / 'scans/trivy-secrets.json').exists())
             self.assertFalse((output / 'scans/trivy-secrets.log').exists())
+
+    def test_backport_fixture_captures_drivers_and_full_producer_coverage(self):
+        with tempfile.TemporaryDirectory() as temp:
+            base = Path(temp).resolve()
+            candidate, scans = self.setup_inputs(base, backports=True)
+            manifest = json.loads((candidate / 'manifest.json').read_bytes())
+            proof = json.loads((scans / 'tool-backport-provenance.json').read_bytes())
+            for name in ('scripts/dependencies/build-resolver.cjs', 'scripts/dependencies/build-forge.py'):
+                expected = hashlib.sha256((SCRIPT.parents[2] / name).read_bytes()).hexdigest()
+                self.assertEqual(hashlib.sha256((candidate / 'source' / name).read_bytes()).hexdigest(), expected)
+                self.assertEqual(manifest['sha256']['source/' + name], expected)
+                self.assertEqual(proof['input_sha256'][name], expected)
+            producer_lock = 'tools/dependency-backports/node-forge/producer/package-lock.json'
+            retained = json.loads((SCRIPT.parents[2] / producer_lock).read_bytes())
+            expected_rows = [(name.rsplit('node_modules/', 1)[-1], row['version'])
+                             for name, row in retained['packages'].items() if name]
+            coverage = json.loads((scans / 'source-lock-coverage.json').read_bytes())
+            producer = next(lock for lock in coverage['locks'] if lock['path'] == producer_lock)
+            self.assertEqual(len(producer['records']), 85)
+            self.assertCountEqual([(row['name'], row['version']) for row in producer['records']], expected_rows)
+            self.assertTrue(all(row['cataloged'] for row in producer['records']))
+            raw = json.loads((scans / 'sbom-source.raw.cdx.json').read_bytes())
+            self.assertEqual(len(raw['components']), 85)
+            self.assertEqual(raw['unsafe_metadata'], MARKER)
 
     def test_backport_catalog_and_both_bound_reports_are_staged(self):
         with tempfile.TemporaryDirectory() as temp:
