@@ -54,7 +54,7 @@ class BackportTests(unittest.TestCase):
         self.root = Path(self.temp.name) / 'tools/dependency-backports'
         self.root.mkdir(parents=True)
         self.manifest = {'schema': 1, 'packages': []}
-        for ident, version, license_name in [('braces', '3.0.3', 'MIT'), ('node-forge', '1.4.0', '(BSD-3-Clause OR GPL-2.0)')]:
+        for ident, version, license_name in [('braces', '3.0.3', 'MIT')]:
             original = {'name': ident, 'version': version, 'main': 'index.js', 'license': license_name,
                         'scripts': {'test': 'unused'}, 'devDependencies': {'example': '1'}, 'engines': {'node': '>= 6'}}
             fork = dict(original, name='@appguard/' + ident, version=version + '-appguard.1', private=True,
@@ -102,16 +102,18 @@ class BackportTests(unittest.TestCase):
                 'fork': {'name': fork['name'], 'version': fork['version']}, 'inputs': inputs,
                 'replacements': replacements, 'result_files': {name: info(data) for name, data in result.items()},
                 'archive': {'path': archive_path, 'integrity': sri(archive), **info(archive)}, 'provenance': ident + '/provenance.json'})
-        # The fixed resolver extension uses genuine retained source/legal bytes;
-        # the first two ordinary fixtures keep their original independent policy coverage.
+        # Exact producer and resolver extensions use genuine retained bytes;
+        # braces keeps the independent ordinary assembly fixture above.
         real = SCRIPT.parents[2] / 'tools/dependency-backports'
-        resolver = json.loads((real / 'manifest.json').read_bytes())['packages'][2]
-        shutil.copytree(real / 'resolver', self.root / 'resolver')
-        shutil.copyfile(real / resolver['archive']['path'], self.root / resolver['archive']['path'])
+        for record in json.loads((real / 'manifest.json').read_bytes())['packages'][1:]:
+            prefix = b.PREFIXES[record['id']]
+            shutil.copytree(real / prefix, self.root / prefix)
+            shutil.copyfile(real / record['archive']['path'], self.root / record['archive']['path'])
+            self.manifest['packages'].append(record)
         script = Path(self.temp.name) / 'scripts/dependencies/build-resolver.cjs'
         script.parent.mkdir(parents=True)
         shutil.copyfile(SCRIPT.with_name('build-resolver.cjs'), script)
-        self.manifest['packages'].append(resolver)
+        shutil.copyfile(SCRIPT.with_name('build-forge.py'), script.with_name('build-forge.py'))
         self.save()
         self.original_manifest = copy.deepcopy(self.manifest)
 
@@ -146,7 +148,7 @@ class BackportTests(unittest.TestCase):
 
     def test_stale_distribution_or_map(self):
         record = self.manifest['packages'][1]
-        for suffix in ['example.js', 'example.js.map']:
+        for suffix in ['forge.js', 'forge.min.js.map']:
             target = self.root / ('node-forge/replacements/distribution/' + suffix)
             original = target.read_bytes()
             target.write_bytes(b'stale distribution')
@@ -229,7 +231,7 @@ class BackportTests(unittest.TestCase):
             self.manifest = copy.deepcopy(self.original_manifest)
             record = self.manifest['packages'][index]
             ident = record['id']
-            source_input = ident + '/replacements/source/index.js'
+            source_input = ident + '/replacements/source/' + ('lib/rsa.js' if ident == 'node-forge' else 'index.js')
             source_bytes = (self.root / source_input).read_bytes()
             record['replacements'].append({'path': 'package/LICENSE', 'input': source_input})
             record['result_files']['package/LICENSE'] = info(source_bytes)

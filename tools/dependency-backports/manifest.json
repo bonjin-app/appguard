@@ -158,6 +158,38 @@
           "sha256": "a907bca8a62d97478062f2bd8ed5cd47d00b79385d3f08a8cad1c3bd7e3eb5bf",
           "size": 3256
         },
+        "node-forge/producer/README.md": {
+          "sha256": "1f14c84e1eb82f60266e5bb4f3017d3b61150dfcc8e9bc9f48ac2ca52a0ca485",
+          "size": 5510
+        },
+        "node-forge/producer/build.cjs": {
+          "sha256": "7c04de88e83a1cac4ad5f79326151f102df2a730d4a435808f5e4159c1b77be3",
+          "size": 9312
+        },
+        "node-forge/producer/package-lock.json": {
+          "sha256": "c127accb22afdf25b5390e9e609e385156ecf10fed1bb9db9f5d69666246de07",
+          "size": 41158
+        },
+        "node-forge/producer/package.json": {
+          "sha256": "03b77ade721014a05b693fada1eff19f33d7a37e24a08d4e6ef85dac00a766c1",
+          "size": 98
+        },
+        "node-forge/producer/recipe.json": {
+          "sha256": "5a7667e0364a038dd120af9be51fc824d39f0879ba6fec1b3c16ae96e22d17a8",
+          "size": 38865
+        },
+        "node-forge/producer/source-reference.json": {
+          "sha256": "d087f3dacbca028144b0a9ddc56682424f438e4b228970d0e7fcf5d51cec02cc",
+          "size": 1255
+        },
+        "node-forge/producer/tool-tree.json": {
+          "sha256": "8bbdd826a8f65b4faac61cbf45b086b19cfebf576b9f99dc1c348b63e24fc9a4",
+          "size": 513447
+        },
+        "node-forge/producer/webpack.config.js": {
+          "sha256": "5e70f8af959af5edf27b5a42985da607ad4047ba014a0a3da39d83973449f1dd",
+          "size": 3424
+        },
         "node-forge/provenance.json": {
           "sha256": "7fdb284b48206b7016e11d9c798e589c301b2068c9dead697ee8996c0b5ffdc2",
           "size": 4604

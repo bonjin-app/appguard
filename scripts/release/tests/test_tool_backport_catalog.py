@@ -6,6 +6,7 @@ import shutil
 import sys
 import tempfile
 import unittest
+from urllib.parse import quote
 
 ROOT = Path(__file__).resolve().parents[3]
 sys.path.insert(0, str(ROOT / 'scripts/release'))
@@ -18,6 +19,7 @@ def fixture(base, local=False):
     script = source / 'scripts/dependencies/build-resolver.cjs'
     script.parent.mkdir(parents=True)
     shutil.copyfile(ROOT / 'scripts/dependencies/build-resolver.cjs', script)
+    shutil.copyfile(ROOT / 'scripts/dependencies/build-forge.py', script.with_name('build-forge.py'))
     manifest = json.loads((source / 'tools/dependency-backports/manifest.json').read_text())
     lock = source / 'sdk/expo/package-lock.json'
     lock.parent.mkdir(parents=True)
@@ -33,6 +35,17 @@ def fixture(base, local=False):
         {'type': 'library', 'name': 'resolve-workspace-root', 'version': '2.0.1',
          'purl': 'pkg:npm/resolve-workspace-root@2.0.1',
          'properties': [{'name': 'syft:location:0:path', 'value': '/sdk/expo/package-lock.json'}]}]}
+    # The complete retained compiler lock remains ordinary recorded npm input.
+    # Include its 85 dependencies in the raw fixture SBOM instead of suppressing it.
+    producer_lock = 'tools/dependency-backports/node-forge/producer/package-lock.json'
+    producer = json.loads((source / producer_lock).read_bytes())
+    for location, row in producer['packages'].items():
+        if not location:
+            continue
+        name = location.rsplit('node_modules/', 1)[-1]
+        raw['components'].append({'type': 'library', 'name': name, 'version': row['version'],
+            'purl': 'pkg:npm/' + quote(name, safe='/') + '@' + row['version'],
+            'properties': [{'name': 'syft:location:0:path', 'value': '/' + producer_lock}]})
     from python_build_catalog import prepare_python_build_catalog
     (reports / 'sbom-source.raw.cdx.json').write_text(json.dumps(raw))
     prepare_python_build_catalog(source, reports / 'sbom-source.raw.cdx.json', reports)
@@ -40,6 +53,43 @@ def fixture(base, local=False):
 
 
 class BackportCatalogTests(unittest.TestCase):
+    def test_public_forge_driver_is_captured_as_data(self):
+        from tool_backport_catalog import prepare_tool_backport_catalog
+        with tempfile.TemporaryDirectory() as temp:
+            source, reports, unused_manifest = fixture(Path(temp).resolve())
+            result = prepare_tool_backport_catalog(source, reports)
+            name = 'scripts/dependencies/build-forge.py'
+            self.assertEqual(result['input_sha256'].get(name), hashlib.sha256((source / name).read_bytes()).hexdigest())
+
+    def test_all_retained_forge_producer_dependencies_need_source_coverage(self):
+        from tool_backport_catalog import prepare_tool_backport_catalog
+        from source_catalog import validate_source_catalog
+        from python_build_catalog import prepare_python_build_catalog
+        with tempfile.TemporaryDirectory() as temp:
+            base = Path(temp).resolve()
+            source, reports, unused_manifest = fixture(base, local=True)
+            prepare_tool_backport_catalog(source, reports)
+            output = base / 'coverage'; output.mkdir()
+            result = validate_source_catalog(source, reports / 'sbom.cdx.json', output)
+            producer = next(lock for lock in result['locks'] if lock['path'] ==
+                'tools/dependency-backports/node-forge/producer/package-lock.json')
+            self.assertEqual(len(producer['records']), 85)
+            self.assertTrue(all(row['cataloged'] for row in producer['records']))
+            raw_path = reports / 'sbom-source.raw.cdx.json'
+            raw = json.loads(raw_path.read_bytes())
+            raw['components'] = [row for row in raw['components'] if row.get('purl') != 'pkg:npm/webpack@5.112.1']
+            raw_path.write_text(json.dumps(raw))
+            for name in ('sbom.cdx.json', 'python-build-catalog-overlay.json'):
+                (reports / name).unlink()
+            prepare_python_build_catalog(source, raw_path, reports)
+            with self.assertRaises(ValueError):
+                validate_source_catalog(source, reports / 'sbom.cdx.json', output)
+            failure = json.loads((output / 'source-lock-coverage.json').read_bytes())
+            producer = next(lock for lock in failure['locks'] if lock['path'] ==
+                'tools/dependency-backports/node-forge/producer/package-lock.json')
+            webpack = next(row for row in producer['records'] if row['name'] == 'webpack')
+            self.assertIs(webpack['cataloged'], False)
+
     def test_absent_root_is_explicitly_empty_but_incomplete_root_is_invalid(self):
         from tool_backport_catalog import prepare_tool_backport_catalog, validate_tool_backport_catalog
         with tempfile.TemporaryDirectory() as temp:

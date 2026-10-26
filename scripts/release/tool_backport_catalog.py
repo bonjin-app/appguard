@@ -84,6 +84,7 @@ def _assemble(source):
                 capture(root / name)
         # The reviewed source producer is data here. Never import/evaluate candidate JS.
         capture(source / 'scripts/dependencies/build-resolver.cjs')
+        capture(source / 'scripts/dependencies/build-forge.py')
         _BUILDER.check_archives(root, manifest)
         for record in manifest['packages']:
             up, fork, archive = record['upstream'], record['fork'], record['archive']

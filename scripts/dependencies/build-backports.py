@@ -7,6 +7,7 @@ import gzip
 import hashlib
 import io
 import json
+import os
 from pathlib import Path, PurePosixPath
 import re
 import struct
@@ -36,6 +37,35 @@ RESOLVER_OUTPUTS = {
 RESOLVER_SCRIPT = {'path': 'scripts/dependencies/build-resolver.cjs',
                    'sha256': '808757bfb498cb848ca7b45d1307ad567ce4cb6c6c810fcfec5f4604fe9bd3e7', 'size': 5389}
 RESOLVER_DEPENDENCIES = {'js-yaml': '4.3.2', 'micromatch': '4.0.8'}
+FORGE_INPUTS = {
+    'node-forge/LICENSE': {'sha256': 'f63ff0e4e239244aa79280da2dd4811a0469e5e201caf5cbc0d97c3a1dff8e82', 'size': 17972},
+    'node-forge/distribution-record.json': {'sha256': 'ffdb7bacc0b5b97c31fab4146fc15a6081ea7b4d1d1d65b637e7f6d9f122529b', 'size': 1508},
+    'node-forge/original-package.json': {'sha256': 'a907bca8a62d97478062f2bd8ed5cd47d00b79385d3f08a8cad1c3bd7e3eb5bf', 'size': 3256},
+    'node-forge/producer/README.md': {'sha256': '1f14c84e1eb82f60266e5bb4f3017d3b61150dfcc8e9bc9f48ac2ca52a0ca485', 'size': 5510},
+    'node-forge/producer/build.cjs': {'sha256': '7c04de88e83a1cac4ad5f79326151f102df2a730d4a435808f5e4159c1b77be3', 'size': 9312},
+    'node-forge/producer/package-lock.json': {'sha256': 'c127accb22afdf25b5390e9e609e385156ecf10fed1bb9db9f5d69666246de07', 'size': 41158},
+    'node-forge/producer/package.json': {'sha256': '03b77ade721014a05b693fada1eff19f33d7a37e24a08d4e6ef85dac00a766c1', 'size': 98},
+    'node-forge/producer/recipe.json': {'sha256': '5a7667e0364a038dd120af9be51fc824d39f0879ba6fec1b3c16ae96e22d17a8', 'size': 38865},
+    'node-forge/producer/source-reference.json': {'sha256': 'd087f3dacbca028144b0a9ddc56682424f438e4b228970d0e7fcf5d51cec02cc', 'size': 1255},
+    'node-forge/producer/tool-tree.json': {'sha256': '8bbdd826a8f65b4faac61cbf45b086b19cfebf576b9f99dc1c348b63e24fc9a4', 'size': 513447},
+    'node-forge/producer/webpack.config.js': {'sha256': '5e70f8af959af5edf27b5a42985da607ad4047ba014a0a3da39d83973449f1dd', 'size': 3424},
+    'node-forge/provenance.json': {'sha256': '7fdb284b48206b7016e11d9c798e589c301b2068c9dead697ee8996c0b5ffdc2', 'size': 4604},
+    'node-forge/replacements/distribution/forge.all.js': {'sha256': '10de696dad31d6549b4c3a7c137769b669249bff881cd665e20f25b542434e66', 'size': 989544},
+    'node-forge/replacements/distribution/forge.all.min.js': {'sha256': 'faa549f650a5515cfcdfbae4fde7905c37b14cb147bd11bd44b19444e02f7cbf', 'size': 304792},
+    'node-forge/replacements/distribution/forge.all.min.js.map': {'sha256': '3f645f54db8efe29ed3018ddad138b5476a6cbcb39ae61bd61ef19d3d6988681', 'size': 1362789},
+    'node-forge/replacements/distribution/forge.js': {'sha256': 'e36b46a7bb2a14b27a68406d8997bddbd1c1188750d185f68822d9e8a89ad5c8', 'size': 903743},
+    'node-forge/replacements/distribution/forge.min.js': {'sha256': 'dbf3da77a28b8755efbf197ce803a7464a8c485a1e4a3f2b93de427fccc3f240', 'size': 283243},
+    'node-forge/replacements/distribution/forge.min.js.map': {'sha256': '07206f91fb2bcb76afd8306b62075e0fa5022476beed4c74648d6e5fd0a42efc', 'size': 1248932},
+    'node-forge/replacements/distribution/prime.worker.js': {'sha256': '8a7899ff13703d4098f22c288cf02540cdf3dd0a212f703736654a727961a154', 'size': 46606},
+    'node-forge/replacements/distribution/prime.worker.min.js': {'sha256': '067f3b94bb7fca9c62bdc960fc5da01b7a22dfaafd972b6c369c078964859102', 'size': 20642},
+    'node-forge/replacements/distribution/prime.worker.min.js.map': {'sha256': 'bb2d57a0e0b5490be2e0e40de9fbe838cf6ac33a07272b5b55217494225129fc', 'size': 77109},
+    'node-forge/replacements/package.json': {'sha256': '25f2f15bf20a6f22cb33ea7f1513c8f2ffad9864ed0676f69fc559ee4e8e80e3', 'size': 1587},
+    'node-forge/replacements/source/lib/rsa.js': {'sha256': 'c7b72e7ef41f4fc0e5228dce3e37851e9ca064c789365d5e392c25d1c5f6e710', 'size': 64490},
+    'node-forge/source.patch': {'sha256': '37b89ad5884509ccd246b120bf6ad185eaf8963da91769b7781de111c4a4bb92', 'size': 4801},
+}
+FORGE_UPSTREAM = {'sha256': 'bf9d7ca0d774235354697bd4b5e642af6505e7ce2066762c3b855138cf870820', 'size': 435334}
+FORGE_SCRIPT = {'path': 'scripts/dependencies/build-forge.py', 'sha256': '4938da059001bae6176ea52c49cd3aa38ad5c3c03f0049646f1bc36ef726a069', 'size': 3350}
+FORGE_OUTPUT_NAMES = ('forge.all.js', 'forge.all.min.js', 'forge.all.min.js.map', 'forge.js', 'forge.min.js', 'forge.min.js.map', 'prime.worker.js', 'prime.worker.min.js', 'prime.worker.min.js.map')
 ERROR = 'backport verification failed'
 
 
@@ -159,6 +189,10 @@ def validate_record(record):
         keys(value, 'sha256 size')
         hash_record(value)
     require(sum(value['size'] for value in results.values()) <= MAX_EXPANDED)
+    if ident == 'node-forge':
+        # Exact retained producer extension, not an exception for unbound inputs.
+        require(inputs == FORGE_INPUTS)
+        require({key: up[key] for key in ('sha256', 'size')} == FORGE_UPSTREAM)
     if ident == 'resolve-workspace-root':
         require(set(inputs) == set(RESOLVER_SOURCES) | set(RESOLVER_OUTPUTS) | {
             'resolver/' + name for name in ('LICENSE', 'original-package.json', 'original-index.d.ts',
@@ -304,6 +338,214 @@ def validate_resolver_recipe(root, record, inputs):
     require(locked['resolved'] == 'https://registry.npmjs.org/typescript/-/typescript-6.0.3.tgz')
 
 
+@public_guard
+def forge_recipe(root, record):
+    """Verify public retained recipe and reconstruct source bytes without execution."""
+    root = Path(root)
+    validate_record(record)
+    require(record['id'] == 'node-forge')
+    inputs = {name: checked_read(root, name, pin) for name, pin in record['inputs'].items()}
+    producer = root / 'node-forge/producer'
+    require({path.relative_to(root).as_posix() for path in producer.rglob('*') if path.is_file() or path.is_symlink()} ==
+            {name for name in FORGE_INPUTS if name.startswith('node-forge/producer/')})
+    recipe = json_data(inputs['node-forge/producer/recipe.json'])
+    keys(recipe, 'schema runtime preparation_script compiler_script source_reference source_archive '
+         'rsa_replacement sources tools outputs maps compiler_warnings observation')
+    require(recipe['schema'] == 1 and recipe['runtime'] == {'node': '22.23.2', 'npm': '10.9.8'})
+    require(recipe['preparation_script'] == FORGE_SCRIPT)
+    checked_read(root.parents[1], FORGE_SCRIPT['path'], FORGE_SCRIPT)
+    require(recipe['compiler_script'] == 'node-forge/producer/build.cjs')
+    require(recipe['source_reference'] == 'node-forge/producer/source-reference.json')
+    require(recipe['source_archive'] == record['upstream'])
+    require(recipe['rsa_replacement'] == 'node-forge/replacements/source/lib/rsa.js')
+    upstream = upstream_files(checked_read(root, record['upstream']['path'], record['upstream'], MAX_ARCHIVE))
+    validate_metadata(record, upstream, inputs)
+    sources = {name.removeprefix('package/'): data for name, data in upstream.items() if name.startswith('package/lib/')}
+    require(len(sources) == 49)
+    sources['lib/rsa.js'] = inputs[recipe['rsa_replacement']]
+    sources.update({'package.json': upstream['package/package.json'], 'LICENSE': upstream['package/LICENSE'],
+                    'webpack.config.js': inputs['node-forge/producer/webpack.config.js']})
+    require(recipe['sources'] == {name: digest(data) for name, data in sources.items()})
+    require(json_data(sources['package.json'])['name'] == 'node-forge')
+    reference = json_data(inputs[recipe['source_reference']])
+    require(reference['official_webpack_config'] == digest(sources['webpack.config.js']))
+    require(reference['published_source_archive'] == record['upstream'])
+    require(reference['lib_source_count'] == 49 and reference['publisher_build_reproduced'] is False)
+    lock = json_data(inputs['node-forge/producer/package-lock.json'])
+    require(lock['lockfileVersion'] == 3 and len(lock['packages']) == 86)
+    package = json_data(inputs['node-forge/producer/package.json'])
+    require(package == {'private': True, 'devDependencies': {'webpack': '5.112.1', 'mocha': '12.0.3'}})
+    require(lock['packages']['']['devDependencies'] == package['devDependencies'])
+    require(recipe['tools'] == {'package': 'node-forge/producer/package.json',
+        'lock': 'node-forge/producer/package-lock.json', 'tree': 'node-forge/producer/tool-tree.json',
+        'package_records': 86, 'versions': {'webpack': '5.112.1', 'mocha': '12.0.3',
+            'minimizer-webpack-plugin': '5.13.1', 'terser': '5.51.2', 'acorn': '8.19.0', 'webpack-sources': '3.6.0'}})
+    tree = json_data(inputs['node-forge/producer/tool-tree.json'])
+    keys(tree, 'schema expected_archive_files package_records files_sha256 symlinks')
+    require(tree['schema'] == 1 and tree['package_records'] == 85 and tree['expected_archive_files'] == 4018)
+    require(len(tree['files_sha256']) == 4021 and len(tree['symlinks']) == 9)
+    for name, row in lock['packages'].items():
+        if not name:
+            continue
+        path_name(name, 'node_modules')
+        logical = name.rsplit('node_modules/', 1)[-1]
+        require(logical not in {'braces', 'micromatch', 'node-forge', 'resolve-workspace-root'})
+        require(name + '/package.json' in tree['files_sha256'])
+        require(row['resolved'] == 'https://registry.npmjs.org/' + logical + '/-/' +
+                logical.rsplit('/', 1)[-1] + '-' + row['version'] + '.tgz')
+        hash_record(dict(size=0, sha256='0' * 64, integrity=row['integrity']), True)
+    for name in ('package.json', 'package-lock.json'):
+        require(tree['files_sha256'][name] == FORGE_INPUTS['node-forge/producer/' + name]['sha256'])
+    for name, version in recipe['tools']['versions'].items():
+        require(lock['packages']['node_modules/' + name]['version'] == version)
+    distribution = json_data(inputs['node-forge/distribution-record.json'])
+    require(recipe['outputs'] == {name.removeprefix('dist/'): pin for name, pin in distribution['outputs'].items()})
+    require(set(recipe['outputs']) == set(FORGE_OUTPUT_NAMES))
+    for name, pin in recipe['outputs'].items():
+        require(record['result_files']['package/dist/' + name] == pin)
+        require(record['inputs']['node-forge/replacements/distribution/' + name] == pin)
+    require(recipe['observation'] == {'recipe_retained': True, **{flag: False for flag in
+        ('fresh_install_verified', 'compilation_reproduction_verified', 'producer_closure_verified',
+         'publisher_build_reproduced', 'source_gate_passed', 'release_ready')}})
+    forge_map_checks(root, recipe)
+    return recipe, sources
+
+
+def forge_map_checks(root, recipe, output=None):
+    """Data-only normal source-map/source/generator joins; no bundle execution."""
+    tree = json_data((Path(root) / 'node-forge/producer/tool-tree.json').read_bytes())
+    require([row['filename'] for row in recipe['maps']] == ['forge.min.js', 'forge.all.min.js', 'prime.worker.min.js'])
+    for expected in recipe['maps']:
+        filename = expected['filename']
+        target = (Path(output) / (filename + '.map') if output is not None else
+                  Path(root) / 'node-forge/replacements/distribution' / (filename + '.map'))
+        pin = recipe['outputs'][filename + '.map']
+        require(not target.is_symlink() and digest(target.read_bytes()) == pin)
+        mapping = json_data(target.read_bytes())
+        require(mapping['version'] == 3 and mapping['file'] == filename and mapping.get('sourceRoot', '') == '')
+        require(mapping['sources'] == [entry['source'] for entry in expected['entries']])
+        require(len(mapping['sourcesContent']) == expected['entry_count'] == len(expected['entries']))
+        for index, entry in enumerate(expected['entries']):
+            content = mapping['sourcesContent'][index]
+            require(type(content) is str and entry['source'].startswith('webpack://node-forge/'))
+            require(digest(content.encode('utf-8'))['sha256'] == entry['sha256'])
+            if entry['classification'] == 'source_inventory':
+                require(recipe['sources'][entry['inventory_path']]['sha256'] == entry['sha256'])
+            else:
+                require(entry['classification'] in ('webpack_generated', 'webpack_ignored'))
+                require(tree['files_sha256']['node_modules/' + entry['generator_file']] == entry['generator_sha256'])
+        require(expected['external_module_count'] == expected['unknown_entry_count'] == 0)
+        require(expected['source_inventory_entries_hash_matched'] is True)
+
+
+@public_guard
+def compare_forge_tree(root, expected_files, expected_links):
+    """Compare every file and only the historically recorded internal bin aliases."""
+    root = Path(root).absolute()
+    require(root.is_dir() and not root.is_symlink())
+    actual_files, actual_links = {}, {}
+    def visit(directory):
+        for target in directory.iterdir():
+            name = target.relative_to(root).as_posix()
+            if target.is_symlink():
+                resolved = target.resolve(strict=True)
+                require(resolved.is_relative_to(root) and resolved.is_file() and not resolved.is_symlink())
+                actual_links[name] = {'target': os.readlink(target),
+                                      'resolved_file_sha256': digest(resolved.read_bytes())['sha256']}
+            elif target.is_dir():
+                visit(target)
+            else:
+                require(target.is_file() and target.stat().st_size <= MAX_EXPANDED)
+                actual_files[name] = digest(target.read_bytes())['sha256']
+    visit(root)
+    require(actual_files == expected_files and actual_links == expected_links)
+
+
+@public_guard
+def forge_new_parent(output):
+    output = Path(output).absolute()
+    require(not output.exists() and not output.is_symlink())
+    parent = output.parent
+    stat = parent.stat()
+    require(parent.is_dir() and not parent.is_symlink() and parent.resolve() == parent)
+    require(stat.st_uid == os.getuid() and stat.st_mode & 0o022 == 0)
+
+
+@public_guard
+def prepare_forge(root, record, output):
+    recipe, sources = forge_recipe(root, record)
+    output = Path(output).absolute()
+    forge_new_parent(output)
+    require(not output.is_relative_to(Path(root).absolute()))
+    payloads = {'source/' + name: data for name, data in sources.items()}
+    for name in ('package.json', 'package-lock.json'):
+        retained = 'node-forge/producer/' + name
+        payloads['producer/' + name] = checked_read(Path(root), retained, record['inputs'][retained])
+    output.mkdir(mode=0o700)
+    for name, data in sorted(payloads.items()):
+        target = output / name
+        target.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+        with target.open('xb') as stream:
+            stream.write(data)
+        target.chmod(0o600)
+    verify_forge_prepared(root, record, output)
+    return {'verified': True, 'source_files': 52, 'producer_package_records': 86, 'compiler_executed': False,
+            'compilation_reproduction_verified': False, 'producer_closure_verified': False, 'release_ready': False}
+
+
+@public_guard
+def verify_forge_prepared(root, record, prepared):
+    recipe, sources = forge_recipe(root, record)
+    prepared = Path(prepared).absolute()
+    require(prepared.is_dir() and not prepared.is_symlink())
+    compare_forge_tree(prepared / 'source', {name: pin['sha256'] for name, pin in recipe['sources'].items()}, {})
+    for name in ('package.json', 'package-lock.json'):
+        checked_read(prepared / 'producer', name, FORGE_INPUTS['node-forge/producer/' + name])
+    return sources
+
+
+@public_guard
+def verify_forge_tools(root, record, prepared):
+    verify_forge_prepared(root, record, prepared)
+    tree = json_data(checked_read(Path(root), 'node-forge/producer/tool-tree.json', FORGE_INPUTS['node-forge/producer/tool-tree.json']))
+    producer = Path(prepared).absolute() / 'producer'
+    compare_forge_tree(producer, tree['files_sha256'], tree['symlinks'])
+    lock = json_data((producer / 'package-lock.json').read_bytes())
+    hidden = json_data((producer / 'node_modules/.package-lock.json').read_bytes())
+    require(set(hidden['packages']) == set(lock['packages']) - {''})
+    for name, row in hidden['packages'].items():
+        expected = lock['packages'][name]
+        require(all(row[key] == expected[key] for key in ('version', 'resolved', 'integrity')))
+        metadata = json_data((producer / name / 'package.json').read_bytes())
+        require(metadata['name'] == name.rsplit('node_modules/', 1)[-1] and metadata['version'] == expected['version'])
+    return {'verified': True, 'producer_package_records': 86, 'regular_tool_files': 4021, 'internal_tool_aliases': 9,
+            'compiler_executed': False, 'fresh_install_verified': False, 'release_ready': False}
+
+
+@public_guard
+def check_forge_outputs(root, record, output, with_receipts=False):
+    recipe, unused_source = forge_recipe(root, record)
+    output = Path(output)
+    require(output.is_dir() and not output.is_symlink())
+    expected = set(recipe['outputs'])
+    if with_receipts:
+        expected |= {name + '.compiler.json' for name in FORGE_OUTPUT_NAMES if name.endswith('.js')}
+        expected.add('compilation-receipt.json')
+    require({target.name for target in output.iterdir()} == expected)
+    for name, pin in recipe['outputs'].items():
+        checked_read(output, name, pin)
+    forge_map_checks(root, recipe, output)
+    if with_receipts:
+        receipt = json_data((output / 'compilation-receipt.json').read_bytes())
+        require(receipt['outputs'] == 9 and receipt['independent_output_hashes_matched'] is True)
+        require(receipt['es5_syntax_and_literal_eval_parsed'] is True)
+        require(receipt['compiler_warnings'] == recipe['compiler_warnings'])
+        require(all(receipt[flag] is False for flag in ('publisher_build_reproduced',
+            'consumer_adoption_verified', 'source_gate_passed', 'legal_approved', 'release_ready')))
+    return {'verified': True, 'outputs': 9, 'compilation_reproduction_verified': False,
+            'producer_closure_verified': False, 'publisher_build_reproduced': False, 'release_ready': False}
+
+
 def stored_gzip(data):
     result = bytearray(bytes.fromhex('1f8b08000000000000ff'))
     for start in range(0, len(data), 65535):
@@ -327,6 +569,8 @@ def assemble_package(root: Path, record: dict) -> bytes:
     validate_metadata(record, files, inputs)
     if record['id'] == 'resolve-workspace-root':
         validate_resolver_recipe(root, record, inputs)
+    if record['id'] == 'node-forge':
+        forge_recipe(root, record)
     for replacement in record['replacements']:
         files[replacement['path']] = inputs[replacement['input']]
     if record['id'] == 'resolve-workspace-root':

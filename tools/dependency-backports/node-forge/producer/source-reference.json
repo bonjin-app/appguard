@@ -1,0 +1,23 @@
+{
+  "historical_source_inventory_sha256": "5b105ccf102ff3614bc6abfba6fe2e91597d867308c0f1ff9875d9b56d0033d9",
+  "lib_source_count": 49,
+  "official_webpack_config": {
+    "sha256": "5e70f8af959af5edf27b5a42985da607ad4047ba014a0a3da39d83973449f1dd",
+    "size": 3424
+  },
+  "published_source_archive": {
+    "integrity": "sha512-LarFH0+6VfriEhqMMcLX2F7SwSXeWwnEAJEsYm5QKWchiVYVvJyV9v7UDvUv+w5HO23ZpQTXDv/GxdDdMyOuoQ==",
+    "name": "node-forge",
+    "path": "node-forge/upstream.tgz",
+    "sha256": "bf9d7ca0d774235354697bd4b5e642af6505e7ce2066762c3b855138cf870820",
+    "size": 435334,
+    "url": "https://registry.npmjs.org/node-forge/-/node-forge-1.4.0.tgz",
+    "version": "1.4.0"
+  },
+  "publisher_build_reproduced": false,
+  "schema": 1,
+  "source_preparation": "Read all 49 lib files from the retained published archive, replace only lib/rsa.js with the retained patch, retain original package identity/LICENSE, add the unchanged official config.",
+  "upstream_git_archive_sha256": "79f01b6c1dd0c4d7fbb2a4b697fdddd2adcda32c427ccbdee8c74998fcae0765",
+  "upstream_git_archive_url": "https://codeload.github.com/digitalbazaar/forge/tar.gz/fa385f92440879601240020f158bed68e444e83a",
+  "upstream_git_commit": "fa385f92440879601240020f158bed68e444e83a"
+}

@@ -79,9 +79,12 @@ All records and command summaries retain:
 
 Forge distributions are exact previously reviewed output bytes; deterministic
 archive reassembly does **not** reproduce their compilation. Before production
-adoption, the readable modern Webpack recipe, full producer lock/config, exact
-Node/npm/tool pins and source/output joins must be retained under
-`node-forge/producer/`. An independent rebuild of all six JS files and three maps
+adoption, use the retained readable modern Webpack recipe, complete 86-record
+producer lock/config, exact Node/npm/tool pins and source/output joins under
+`node-forge/producer/`. Its README describes data-only preparation through
+`scripts/dependencies/build-forge.py`, complete available tool-tree verification,
+and the separate explicitly requested fresh compilation step. Retention alone
+does not qualify a producer. An independent rebuild of all six JS files and three maps
 must match every expected digest, or reproduction remains unverified. Static
 retention or a private execution receipt alone cannot qualify the producer.
 Previous unit results had four pending cases; previous main minified compilation
