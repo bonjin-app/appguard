@@ -3,6 +3,7 @@ import copy
 import importlib.util
 import json
 from pathlib import Path
+import re
 import shutil
 import subprocess
 import sys
@@ -35,6 +36,15 @@ class ForgeProducerTests(unittest.TestCase):
         for name in ('forge_recipe', 'prepare_forge', 'verify_forge_prepared', 'verify_forge_tools',
                      'check_forge_outputs', 'compare_forge_tree'):
             self.assertTrue(callable(getattr(b, name, None)), 'missing public producer API: ' + name)
+
+    def test_default_consumer_verifier_is_bound_to_retained_manifest(self):
+        # Fixture callers pass their own pins; the live SDK uses this explicit
+        # reviewed default. Check its real manifest join without SDK execution.
+        source = (ROOT / 'scripts/dependencies/verify-backports.cjs').read_text()
+        pins = re.findall(r"^const MANIFEST_SHA256 = '([a-f0-9]{64})';$", source, re.MULTILINE)
+        self.assertEqual(len(pins), 1)
+        self.assertRegex(source, r'function verifyConsumer\(root, expectedManifestHash=MANIFEST_SHA256\)')
+        self.assertEqual(pins[0], b.digest((BACKPORTS / 'manifest.json').read_bytes())['sha256'])
 
     def test_complete_recipe_source_lock_and_output_joins(self):
         self.require_api()
