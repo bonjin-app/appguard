@@ -6,6 +6,7 @@ import json
 import os
 from pathlib import Path
 import platform
+import re
 import shutil
 import subprocess
 import tarfile
@@ -33,6 +34,24 @@ TOOLS = {
         ('Darwin', 'arm64'): {'version': '0.76.1', 'url': 'https://github.com/aquasecurity/trivy/releases/download/v0.76.1/trivy_0.76.1_macOS-ARM64.tar.gz', 'sha256': '11a9b6cd2752011b54f01ea4bd0dbfa9f0c41dc6538d5a3f9d23955f471bf4e5'},
     },
 }
+
+VULNERABILITY_CHECKS = frozenset({'trivy-sbom', 'trivy-maven-runtime', 'trivy-tool-backports'})
+PUBLIC_SEVERITIES = frozenset({'UNKNOWN', 'LOW', 'MEDIUM', 'HIGH', 'CRITICAL'})
+PUBLIC_DIAGNOSTIC_LIMIT = 200
+
+
+def public_vulnerability_pair(identifier, severity):
+    """Normalize only public advisory IDs and the scanner's severity enum."""
+    if not isinstance(identifier, str) or not isinstance(severity, str):
+        return None
+    if re.fullmatch(r'CVE-[0-9]{4}-[0-9]{4,}', identifier, re.IGNORECASE):
+        identifier = identifier.upper()
+    elif re.fullmatch(r'GHSA-[23456789cfghjmpqrvwx]{4}(?:-[23456789cfghjmpqrvwx]{4}){2}', identifier, re.IGNORECASE):
+        identifier = 'GHSA-' + identifier[5:].lower()
+    else:
+        return None
+    severity = severity.upper()
+    return (identifier, severity) if severity in PUBLIC_SEVERITIES else None
 
 
 def install_tool(name, state, host=None):
@@ -139,6 +158,16 @@ def evaluate_report(item, report):
             item['returncode'] = 1
     if item['finding_counts']['Licenses']:
         item['license_review_required'] = True
+    if item.get('name') in VULNERABILITY_CHECKS:
+        pairs = set()
+        for result in report['Results']:
+            for finding in result.get('Vulnerabilities', []):
+                pair = public_vulnerability_pair(finding.get('VulnerabilityID'), finding.get('Severity'))
+                if pair is not None:
+                    pairs.add(pair)
+        item['vulnerability_diagnostics'] = [{'id': ident, 'severity': severity}
+                                             for ident, severity in sorted(pairs)[:PUBLIC_DIAGNOSTIC_LIMIT]]
+        item['diagnostics_truncated'] = len(pairs) > PUBLIC_DIAGNOSTIC_LIMIT
 
 
 def write_license_review(reports):
@@ -284,9 +313,13 @@ def run_scans(candidate, output):
                 item['report_available'] = (reports / report_name).is_file()
                 if not name.startswith('syft') and item['report_available']:
                     try:
-                        report = json.loads((reports / report_name).read_text())
+                        # Counts, optional diagnostics, hash and binding all use
+                        # this same byte snapshot, including a nonzero tool exit.
+                        raw_report = (reports / report_name).read_bytes()
+                        item['report_sha256'] = hashlib.sha256(raw_report).hexdigest()
+                        report = json.loads(raw_report)
                         evaluate_report(item, report)
-                    except (ValueError, TypeError, AttributeError):
+                    except (OSError, ValueError, TypeError, AttributeError):
                         item.update(report_parse_error=True, returncode=65)
                 if name == 'syft' and item['returncode'] == 0:
                     try:
@@ -309,11 +342,12 @@ def run_scans(candidate, output):
                     except (OSError, ValueError, TypeError, KeyError) as error:
                         item.update(returncode=65, recorded_runtime_coverage_passed=False, coverage_error=str(error))
                 if name.startswith('trivy-') and item['report_available']:
-                    item['report_sha256'] = hashlib.sha256((reports / report_name).read_bytes()).hexdigest()
                     item['scan_artifact_name'] = command[-1]
                     item['input_sha256'] = input_sha256
                     try:
-                        validate_report_binding(reports, status, item, json.loads((reports / report_name).read_text()))
+                        if item.get('report_parse_error'):
+                            raise ValueError('Invalid report snapshot')
+                        validate_report_binding(reports, status, item, report)
                     except (OSError, ValueError, TypeError, AttributeError):
                         item.update(returncode=65, report_binding_error=True)
                 status['commands'].append(item)
@@ -343,7 +377,7 @@ def run_scans(candidate, output):
 
 
 def public_check_summary(status):
-    """Fixed-label counts for CI debugging; never raw errors, paths or findings."""
+    """Fixed-label counts and validated public IDs; never raw diagnostic bodies."""
     known = {'maven-runtime', 'syft', 'trivy-sbom', 'trivy-licenses', 'trivy-secrets',
              'syft-maven-runtime', 'trivy-maven-runtime', 'trivy-maven-runtime-licenses',
              'trivy-tool-backports', 'trivy-tool-backports-licenses'}
@@ -358,6 +392,22 @@ def public_check_summary(status):
             count = counts.get(kind) if isinstance(counts, dict) else None
             if type(count) is int and 0 <= count <= 2147483647:
                 entry[kind.lower()] = count
+        digest = item.get('report_sha256')
+        diagnostics = item.get('vulnerability_diagnostics')
+        if (item['name'] in VULNERABILITY_CHECKS and isinstance(digest, str)
+                and re.fullmatch(r'[0-9a-f]{64}', digest) and isinstance(diagnostics, list)):
+            pairs = set()
+            for finding in diagnostics:
+                if isinstance(finding, dict):
+                    pair = public_vulnerability_pair(finding.get('id'), finding.get('severity'))
+                    if pair is not None:
+                        pairs.add(pair)
+            entry['report_sha256'] = digest
+            entry['vulnerability_diagnostics'] = [{'id': ident, 'severity': severity}
+                                                  for ident, severity in sorted(pairs)[:PUBLIC_DIAGNOSTIC_LIMIT]]
+            if type(item.get('diagnostics_truncated')) is bool or len(pairs) > PUBLIC_DIAGNOSTIC_LIMIT:
+                entry['diagnostics_truncated'] = (item.get('diagnostics_truncated') is True
+                                                   or len(pairs) > PUBLIC_DIAGNOSTIC_LIMIT)
         checks.append(entry)
     return {'automated_checks_passed': status.get('automated_checks_passed') is True,
             'release_ready': False, 'checks': checks}

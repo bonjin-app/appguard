@@ -22,6 +22,45 @@ def step_script(name):
 
 
 class WorkflowShellTests(unittest.TestCase):
+    def assert_forge_contract(self, script):
+        for required in ('umask 077', 'mktemp -d "$RUNNER_TEMP/appguard-forge.XXXXXX"',
+                         'test_forge_producer.py', '--prepare "$forge_state/prepared"',
+                         '--verify-prepared "$forge_state/prepared"', '--verify-tools "$forge_state/prepared"',
+                         '--build "$forge_state/prepared"', '--output "$forge_state/output"',
+                         '--node "$forge_node"', '--npm-package "$forge_npm_package"',
+                         'update-notifier=false', 'offline=true', 'NPM_CONFIG_USERCONFIG=',
+                         'NPM_CONFIG_GLOBALCONFIG=', 'NPM_CONFIG_CACHE=',
+                         'ci --ignore-scripts --offline=false --registry=https://registry.npmjs.org/',
+                         '22.23.2', '10.9.8', "['name'] == 'npm'", "'bin/npm-cli.js'",
+                         'NODE_OPTIONS', 'NODE_PATH', '-I -S -B'):
+            self.assertIn(required, script)
+        self.assertEqual(script.count('--offline=false'), 1)
+        ordered = ['test_forge_producer.py', '--prepare', '--verify-prepared',
+                   'ci --ignore-scripts', '--verify-tools', '--build']
+        self.assertEqual([script.index(value) for value in ordered],
+                         sorted(script.index(value) for value in ordered))
+        self.assertNotRegex(script, r'(?i)(?:\b(?:CODEX_HOME|HOME)\s*=|npm\s+(?:install|config)|\bnpx\b|legacy-provider|\brm\s|\btrap\s)')
+
+    def test_forge_supported_workflow_contract_and_mutations(self):
+        script = step_script('Fresh retained Forge producer verification')
+        self.assert_forge_contract(script)
+        syntax = subprocess.run(['bash', '-n'], input=script, text=True, capture_output=True,
+                                env=dict(os.environ), timeout=15)
+        self.assertEqual(syntax.returncode, 0, syntax.stderr)
+        for required in ('--prepare', '--verify-prepared', '--verify-tools', '--build',
+                         '--ignore-scripts', 'offline=true', 'update-notifier=false',
+                         '--npm-package', 'test_forge_producer.py', "'bin/npm-cli.js'",
+                         '22.23.2', '10.9.8', 'NPM_CONFIG_CACHE=', 'NPM_CONFIG_GLOBALCONFIG='):
+            with self.subTest(required=required), self.assertRaises(AssertionError):
+                self.assert_forge_contract(script.replace(required, 'REMOVED'))
+        for forbidden in ('\nexport HOME=/tmp/other', '\nexport CODEX_HOME=/tmp/other',
+                          '\nnpm install -g npm', '\nnpx webpack', '\nNODE_OPTIONS=--openssl-legacy-provider'):
+            with self.subTest(forbidden=forbidden), self.assertRaises(AssertionError):
+                self.assert_forge_contract(script + forbidden)
+        job = WORKFLOW.read_text().split('  javascript-clients:', 1)[1].split('  apple:', 1)[0]
+        self.assertIn('actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97', job)
+        self.assertIn("python-version: '3.11'", job)
+
     def run_step(self, name, setup):
         with tempfile.TemporaryDirectory() as temp:
             base = Path(temp).resolve()

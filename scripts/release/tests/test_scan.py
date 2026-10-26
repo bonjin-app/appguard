@@ -147,6 +147,67 @@ class ScanTests(unittest.TestCase):
             SPEC.loader.exec_module(module)
         return module
 
+    def test_public_vulnerability_diagnostics_are_validated_bounded_and_redacted(self):
+        m = self.module()
+        for label in ('trivy-sbom', 'trivy-maven-runtime', 'trivy-tool-backports'):
+            item = {'name': label, 'returncode': 0, 'report_sha256': 'a' * 64}
+            report = {'SchemaVersion': 2, 'Results': [{'Target': '/PRIVATE_PATH', 'Vulnerabilities': [
+                {'VulnerabilityID': 'ghsa-vfj7-8cjw-p6xm', 'Severity': 'high',
+                 'PkgName': 'PRIVATE_PACKAGE', 'Description': 'PRIVATE_SECRET'},
+                {'VulnerabilityID': 'CVE-2026-12345', 'Severity': 'CRITICAL'},
+                {'VulnerabilityID': 'CVE-2026-12345', 'Severity': 'CRITICAL'},
+                {'VulnerabilityID': 'CVE-2026-1234/PRIVATE', 'Severity': 'HIGH'},
+                {'VulnerabilityID': 'GHSA-aaaa-bbbb-cccc', 'Severity': 'HIGH'},
+                {'VulnerabilityID': 'CVE-2026-1234', 'Severity': 'PRIVATE'},
+                {'VulnerabilityID': ['PRIVATE'], 'Severity': 4}]}]}
+            m.evaluate_report(item, report)
+            entry = m.public_check_summary({'commands': [item]})['checks'][0]
+            self.assertEqual(entry['vulnerabilities'], 7)
+            self.assertEqual(entry['returncode'], 1)
+            self.assertEqual(entry['report_sha256'], 'a' * 64)
+            self.assertEqual(entry['vulnerability_diagnostics'], [
+                {'id': 'CVE-2026-12345', 'severity': 'CRITICAL'},
+                {'id': 'GHSA-vfj7-8cjw-p6xm', 'severity': 'HIGH'}])
+            self.assertFalse(entry['diagnostics_truncated'])
+            self.assertNotIn('PRIVATE', json.dumps(entry))
+
+    def test_invalid_optional_diagnostics_do_not_change_counts_or_gate(self):
+        m = self.module()
+        valid = {'id': 'CVE-2026-1234', 'severity': 'HIGH', 'message': 'PRIVATE'}
+        for digest in (None, 1, 'A' * 64, 'a' * 63, 'a' * 64 + '\n'):
+            item = {'name': 'trivy-sbom', 'returncode': 1, 'report_sha256': digest,
+                    'finding_counts': {'Vulnerabilities': 3}, 'vulnerability_diagnostics': [valid]}
+            entry = m.public_check_summary({'commands': [item]})['checks'][0]
+            self.assertEqual(entry, {'check': 'trivy-sbom', 'returncode': 1, 'vulnerabilities': 3})
+        for optional in (None, 'PRIVATE', {}, [None, valid, {'id': {}, 'severity': []}]):
+            item = {'name': 'trivy-secrets', 'returncode': 1, 'report_sha256': 'a' * 64,
+                    'vulnerability_diagnostics': optional}
+            self.assertEqual(m.public_check_summary({'commands': [item]})['checks'],
+                             [{'check': 'trivy-secrets', 'returncode': 1}])
+        for optional in (None, 'PRIVATE', {}):
+            item = {'name': 'trivy-sbom', 'returncode': 1, 'report_sha256': 'a' * 64,
+                    'vulnerability_diagnostics': optional}
+            self.assertEqual(m.public_check_summary({'commands': [item]})['checks'],
+                             [{'check': 'trivy-sbom', 'returncode': 1}])
+        item.update(vulnerability_diagnostics=[None, valid, {'id': {}, 'severity': []}],
+                    diagnostics_truncated='PRIVATE', unexpected='PRIVATE')
+        entry = m.public_check_summary({'commands': [item]})['checks'][0]
+        self.assertEqual(entry['vulnerability_diagnostics'], [{'id': 'CVE-2026-1234', 'severity': 'HIGH'}])
+        self.assertNotIn('diagnostics_truncated', entry)
+        self.assertNotIn('PRIVATE', json.dumps(entry))
+
+    def test_diagnostics_truncation_preserves_raw_finding_count_and_failure(self):
+        m = self.module()
+        item = {'name': 'trivy-sbom', 'returncode': 0, 'report_sha256': 'b' * 64}
+        m.evaluate_report(item, {'SchemaVersion': 2, 'Results': [{'Vulnerabilities': [
+            {'VulnerabilityID': 'CVE-2026-' + str(1000 + n), 'Severity': 'LOW'}
+            for n in range(205)]}]})
+        entry = m.public_check_summary({'commands': [item]})['checks'][0]
+        self.assertEqual(entry['vulnerabilities'], 205)
+        self.assertEqual(entry['returncode'], 1)
+        self.assertEqual(len(entry['vulnerability_diagnostics']), 200)
+        self.assertTrue(entry['diagnostics_truncated'])
+
     def test_download_checksum_mismatch_fails_before_extraction(self):
         m = self.module()
         with tempfile.TemporaryDirectory() as tmp, patch.object(m.urllib.request, 'urlopen', return_value=io.BytesIO(b'wrong')):
@@ -334,8 +395,8 @@ class ScanTests(unittest.TestCase):
                         observed[target.name] = {c['purl'] for c in json.loads(Path(command[-1]).read_text())['components']}
                         if target.name == 'trivy-tool-backports.json':
                             report['Results'] = [{'Vulnerabilities': [
-                                {'VulnerabilityID': 'GHSA-vfj7-8cjw-p6xm', 'PkgName': 'braces'},
-                                {'VulnerabilityID': 'GHSA-86w9-cpqp-85rv', 'PkgName': 'node-forge'}]}]
+                                {'VulnerabilityID': 'GHSA-vfj7-8cjw-p6xm', 'Severity': 'HIGH', 'PkgName': 'PRIVATE_PACKAGE'},
+                                {'VulnerabilityID': 'GHSA-86w9-cpqp-85rv', 'Severity': 'LOW', 'PkgName': 'PRIVATE_PACKAGE'}]}]
                 target.write_text(json.dumps(report))
                 return m.subprocess.CompletedProcess(command, 0)
             def export_fixture(source, state, reports, env):
@@ -368,7 +429,13 @@ class ScanTests(unittest.TestCase):
             self.assertEqual(denied.exception.reason, 'vulnerability_findings')
             public = m.public_check_summary(status)
             self.assertEqual(next(c for c in public['checks'] if c['check'] == 'trivy-tool-backports')['vulnerabilities'], 2)
-            self.assertNotIn('GHSA', json.dumps(public))
+            public_tool = next(c for c in public['checks'] if c['check'] == 'trivy-tool-backports')
+            self.assertEqual(public_tool['report_sha256'], hashlib.sha256((scans / 'trivy-tool-backports.json').read_bytes()).hexdigest())
+            self.assertEqual(public_tool['vulnerability_diagnostics'], [
+                {'id': 'GHSA-86w9-cpqp-85rv', 'severity': 'LOW'},
+                {'id': 'GHSA-vfj7-8cjw-p6xm', 'severity': 'HIGH'}])
+            self.assertNotIn('PRIVATE_PACKAGE', json.dumps(public))
+            self.assertNotIn(str(base), json.dumps(public))
 
     def test_license_findings_stay_visible_without_security_failure(self):
         m = self.module()

@@ -240,6 +240,46 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 22.23.2
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.11'
+      - name: Fresh retained Forge producer verification
+        run: |
+          set -euo pipefail
+          umask 077
+          forge_state="$(mktemp -d "$RUNNER_TEMP/appguard-forge.XXXXXX")"
+          mkdir "$forge_state/cache"
+          printf 'update-notifier=false\noffline=true\n' > "$forge_state/npmrc"
+          : > "$forge_state/global-npmrc"
+          export NPM_CONFIG_USERCONFIG="$forge_state/npmrc"
+          export NPM_CONFIG_GLOBALCONFIG="$forge_state/global-npmrc"
+          export NPM_CONFIG_CACHE="$forge_state/cache"
+          [[ -z "${NODE_OPTIONS:-}" && -z "${NODE_PATH:-}" ]]
+          forge_node="$(command -v node)"
+          forge_npm="$(command -v npm)"
+          # Require npm's CLI and metadata from the same setup-node installation.
+          forge_npm_package="$(python3 -I -S -B - "$forge_node" "$forge_npm" <<'PYTHON'
+          import json, pathlib, sys
+          node, npm = (pathlib.Path(arg).resolve(strict=True) for arg in sys.argv[1:])
+          package = node.parent.parent / 'lib/node_modules/npm/package.json'
+          metadata = json.loads(package.read_bytes())
+          assert metadata['name'] == 'npm' and metadata['version'] == '10.9.8'
+          assert npm == (package.parent / 'bin/npm-cli.js').resolve(strict=True)
+          print(package)
+          PYTHON
+          )"
+          forge_npm_cli="$(dirname "$forge_npm_package")/bin/npm-cli.js"
+          [[ "$("$forge_node" --version)" == v22.23.2 ]]
+          [[ "$("$forge_node" "$forge_npm_cli" --version)" == 10.9.8 ]]
+          python3 -I -S -B .github/tests/test_forge_producer.py -v
+          python3 -I -S -B scripts/dependencies/build-forge.py --prepare "$forge_state/prepared"
+          python3 -I -S -B scripts/dependencies/build-forge.py --verify-prepared "$forge_state/prepared"
+          # Only this fresh locked install may override the persistent offline setting.
+          (cd "$forge_state/prepared/producer" && "$forge_node" "$forge_npm_cli" ci --ignore-scripts --offline=false --registry=https://registry.npmjs.org/ --no-audit --no-fund)
+          python3 -I -S -B scripts/dependencies/build-forge.py --verify-tools "$forge_state/prepared"
+          python3 -I -S -B scripts/dependencies/build-forge.py --build "$forge_state/prepared" \
+            --output "$forge_state/output" --node "$forge_node" --npm-package "$forge_npm_package"
+          # Preserve partial source/output/cache until runner teardown; upload none.
       - name: CLI tests and local package
         run: |
           npm --prefix tools/cli test
