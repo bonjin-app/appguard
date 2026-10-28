@@ -16,9 +16,11 @@ builds, caches, environments, keys and certificates without excluding an entire
 SDK tree. No secret is supplied as a build argument or copied into an image.
 
 [base-images.json](base-images.json) records the official registry index digests
-and their amd64/arm64 child manifests reviewed on 2026-10-22. The exact registry
-response bytes and `Docker-Content-Digest` header matched each SHA-256. These
-immutable pins identify content; they do not certify vulnerability status.
+and their amd64/arm64 child manifests. The initial image set was reviewed on
+2026-10-22; the Temurin runtime record was refreshed on 2026-10-28. The exact
+registry index response bytes and `Docker-Content-Digest` header matched each
+SHA-256. These immutable pins identify content; they do not certify vulnerability
+status.
 The current pins use Python 3.11.17 and Redis 7.2.16. The Maven 3.9.16
 builder and Temurin 17 JRE both declare `jdk-17.0.20.1+1` on amd64 and arm64
 in their hash-bound OCI configuration metadata. Runtime execution and image

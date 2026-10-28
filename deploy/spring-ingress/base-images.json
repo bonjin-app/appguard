@@ -1,7 +1,7 @@
 {
   "schema": 1,
   "reviewed_at": "2026-10-22",
-  "verification": "Registry index response digest header and SHA-256 of exact bytes matched. Linux amd64/arm64 child manifest and OCI config blob SHA-256 values matched their descriptors; declared versions were read from those hash-bound configs. Metadata is not runtime execution, native dependency closure or vulnerability approval.",
+  "verification": "The initial image set was reviewed on 2026-10-22; the Temurin runtime record was refreshed on 2026-10-28. Registry index response digest header and SHA-256 of exact bytes matched. Linux amd64/arm64 child manifest and OCI config blob SHA-256 values matched their descriptors; declared versions were read from those hash-bound configs. Metadata is not runtime execution, native dependency closure or vulnerability approval.",
   "images": [
     {
       "image": "docker.io/library/python:3.11.17-alpine3.24@sha256:03c8e956bf1eee7763faf3a9fbb24b3ff9c0496cc2dbc5bcb0d6ac1f6268a287",
@@ -48,17 +48,18 @@
       }
     },
     {
-      "image": "docker.io/library/eclipse-temurin:17-jre-noble@sha256:07fa0356cf354c5252947575f42ed42aa6fd921f36438b7bc77ad81c31c537dd",
+      "image": "docker.io/library/eclipse-temurin:17-jre-noble@sha256:b3e1d0486f09293b2455aed02d396d4b6b5ea9b0e8c7c065c297cfef453b0116",
       "registry_url": "https://registry-1.docker.io/v2/library/eclipse-temurin/manifests/17-jre-noble",
       "official_image": "https://hub.docker.com/_/eclipse-temurin",
-      "manifest_sha256": "07fa0356cf354c5252947575f42ed42aa6fd921f36438b7bc77ad81c31c537dd",
+      "reviewed_at": "2026-10-28",
+      "manifest_sha256": "b3e1d0486f09293b2455aed02d396d4b6b5ea9b0e8c7c065c297cfef453b0116",
       "platform_manifests": {
-        "amd64": "sha256:e7ee15413d334217ca732978500b310e1a0bb8a5e54d9b6dd12509f636cda99e",
-        "arm64": "sha256:475beaab016aa5f762b2230af4d7f0d8f94daad0ea858a60179296d46696931d"
+        "amd64": "sha256:3bfc6f507a7e543939c54f5b59f49c13886b999fdda8f253b649849f0881bb02",
+        "arm64": "sha256:e9b84c175abf0e476aa24a9540ae5f472b2ebe9968037c1df90322c0ad4ce6cd"
       },
       "platform_configs": {
-        "amd64": "sha256:5eb339fa0dc333ecdb302fbacc8292df0d5bb12b13b22c74a493b0ff2b476852",
-        "arm64": "sha256:1ed5b0424242ca03d63cebc7d4578ded7cdba15cbd68cf2fe385eadd0750d5fa"
+        "amd64": "sha256:cc1189d9655db955c83834b2e692bb699b63f343152fdfd09c1f44eab25f6863",
+        "arm64": "sha256:3fb00139d913d968fe2dc04fc2aa040a6d44f1854800e483dda0a9bc2c361c79"
       },
       "platform_declared_versions": {
         "amd64": {
